@@ -12,7 +12,7 @@ Apps can be launched four ways, all converging on a single declarative `App` res
 - 🌐 **A REST API** for programmatic CRUD + observability.
 - 🖥️ **A form-based UI** directly from the dashboard ui.
 
-Python apps run inside **pixi environments** managed by [Nebi](https://github.com/) and
+Python apps run inside **pixi environments** managed by [Nebi](https://nebi.nebari.dev/) and
 delivered as OCI artifacts.
 
 > **Status:** Design phase. See [`docs/DESIGN.md`](docs/DESIGN.md) and
@@ -24,7 +24,7 @@ delivered as OCI artifacts.
 
 Every producer — agent/MCP, API, UI, or (optional) GitOps — writes the same **`App` custom
 resource** (`apps.nebari.dev/v1alpha1`). The **apps-operator** reconciles it into a Deployment +
-Service + a `NebariApp`; the existing [nebari-operator](https://github.com/) turns that
+Service + a `NebariApp`; the existing [nebari-operator](https://github.com/nebari-dev/nebari-operator) turns that
 `NebariApp` into routing (HTTPRoute), TLS (cert-manager), **Keycloak SSO**, and a landing-page
 tile.
 
