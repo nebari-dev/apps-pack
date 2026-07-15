@@ -1,0 +1,66 @@
+name: Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  helm:
+    name: Helm chart
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+
+      - name: helm lint
+        run: helm lint charts/nebari-apps --set clusterDomain=nebari.example.com
+
+      - name: helm template
+        run: |
+          helm template test charts/nebari-apps \
+            --set clusterDomain=nebari.example.com > /tmp/rendered.yaml
+          echo "Rendered $(grep -c '^kind:' /tmp/rendered.yaml) resources"
+
+      - name: Validate example App CRs against the CRD schema
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz \
+            | tar xz -C /usr/local/bin kubeconform
+          # Convert the CRD to a kubeconform-compatible JSON schema
+          pip install pyyaml
+          python3 - <<'EOF'
+          import json, yaml
+          crd = yaml.safe_load(open("charts/nebari-apps/crds/apps.nebari.dev_apps.yaml"))
+          schema = crd["spec"]["versions"][0]["schema"]["openAPIV3Schema"]
+          json.dump(schema, open("/tmp/app-schema.json", "w"))
+          EOF
+          # Only App resources are in these files, so a literal schema path works
+          kubeconform -schema-location '/tmp/app-schema.json' \
+            -summary examples/static-inline-app.yaml examples/static-git-app.yaml
+
+  go:
+    name: Operator
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: operator/go.mod
+
+      - name: go vet
+        working-directory: operator
+        run: go vet ./...
+
+      - name: go build
+        working-directory: operator
+        run: go build ./...
+
+      - name: Verify generated code is up to date
+        working-directory: operator
+        run: |
+          go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.19.0
+          controller-gen object paths="./api/..."
+          controller-gen crd paths="./api/..." output:crd:artifacts:config=../charts/nebari-apps/crds
+          git diff --exit-code || (echo "::error::Generated code is stale; run controller-gen" && exit 1)

@@ -1,0 +1,27 @@
+# A public static app whose content is carried inline in the CR.
+# The operator materializes the files as a ConfigMap-backed volume served by
+# nginx, and emits a NebariApp for routing + TLS (no auth: access.public).
+apiVersion: apps.nebari.dev/v1alpha1
+kind: App
+metadata:
+  name: docs-site
+spec:
+  displayName: "Docs Site"
+  description: "A tiny inline static site"
+  framework: static
+  source:
+    type: inline
+    inline:
+      files:
+        index.html: |
+          <!doctype html>
+          <html>
+            <head><title>Docs Site</title></head>
+            <body>
+              <h1>Hello from the Nebari Apps Pack</h1>
+              <p>This static site was launched from an App custom resource.</p>
+            </body>
+          </html>
+  access:
+    public: true
+    subdomain: docs-site

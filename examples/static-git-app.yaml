@@ -1,0 +1,24 @@
+# A group-restricted static app sourced from a git repository.
+# An init container clones the repo; nginx serves the subdir. Access is
+# enforced at the gateway by the NebariApp SecurityPolicy (Keycloak SSO).
+apiVersion: apps.nebari.dev/v1alpha1
+kind: App
+metadata:
+  name: team-site
+spec:
+  displayName: "Team Site"
+  description: "Static site cloned from git"
+  framework: static
+  owner: jbouder
+  source:
+    type: git
+    git:
+      url: https://github.com/nebari-dev/nebari-apps-pack
+      ref: main
+      subdir: examples/site
+  runtime:
+    replicas: 1
+  access:
+    public: false
+    groups: ["analysts"]
+    subdomain: team-site

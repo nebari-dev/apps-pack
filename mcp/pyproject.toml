@@ -1,0 +1,33 @@
+[project]
+name = "nebari-apps-mcp"
+version = "0.1.0"
+description = "MCP server for the Nebari Apps Pack - launch and manage web apps from coding agents"
+requires-python = ">=3.12"
+dependencies = [
+    "fastmcp>=2.10",
+    "httpx>=0.27",
+    "PyJWT[crypto]>=2.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    # The tests run the MCP tools against the real apps-api in-process.
+    "fastapi>=0.115",
+    "python-multipart>=0.0.12",
+    "PyJWT[crypto]>=2.9",
+    "kubernetes>=31.0",
+    "pydantic>=2.9",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/nebari_apps_mcp"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

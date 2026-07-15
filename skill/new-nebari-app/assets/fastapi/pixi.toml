@@ -1,0 +1,14 @@
+# Local dev environment (and, once Nebi ociEnv launches land, the deployed
+# environment too - keep dependencies in sync with the Dockerfile).
+[project]
+name = "APP_NAME"
+channels = ["conda-forge"]
+platforms = ["linux-64", "osx-arm64", "osx-64"]
+
+[dependencies]
+python = "3.12.*"
+fastapi = ">=0.115"
+uvicorn = ">=0.32"
+
+[tasks]
+dev = "uvicorn app:app --reload --port 8080"

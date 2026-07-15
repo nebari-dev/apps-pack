@@ -1,0 +1,128 @@
+# Default values for nebari-apps.
+
+# =============================================================================
+# Cluster integration
+# =============================================================================
+# The cluster's base domain. Required - there is no sensible default.
+clusterDomain: ""
+
+# Domain apps are exposed under: https://<subdomain>.<appsDomain>.
+# Defaults to apps.<clusterDomain>, e.g. my-app.apps.example.ai.
+appsDomain: ""
+
+# Shared Gateway that app NebariApps attach to: public | internal.
+gateway: public
+
+# TLS for everything this pack exposes (the UI and every launched app).
+# Disable to serve plain HTTP - no certificates, no HTTPS listeners
+# (useful for local development; keep enabled on real clusters).
+tls:
+  enabled: true
+
+# =============================================================================
+# apps-operator
+# =============================================================================
+operator:
+  image:
+    repository: ghcr.io/nebari-dev/nebari-apps-pack/apps-operator
+    tag: ""            # Defaults to .Chart.appVersion
+    pullPolicy: IfNotPresent
+
+  replicaCount: 1
+  leaderElection: true
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+# =============================================================================
+# apps-api
+# =============================================================================
+api:
+  enabled: true
+  image:
+    repository: ghcr.io/nebari-dev/nebari-apps-pack/apps-api
+    tag: ""            # Defaults to .Chart.appVersion
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+  # Keycloak JWT bearer auth for the API (and keycloak-js login in the UI).
+  # Disable only for local development without a browser-reachable Keycloak.
+  auth:
+    enabled: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+# =============================================================================
+# apps-ui
+# =============================================================================
+ui:
+  enabled: true
+  image:
+    repository: ghcr.io/nebari-dev/nebari-apps-pack/apps-ui
+    tag: ""            # Defaults to .Chart.appVersion
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+  # Hostname for the UI; defaults to the apps domain itself, so the UI lives
+  # at https://apps.<clusterDomain> and launched apps at https://<name>.apps.<clusterDomain>.
+  hostname: ""
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 128Mi
+
+# =============================================================================
+# apps-mcp
+# =============================================================================
+mcp:
+  enabled: true
+  image:
+    repository: ghcr.io/nebari-dev/nebari-apps-pack/apps-mcp
+    tag: ""            # Defaults to .Chart.appVersion
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+  # Agents connect at https://<ui hostname>/mcp (streamable HTTP) - the UI's
+  # nginx proxies /mcp to this service, so there is no separate hostname.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+# =============================================================================
+# Keycloak (used when api.auth.enabled)
+# =============================================================================
+keycloak:
+  # Browser-facing Keycloak base URL, e.g. https://keycloak.example.ai/auth
+  url: ""
+  realm: nebari
+  # Optional in-cluster URL (split horizon) used by the API to fetch JWKS.
+  internalUrl: ""
+
+# =============================================================================
+# App runtime images
+# =============================================================================
+# Image serving static app content. Must listen on 8080 as a non-root user.
+staticImage: nginxinc/nginx-unprivileged:1.27-alpine
+
+# Image used by init containers to fetch git sources.
+gitImage: alpine/git:v2.47.2
+
+# =============================================================================
+# Overrides
+# =============================================================================
+nameOverride: ""
+fullnameOverride: ""

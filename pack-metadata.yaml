@@ -1,0 +1,14 @@
+# Nebari pack metadata for the software-pack-dashboard.
+# Schema: https://github.com/nebari-dev/software-pack-dashboard/blob/main/schema/pack-metadata.schema.json
+name: nebari-apps-pack
+display_name: Nebari Apps Pack
+description: Launch, manage, and observe static and Python web applications on a Nebari cluster behind Keycloak SSO, via an App CRD reconciled by an operator.
+level: experimental
+owner: jbouder
+deprecated: false
+nebariapp_integration: full
+docs_site: true
+links:
+  docs: https://packs.nebari.dev/nebari-apps-pack/
+scope:
+  standalone-supported: false

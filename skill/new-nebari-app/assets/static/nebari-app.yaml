@@ -1,0 +1,13 @@
+# Launch manifest for the Nebari Apps Pack.
+# Say "launch it" to a coding agent connected to the nebari-apps MCP server.
+name: APP_NAME
+namespace: apps
+displayName: "APP_DISPLAY_NAME"
+framework: static
+source:
+  type: files
+  files:
+    path: .            # directory containing index.html, relative to this file
+access:
+  public: true
+  subdomain: APP_NAME

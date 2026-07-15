@@ -1,0 +1,30 @@
+[project]
+name = "nebari-apps-api"
+version = "0.1.0"
+description = "REST API for the Nebari Apps Pack - CRUD + observability over App custom resources"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "kubernetes>=31.0",
+    "pydantic>=2.9",
+    "python-multipart>=0.0.12",
+    "PyJWT[crypto]>=2.9",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/nebari_apps_api"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

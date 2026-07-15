@@ -55,3 +55,4 @@ kubeconfig
 *.kubeconfig
 tilt_modules/
 .tilt/
+dev/.cache/
