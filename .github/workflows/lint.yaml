@@ -20,7 +20,8 @@ jobs:
       - name: helm template
         run: |
           helm template test charts/nebari-apps \
-            --set clusterDomain=nebari.example.com > /tmp/rendered.yaml
+            --set clusterDomain=nebari.example.com \
+            --set keycloak.url=https://keycloak.nebari.example.com/auth > /tmp/rendered.yaml
           echo "Rendered $(grep -c '^kind:' /tmp/rendered.yaml) resources"
 
       - name: Validate example App CRs against the CRD schema
@@ -60,7 +61,7 @@ jobs:
       - name: Verify generated code is up to date
         working-directory: operator
         run: |
-          go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.19.0
+          go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.21.0
           controller-gen object paths="./api/..."
           controller-gen crd paths="./api/..." output:crd:artifacts:config=../charts/nebari-apps/crds
           git diff --exit-code || (echo "::error::Generated code is stale; run controller-gen" && exit 1)
