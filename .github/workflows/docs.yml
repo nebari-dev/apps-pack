@@ -13,9 +13,9 @@ concurrency:
   group: docs-${{ github.ref }}
   cancel-in-progress: true
 env:
-  # Route slug on the portal; also the production Astro base path (/nebari-apps-pack/).
-  PACK_SLUG: nebari-apps-pack
-  CF_PROJECT: nebari-apps-pack
+  # Route slug on the portal; also the production Astro base path (/apps-pack/).
+  PACK_SLUG: apps-pack
+  CF_PROJECT: apps-pack
 jobs:
   docs:
     runs-on: ubuntu-latest
