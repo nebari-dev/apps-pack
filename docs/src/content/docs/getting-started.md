@@ -65,8 +65,8 @@ kubectl get apps -n apps -w
 ```
 
 ```
-NAME        FRAMEWORK   PHASE     URL
-docs-site   static      Running   https://docs-site.apps.example.ai
+NAME        SOURCE   PHASE     URL
+docs-site   inline   Running   https://docs-site.apps.example.ai
 ```
 
 When `PHASE` reaches `Running`, open the URL. Private apps redirect to Keycloak; public apps
@@ -85,7 +85,6 @@ kubectl get deploy,svc,cm,nebariapp -n apps
 #   Validated: True         - spec is coherent, namespace opted in
 #   WorkloadReady: True     - all replicas ready
 #   RoutingReady: True      - the NebariApp reports Ready (routing/TLS/auth)
-#   EnvironmentReady: True  - (static apps: not required)
 ```
 
 Deleting an `App` cascades: the Deployment, Service, ConfigMap, and `NebariApp` (and through

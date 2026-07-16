@@ -69,7 +69,7 @@ async def test_valid_session_token_passes(auth_on):
     try:
         async with Client(mcp) as client:
             caps = (await client.call_tool("describe_cluster", {})).data
-            assert caps["nebi"] is False
+            assert "inline" in caps["sourceTypes"]
     finally:
         seed_session_token.restore()  # type: ignore[attr-defined]
 

@@ -56,9 +56,7 @@ anonymously.
 | Tool | Purpose |
 |---|---|
 | `authenticate` | Start/complete the device-flow login, or confirm the cached token. |
-| `describe_cluster` | Frameworks, launchable namespaces, apps domain, Nebi availability — call first to pick valid options. |
-| `list_frameworks` | Frameworks with allowed and implemented source types. |
-| `list_environments` | Nebi pixi environments (empty until that integration lands). |
+| `describe_cluster` | Source types, launchable namespaces, apps domain — call first to pick valid options. |
 | `launch_app` | Create + launch. **Idempotent on (namespace, name)** — re-launching updates instead of failing, so retries are safe. |
 | `list_apps` | Apps with phase, URL, owner; optional namespace filter. |
 | `get_app` | Full spec + status for one app. |
@@ -76,7 +74,7 @@ Every tool returns structured JSON. Errors carry the API's human-readable `detai
 > *"Launch the site in ./docs-site as a public app called docs-site"*
 
 1. `describe_cluster` → namespaces `["apps", ...]`, appsDomain `apps.example.ai`
-2. `launch_app` with `framework: static`, `source_type: inline`, the directory's files as
+2. `launch_app` with `source_type: inline`, the directory's files as
    `inline_files`, `public: true`, `subdomain: docs-site`
 3. `get_app_status` until `phase: Running`
 4. Report `https://docs-site.apps.example.ai` back to the user

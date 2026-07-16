@@ -5,28 +5,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// Framework identifies how an app is launched and served.
-// +kubebuilder:validation:Enum=static;streamlit;panel;gradio;dash;voila;fastapi;custom
-type Framework string
-
-const (
-	FrameworkStatic    Framework = "static"
-	FrameworkStreamlit Framework = "streamlit"
-	FrameworkPanel     Framework = "panel"
-	FrameworkGradio    Framework = "gradio"
-	FrameworkDash      Framework = "dash"
-	FrameworkVoila     Framework = "voila"
-	FrameworkFastAPI   Framework = "fastapi"
-	FrameworkCustom    Framework = "custom"
-)
-
-// SourceType identifies where an app's code (and environment) comes from.
-// +kubebuilder:validation:Enum=ociEnv;image;git;inline;pvc
+// SourceType identifies where an app's static content comes from.
+// +kubebuilder:validation:Enum=git;inline;pvc
 type SourceType string
 
 const (
-	SourceTypeOCIEnv SourceType = "ociEnv"
-	SourceTypeImage  SourceType = "image"
 	SourceTypeGit    SourceType = "git"
 	SourceTypeInline SourceType = "inline"
 	SourceTypePVC    SourceType = "pvc"
@@ -48,16 +31,6 @@ type GitSource struct {
 	Subdir string `json:"subdir,omitempty"`
 }
 
-// ImageSource references a prebuilt, self-contained container image.
-type ImageSource struct {
-	// +kubebuilder:validation:MinLength=1
-	Repository string `json:"repository"`
-
-	// +kubebuilder:default=latest
-	// +optional
-	Tag string `json:"tag,omitempty"`
-}
-
 // InlineSource carries small static content directly in the CR.
 type InlineSource struct {
 	// Files maps relative file paths to their contents.
@@ -75,42 +48,9 @@ type PVCSource struct {
 	SubPath string `json:"subPath,omitempty"`
 }
 
-// CodeSource says where the app *code* lives (the environment is separate).
-type CodeSource struct {
-	// +kubebuilder:validation:Enum=git;pvc
-	Type string `json:"type"`
-
-	// +optional
-	Git *GitSource `json:"git,omitempty"`
-
-	// +optional
-	PVC *PVCSource `json:"pvc,omitempty"`
-}
-
-// OCIEnvSource runs Python app code inside a Nebi-published pixi environment
-// delivered as an OCI artifact.
-type OCIEnvSource struct {
-	// Ref is the OCI reference of the published pixi environment.
-	// +kubebuilder:validation:MinLength=1
-	Ref string `json:"ref"`
-
-	// Code says where the app code lives (env != code).
-	Code CodeSource `json:"code"`
-
-	// Entrypoint is the app entrypoint relative to the code root.
-	// +kubebuilder:validation:MinLength=1
-	Entrypoint string `json:"entrypoint"`
-}
-
-// AppSource declares where the app's code (and environment) comes from.
+// AppSource declares where the app's static content comes from.
 type AppSource struct {
 	Type SourceType `json:"type"`
-
-	// +optional
-	OCIEnv *OCIEnvSource `json:"ociEnv,omitempty"`
-
-	// +optional
-	Image *ImageSource `json:"image,omitempty"`
 
 	// +optional
 	Git *GitSource `json:"git,omitempty"`
@@ -124,11 +64,6 @@ type AppSource struct {
 
 // AppRuntime configures how the app process runs.
 type AppRuntime struct {
-	// Command overrides the framework-derived container command.
-	// Required for framework=custom.
-	// +optional
-	Command []string `json:"command,omitempty"`
-
 	// +optional
 	Env []corev1.EnvVar `json:"env,omitempty"`
 
@@ -178,8 +113,6 @@ type AppSpec struct {
 	// +optional
 	Thumbnail string `json:"thumbnail,omitempty"`
 
-	Framework Framework `json:"framework"`
-
 	// Owner is the Keycloak sub / preferred_username that manages the app.
 	// +optional
 	Owner string `json:"owner,omitempty"`
@@ -193,12 +126,11 @@ type AppSpec struct {
 }
 
 // AppPhase is a coarse summary of app state.
-// +kubebuilder:validation:Enum=Pending;Building;Deploying;Running;Failed;Stopped
+// +kubebuilder:validation:Enum=Pending;Deploying;Running;Failed;Stopped
 type AppPhase string
 
 const (
 	AppPhasePending   AppPhase = "Pending"
-	AppPhaseBuilding  AppPhase = "Building"
 	AppPhaseDeploying AppPhase = "Deploying"
 	AppPhaseRunning   AppPhase = "Running"
 	AppPhaseFailed    AppPhase = "Failed"
@@ -207,10 +139,9 @@ const (
 
 // Condition types published on App.status.conditions.
 const (
-	ConditionWorkloadReady    = "WorkloadReady"
-	ConditionRoutingReady     = "RoutingReady"
-	ConditionEnvironmentReady = "EnvironmentReady"
-	ConditionValidated        = "Validated"
+	ConditionWorkloadReady = "WorkloadReady"
+	ConditionRoutingReady  = "RoutingReady"
+	ConditionValidated     = "Validated"
 )
 
 // AppReplicas reports desired vs ready replica counts.
@@ -244,7 +175,7 @@ type AppStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// +kubebuilder:printcolumn:name="Framework",type=string,JSONPath=`.spec.framework`
+// +kubebuilder:printcolumn:name="Source",type=string,JSONPath=`.spec.source.type`
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
 // +kubebuilder:printcolumn:name="URL",type=string,JSONPath=`.status.url`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`

@@ -24,14 +24,14 @@ Service that must already exist — the apps-operator is what creates it.
 
 For each `App`, the operator runs an ordered, idempotent pipeline:
 
-1. **Validate** — namespace opted in (`nebari.dev/managed=true`), framework/source
-   combination supported, required fields present. Failures set `Validated: False` and
+1. **Validate** — namespace opted in (`nebari.dev/managed=true`), source type supported,
+   required fields present. Failures set `Validated: False` and
    phase `Failed`; they are terminal until the spec changes.
 2. **Content** — inline sources materialize as a ConfigMap; a checksum on the pod template
    rolls the pods whenever the files change.
 3. **Workload** — a hardened Deployment (non-root, dropped capabilities, seccomp
-   `RuntimeDefault`): nginx for static apps (git sources cloned by a non-root init
-   container), or the prebuilt image for Python apps with framework env injected.
+   `RuntimeDefault`): nginx serving the app's content, with git sources cloned by a
+   non-root init container.
 4. **Service** — ClusterIP on port 8080.
 5. **Routing** — a `NebariApp` (contract pinned to nebari-operator `v0.1.0-alpha.19`,
    guarded by a contract test) carrying the hostname, auth policy, TLS setting, and

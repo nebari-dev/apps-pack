@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { FrameworkBadge, PhaseBadge } from '@/components/app-bits';
+import { PhaseBadge, SourceBadge } from '@/components/app-bits';
 import { api } from '@/lib/api';
 import { Alert, AlertDescription, AlertTitle } from '@/ui/alert';
 import { Button } from '@/ui/button';
@@ -101,7 +101,7 @@ export function AppDetailPage() {
           </Link>
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="font-semibold text-2xl">{a.displayName || a.name}</h1>
-            <FrameworkBadge framework={a.framework} />
+            <SourceBadge source={a.source?.type ?? '—'} />
             <PhaseBadge phase={a.status.phase} />
           </div>
           <p className="mt-1 text-muted-foreground text-sm">
@@ -210,11 +210,12 @@ export function AppDetailPage() {
                 <span className="font-mono">{a.source.git.url}@{a.source.git.ref ?? 'main'}</span>
               </p>
             ) : null}
-            {a.source?.image ? (
+            {a.source?.pvc ? (
               <p className="break-all">
-                <span className="text-muted-foreground">image:</span>{' '}
+                <span className="text-muted-foreground">pvc:</span>{' '}
                 <span className="font-mono">
-                  {a.source.image.repository}:{a.source.image.tag ?? 'latest'}
+                  {a.source.pvc.claimName}
+                  {a.source.pvc.subPath ? `/${a.source.pvc.subPath}` : ''}
                 </span>
               </p>
             ) : null}

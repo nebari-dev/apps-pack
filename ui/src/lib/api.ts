@@ -5,7 +5,6 @@ import type {
   AppCreate,
   AppEvent,
   Capabilities,
-  FrameworkInfo,
 } from './types';
 
 const BASE = '/api/v1';
@@ -17,7 +16,6 @@ async function getJSON<T>(path: string): Promise<T> {
 
 export const api = {
   capabilities: () => getJSON<Capabilities>('/capabilities'),
-  frameworks: () => getJSON<FrameworkInfo[]>('/frameworks'),
   analytics: () => getJSON<AnalyticsSummary>('/analytics/summary'),
 
   listApps: (namespace?: string) =>
@@ -34,7 +32,7 @@ export const api = {
     return (await resp.json()) as App;
   },
 
-  uploadApp: async (manifest: Omit<AppCreate, 'source' | 'framework'>, file: File): Promise<App> => {
+  uploadApp: async (manifest: Omit<AppCreate, 'source'>, file: File): Promise<App> => {
     const form = new FormData();
     form.append('manifest', JSON.stringify(manifest));
     form.append('file', file);

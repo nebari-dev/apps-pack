@@ -6,21 +6,14 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-Framework = Literal[
-    "static", "streamlit", "panel", "gradio", "dash", "voila", "fastapi", "custom"
-]
-SourceType = Literal["ociEnv", "image", "git", "inline", "pvc"]
+SourceType = Literal["git", "inline", "pvc"]
+SOURCE_TYPES: tuple[str, ...] = ("git", "inline", "pvc")
 
 
 class GitSource(BaseModel):
     url: str
     ref: str = "main"
     subdir: str = ""
-
-
-class ImageSource(BaseModel):
-    repository: str
-    tag: str = "latest"
 
 
 class InlineSource(BaseModel):
@@ -32,22 +25,8 @@ class PVCSource(BaseModel):
     subPath: str = ""
 
 
-class CodeSource(BaseModel):
-    type: Literal["git", "pvc"]
-    git: GitSource | None = None
-    pvc: PVCSource | None = None
-
-
-class OCIEnvSource(BaseModel):
-    ref: str
-    code: CodeSource
-    entrypoint: str
-
-
 class AppSource(BaseModel):
     type: SourceType
-    ociEnv: OCIEnvSource | None = None
-    image: ImageSource | None = None
     git: GitSource | None = None
     inline: InlineSource | None = None
     pvc: PVCSource | None = None
@@ -69,7 +48,6 @@ class Resources(BaseModel):
 
 
 class AppRuntime(BaseModel):
-    command: list[str] = Field(default_factory=list)
     env: list[EnvVar] = Field(default_factory=list)
     resources: Resources | None = None
     replicas: int = 1
@@ -92,7 +70,6 @@ class AppCreate(BaseModel):
     displayName: str
     description: str = ""
     thumbnail: str = ""
-    framework: Framework
     source: AppSource
     runtime: AppRuntime = Field(default_factory=AppRuntime)
     access: AppAccess
@@ -140,7 +117,6 @@ class AppOut(BaseModel):
     displayName: str = ""
     description: str = ""
     thumbnail: str = ""
-    framework: str = ""
     owner: str = ""
     createdAt: str = ""
     source: AppSource | None = None
@@ -149,26 +125,16 @@ class AppOut(BaseModel):
     status: AppStatus = Field(default_factory=AppStatus)
 
 
-class FrameworkInfo(BaseModel):
-    name: str
-    displayName: str
-    sourceTypes: list[str]
-    implementedSources: list[str]
-    description: str = ""
-
-
 class Capabilities(BaseModel):
-    nebi: bool = False
-    environments: str = "none"
     appsDomain: str = ""
-    frameworks: list[str] = Field(default_factory=list)
+    sourceTypes: list[str] = Field(default_factory=list)
     namespaces: list[str] = Field(default_factory=list)
 
 
 class AnalyticsSummary(BaseModel):
     total: int = 0
     byPhase: dict[str, int] = Field(default_factory=dict)
-    byFramework: dict[str, int] = Field(default_factory=dict)
+    bySourceType: dict[str, int] = Field(default_factory=dict)
     byNamespace: dict[str, int] = Field(default_factory=dict)
     readyReplicas: int = 0
     desiredReplicas: int = 0

@@ -3,7 +3,6 @@
 name: APP_NAME
 namespace: apps
 displayName: "APP_DISPLAY_NAME"
-framework: static
 source:
   type: files
   files:

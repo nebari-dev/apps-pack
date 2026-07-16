@@ -1,14 +1,4 @@
-export type Framework =
-  | 'static'
-  | 'streamlit'
-  | 'panel'
-  | 'gradio'
-  | 'dash'
-  | 'voila'
-  | 'fastapi'
-  | 'custom';
-
-export type SourceType = 'ociEnv' | 'image' | 'git' | 'inline' | 'pvc';
+export type SourceType = 'git' | 'inline' | 'pvc';
 
 export interface GitSource {
   url: string;
@@ -16,22 +6,11 @@ export interface GitSource {
   subdir?: string;
 }
 
-export interface ImageSource {
-  repository: string;
-  tag?: string;
-}
-
 export interface AppSource {
   type: SourceType;
   git?: GitSource;
-  image?: ImageSource;
   inline?: { files: Record<string, string> };
   pvc?: { claimName: string; subPath?: string };
-  ociEnv?: {
-    ref: string;
-    entrypoint: string;
-    code: { type: 'git' | 'pvc'; git?: GitSource };
-  };
 }
 
 export interface EnvVar {
@@ -40,7 +19,6 @@ export interface EnvVar {
 }
 
 export interface AppRuntime {
-  command?: string[];
   env?: EnvVar[];
   replicas?: number;
   resources?: {
@@ -78,7 +56,6 @@ export interface App {
   displayName: string;
   description: string;
   thumbnail: string;
-  framework: Framework | string;
   owner: string;
   createdAt: string;
   source?: AppSource;
@@ -92,32 +69,21 @@ export interface AppCreate {
   namespace: string;
   displayName: string;
   description?: string;
-  framework: Framework;
   source: AppSource;
   runtime?: AppRuntime;
   access: AppAccess;
 }
 
-export interface FrameworkInfo {
-  name: string;
-  displayName: string;
-  sourceTypes: SourceType[];
-  implementedSources: SourceType[];
-  description: string;
-}
-
 export interface Capabilities {
-  nebi: boolean;
-  environments: string;
   appsDomain: string;
-  frameworks: string[];
+  sourceTypes: SourceType[];
   namespaces: string[];
 }
 
 export interface AnalyticsSummary {
   total: number;
   byPhase: Record<string, number>;
-  byFramework: Record<string, number>;
+  bySourceType: Record<string, number>;
   byNamespace: Record<string, number>;
   readyReplicas: number;
   desiredReplicas: number;

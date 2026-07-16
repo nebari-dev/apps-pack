@@ -15,20 +15,20 @@ Complete field-by-field reference for the `App` custom resource.
 apiVersion: apps.nebari.dev/v1alpha1
 kind: App
 metadata:
-  name: sales-dashboard
+  name: team-site
   namespace: team-analytics
   labels:
     apps.nebari.dev/owner: jdoe
 spec:
-  displayName: "Sales Dashboard"
-  description: "Q2 sales explorer"
-  framework: streamlit
+  displayName: "Team Site"
+  description: "The team's documentation site"
   owner: jdoe
   source:
-    type: image
-    image:
-      repository: quay.io/org/sales-dashboard
-      tag: v1
+    type: git
+    git:
+      url: https://github.com/org/site
+      ref: main
+      subdir: public
   runtime:
     replicas: 1
     env:
@@ -41,10 +41,10 @@ spec:
     public: false
     groups: ["analytics"]
     users: ["alice"]
-    subdomain: sales-dashboard
+    subdomain: team-site
 status:
   phase: Running
-  url: https://sales-dashboard.apps.example.ai
+  url: https://team-site.apps.example.ai
   replicas: { desired: 1, ready: 1 }
   conditions: [ ... ]
   message: all replicas ready
@@ -57,22 +57,19 @@ status:
 | `displayName` | string | Yes | Human-readable name (max 64 chars); shown in the UI and on the landing page. |
 | `description` | string | No | Short description (max 256 chars). |
 | `thumbnail` | string | No | Data-URI image for catalogs / the landing-page tile. |
-| `framework` | string | Yes | `static` \| `streamlit` \| `panel` \| `gradio` \| `dash` \| `voila` \| `fastapi` \| `custom`. |
 | `owner` | string | No | Keycloak `preferred_username` that manages the app. The API sets this from the caller's token. |
-| `source` | [AppSource](#specsource) | Yes | Where the app's code (and environment) comes from. |
-| `runtime` | [AppRuntime](#specruntime) | No | Process configuration: command, env, resources, replicas. |
+| `source` | [AppSource](#specsource) | Yes | Where the app's content comes from. |
+| `runtime` | [AppRuntime](#specruntime) | No | Process configuration: env, resources, replicas. |
 | `access` | [AppAccess](#specaccess) | Yes | Who can reach the app and at which subdomain. |
 
 ## spec.source
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `type` | string | Yes | `inline` \| `git` \| `pvc` \| `image` \| `ociEnv`. Exactly one matching payload field must be set. |
+| `type` | string | Yes | `git` \| `inline` \| `pvc`. Exactly one matching payload field must be set. |
 | `inline` | [InlineSource](#inlinesource) | For `inline` | Small static content carried in the CR. |
 | `git` | [GitSource](#gitsource) | For `git` | Static content cloned from a git repository. |
 | `pvc` | [PVCSource](#pvcsource) | For `pvc` | Content already present on a PersistentVolumeClaim. |
-| `image` | [ImageSource](#imagesource) | For `image` | Prebuilt, self-contained container image. |
-| `ociEnv` | [OCIEnvSource](#ocienvsource) | For `ociEnv` | **Planned** — Nebi-published pixi environment. Validated by the CRD but rejected by the operator until the Nebi integration lands. |
 
 ### InlineSource
 
@@ -98,33 +95,11 @@ current state of the ref.
 | `claimName` | string | Yes | Name of an existing PersistentVolumeClaim in the app's namespace. |
 | `subPath` | string | No | Sub-path within the volume to serve. |
 
-### ImageSource
-
-| Field | Type | Required | Default | Description |
-|---|---|---|---|---|
-| `repository` | string | Yes | — | Image repository, e.g. `quay.io/org/my-app`. |
-| `tag` | string | No | `latest` | Image tag. |
-
-The image must listen on **port 8080** as a **non-root** user. `runtime.command` overrides
-the image's default command (required for `framework: custom`).
-
-### OCIEnvSource
-
-*Planned (Phase 2).* Runs app code inside a pixi environment published by Nebi as an OCI
-artifact — no image build per app.
-
-| Field | Type | Description |
-|---|---|---|
-| `ref` | string | OCI reference of the published pixi environment. |
-| `code` | object | Where the app *code* lives (`type: git \| pvc`) — the environment and code are separate. |
-| `entrypoint` | string | App entrypoint relative to the code root. |
-
 ## spec.runtime
 
 | Field | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `command` | []string | No (required for `custom`) | framework-derived | Container command override. |
-| `env` | [][EnvVar](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#environment-variables) | No | — | Environment variables. User values override framework-injected ones. |
+| `env` | [][EnvVar](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#environment-variables) | No | — | Environment variables. |
 | `resources` | [ResourceRequirements](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) | No | — | CPU/memory requests and limits. |
 | `replicas` | int | No | `1` | Desired replicas. `0` stops the app (phase `Stopped`). |
 | `keepAlive` | bool | No | `false` | Reserved for scale-to-zero idle reaping (not yet implemented). |
@@ -142,7 +117,7 @@ artifact — no image build per app.
 
 | Field | Type | Description |
 |---|---|---|
-| `phase` | string | `Pending` \| `Building` \| `Deploying` \| `Running` \| `Failed` \| `Stopped`. |
+| `phase` | string | `Pending` \| `Deploying` \| `Running` \| `Failed` \| `Stopped`. |
 | `url` | string | Where the app is (or will be) reachable. |
 | `replicas` | object | `{desired, ready}` counts from the Deployment. |
 | `conditions` | []Condition | See below. |
@@ -156,7 +131,6 @@ artifact — no image build per app.
 | `Validated` | The spec is coherent and the namespace is opted in. `False` with reason `ValidationFailed` is terminal until the spec changes. |
 | `WorkloadReady` | All desired replicas are ready. |
 | `RoutingReady` | Mirrors the child `NebariApp`'s `Ready` condition (routing, TLS, auth). |
-| `EnvironmentReady` | The runtime environment is available (always `True`/`NotRequired` for static apps). |
 
 ## Children
 

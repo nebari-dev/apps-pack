@@ -15,6 +15,11 @@ import (
 )
 
 const (
+	// AppPort is the port every app container listens on. Auth is enforced at
+	// the gateway by the NebariApp SecurityPolicy, so apps serve plain HTTP
+	// here.
+	AppPort = 8080
+
 	// webRoot is where the static server image serves content from.
 	webRoot = "/usr/share/nginx/html"
 
@@ -33,7 +38,6 @@ func appLabels(app *appsv1alpha1.App) map[string]string {
 		"app.kubernetes.io/name":       app.Name,
 		"app.kubernetes.io/managed-by": "apps-operator",
 		"apps.nebari.dev/app":          app.Name,
-		"apps.nebari.dev/framework":    string(app.Spec.Framework),
 	}
 }
 
@@ -84,17 +88,10 @@ func (r *AppReconciler) buildDeployment(app *appsv1alpha1.App) (*appsv1.Deployme
 		replicas = *app.Spec.Runtime.Replicas
 	}
 
-	var podSpec corev1.PodSpec
 	annotations := map[string]string{}
-
-	if app.Spec.Source.Type == appsv1alpha1.SourceTypeImage {
-		podSpec = r.buildImagePodSpec(app)
-	} else {
-		var err error
-		podSpec, err = r.buildStaticPodSpec(app, annotations)
-		if err != nil {
-			return nil, err
-		}
+	podSpec, err := r.buildStaticPodSpec(app, annotations)
+	if err != nil {
+		return nil, err
 	}
 
 	return &appsv1.Deployment{
@@ -115,55 +112,6 @@ func (r *AppReconciler) buildDeployment(app *appsv1alpha1.App) (*appsv1.Deployme
 			},
 		},
 	}, nil
-}
-
-// buildImagePodSpec runs a prebuilt, self-contained image (Python frameworks
-// and custom apps). The image must listen on AppPort; runtime.command
-// overrides the image's default command.
-func (r *AppReconciler) buildImagePodSpec(app *appsv1alpha1.App) corev1.PodSpec {
-	img := app.Spec.Source.Image
-	tag := img.Tag
-	if tag == "" {
-		tag = "latest"
-	}
-
-	return corev1.PodSpec{
-		SecurityContext: &corev1.PodSecurityContext{
-			RunAsNonRoot:   ptr.To(true),
-			SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
-		},
-		Containers: []corev1.Container{{
-			Name:    "app",
-			Image:   fmt.Sprintf("%s:%s", img.Repository, tag),
-			Command: app.Spec.Runtime.Command,
-			Ports: []corev1.ContainerPort{{
-				Name:          "http",
-				ContainerPort: AppPort,
-				Protocol:      corev1.ProtocolTCP,
-			}},
-			Env:       append(frameworkEnv(app.Spec.Framework), app.Spec.Runtime.Env...),
-			Resources: app.Spec.Runtime.Resources,
-			// TCP probes: several Python frameworks 404 on "/" while healthy.
-			ReadinessProbe: &corev1.Probe{
-				ProbeHandler: corev1.ProbeHandler{
-					TCPSocket: &corev1.TCPSocketAction{Port: intstrFromString("http")},
-				},
-				InitialDelaySeconds: 5,
-				PeriodSeconds:       5,
-			},
-			LivenessProbe: &corev1.Probe{
-				ProbeHandler: corev1.ProbeHandler{
-					TCPSocket: &corev1.TCPSocketAction{Port: intstrFromString("http")},
-				},
-				InitialDelaySeconds: 15,
-				PeriodSeconds:       10,
-			},
-			SecurityContext: &corev1.SecurityContext{
-				AllowPrivilegeEscalation: ptr.To(false),
-				Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
-			},
-		}},
-	}
 }
 
 // buildStaticPodSpec serves static content with nginx; the content volume is

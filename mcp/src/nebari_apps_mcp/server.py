@@ -22,8 +22,8 @@ from .config import settings
 mcp = FastMCP(
     name="nebari-apps",
     instructions=(
-        "Launch and manage web applications (static sites and Python apps) on this Nebari "
-        "cluster. Typical flow: describe_cluster to see what is available, then launch_app; "
+        "Launch and manage static web apps (HTML/CSS/JS) on this Nebari cluster. "
+        "Typical flow: describe_cluster to see what is available, then launch_app; "
         "poll get_app_status until phase is Running and share the app URL with the user. "
         "If a tool reports an authentication problem, call authenticate and follow its "
         "instructions."
@@ -66,8 +66,6 @@ class TokenVerificationMiddleware(Middleware):
 
 mcp.add_middleware(TokenVerificationMiddleware())
 
-Framework = Literal["static", "streamlit", "panel", "gradio", "dash", "voila", "fastapi", "custom"]
-
 
 def _session_id(ctx: Context) -> str:
     return ctx.session_id or "anonymous"
@@ -99,34 +97,12 @@ async def authenticate(ctx: Context) -> dict[str, Any]:
 
 @mcp.tool
 async def describe_cluster(ctx: Context) -> dict[str, Any]:
-    """Describe what this cluster supports: available frameworks, namespaces apps may be
-    launched into, the apps domain (apps get https://<subdomain>.<appsDomain>), and whether
-    Nebi pixi environments are available. Call this first to pick valid launch options."""
+    """Describe what this cluster supports: available source types, namespaces apps may be
+    launched into, and the apps domain (apps get https://<subdomain>.<appsDomain>).
+    Call this first to pick valid launch options."""
     try:
         async with await _api(ctx) as api:
             return await api.get("/capabilities")
-    except ApiError as exc:
-        return _error(exc)
-
-
-@mcp.tool
-async def list_frameworks(ctx: Context) -> Any:
-    """List supported frameworks with their allowed and currently implemented source types.
-    Use it to validate a launch before calling launch_app."""
-    try:
-        async with await _api(ctx) as api:
-            return await api.get("/frameworks")
-    except ApiError as exc:
-        return _error(exc)
-
-
-@mcp.tool
-async def list_environments(ctx: Context) -> Any:
-    """List pixi environments (Nebi) available for ociEnv launches. Currently returns an
-    empty list on clusters without the Nebi integration."""
-    try:
-        async with await _api(ctx) as api:
-            return await api.get("/environments")
     except ApiError as exc:
         return _error(exc)
 
@@ -136,7 +112,7 @@ async def list_apps(
     ctx: Context,
     namespace: Annotated[str, Field(description="Filter to one namespace; empty = all visible namespaces")] = "",
 ) -> Any:
-    """List launched apps with their framework, phase (Pending|Deploying|Running|Failed|Stopped),
+    """List launched apps with their source type, phase (Pending|Deploying|Running|Failed|Stopped),
     URL, and owner."""
     try:
         async with await _api(ctx) as api:
@@ -151,11 +127,10 @@ async def launch_app(
     name: Annotated[str, Field(description="Kubernetes name: lowercase letters, digits, hyphens")],
     namespace: Annotated[str, Field(description="Target namespace (must appear in describe_cluster namespaces)")],
     display_name: Annotated[str, Field(description="Human-readable name shown in the UI and landing page")],
-    framework: Annotated[Framework, Field(description="static for HTML/JS sites; a Python framework or custom for prebuilt images")],
     subdomain: Annotated[str, Field(description="App URL becomes https://<subdomain>.<appsDomain>")],
     source_type: Annotated[
-        Literal["inline", "git", "image", "pvc"],
-        Field(description="static: inline|git|pvc. Python/custom: image."),
+        Literal["inline", "git", "pvc"],
+        Field(description="inline = files in the request; git = clone a repo; pvc = mount an existing volume"),
     ],
     inline_files: Annotated[
         dict[str, str] | None,
@@ -164,27 +139,22 @@ async def launch_app(
     git_url: Annotated[str, Field(description="source_type=git: HTTPS repository URL")] = "",
     git_ref: Annotated[str, Field(description="source_type=git: branch, tag, or commit")] = "main",
     git_subdir: Annotated[str, Field(description="source_type=git: path of the content root within the repo")] = "",
-    image_repository: Annotated[str, Field(description="source_type=image: image listening on port 8080 as non-root")] = "",
-    image_tag: Annotated[str, Field(description="source_type=image: tag")] = "latest",
     pvc_claim_name: Annotated[str, Field(description="source_type=pvc: existing PersistentVolumeClaim name")] = "",
     pvc_sub_path: Annotated[str, Field(description="source_type=pvc: sub-path within the volume")] = "",
-    command: Annotated[list[str] | None, Field(description="Container command override; required for framework=custom")] = None,
     env: Annotated[dict[str, str] | None, Field(description="Environment variables for the app process")] = None,
     replicas: Annotated[int, Field(description="Desired replicas; 0 = stopped", ge=0, le=10)] = 1,
     public: Annotated[bool, Field(description="true = anonymous access; false = Keycloak SSO at the gateway")] = False,
     groups: Annotated[list[str] | None, Field(description="Keycloak groups allowed to use the app; empty = any signed-in user")] = None,
     description: Annotated[str, Field(description="Short description for catalogs")] = "",
 ) -> dict[str, Any]:
-    """Create and launch an app. Idempotent on (namespace, name): if the app already exists
-    its spec is updated instead of failing, so retrying is safe. Returns the app with its
-    (pending) URL; poll get_app_status until phase=Running."""
+    """Create and launch a static app. Idempotent on (namespace, name): if the app already
+    exists its spec is updated instead of failing, so retrying is safe. Returns the app with
+    its (pending) URL; poll get_app_status until phase=Running."""
     source: dict[str, Any] = {"type": source_type}
     if source_type == "inline":
         source["inline"] = {"files": inline_files or {}}
     elif source_type == "git":
         source["git"] = {"url": git_url, "ref": git_ref, "subdir": git_subdir}
-    elif source_type == "image":
-        source["image"] = {"repository": image_repository, "tag": image_tag}
     elif source_type == "pvc":
         source["pvc"] = {"claimName": pvc_claim_name, "subPath": pvc_sub_path}
 
@@ -193,11 +163,9 @@ async def launch_app(
         "namespace": namespace,
         "displayName": display_name,
         "description": description,
-        "framework": framework,
         "source": source,
         "runtime": {
             "replicas": replicas,
-            "command": command or [],
             "env": [{"name": k, "value": v} for k, v in (env or {}).items()],
         },
         "access": {"public": public, "groups": groups or [], "subdomain": subdomain},

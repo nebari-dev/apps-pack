@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Activity, Boxes, Layers, Rocket } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { BarList, FrameworkBadge, PhaseBadge, StatCard } from '@/components/app-bits';
+import { BarList, PhaseBadge, SourceBadge, StatCard } from '@/components/app-bits';
 import { api } from '@/lib/api';
 import { Button } from '@/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/ui/card';
@@ -68,10 +68,10 @@ export function DashboardPage() {
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>By framework</CardTitle>
+            <CardTitle>By source</CardTitle>
           </CardHeader>
           <CardContent>
-            <BarList data={summary?.byFramework ?? {}} total={summary?.total ?? 0} />
+            <BarList data={summary?.bySourceType ?? {}} total={summary?.total ?? 0} />
           </CardContent>
         </Card>
         <Card>
@@ -109,7 +109,7 @@ export function DashboardPage() {
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
-                    <FrameworkBadge framework={app.framework} />
+                    <SourceBadge source={app.source?.type ?? '—'} />
                     <PhaseBadge phase={app.status.phase} />
                   </div>
                 </li>

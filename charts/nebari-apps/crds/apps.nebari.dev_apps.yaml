@@ -15,8 +15,8 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.framework
-      name: Framework
+    - jsonPath: .spec.source.type
+      name: Source
       type: string
     - jsonPath: .status.phase
       name: Phase
@@ -86,18 +86,6 @@ spec:
                 maxLength: 64
                 minLength: 1
                 type: string
-              framework:
-                description: Framework identifies how an app is launched and served.
-                enum:
-                - static
-                - streamlit
-                - panel
-                - gradio
-                - dash
-                - voila
-                - fastapi
-                - custom
-                type: string
               owner:
                 description: Owner is the Keycloak sub / preferred_username that manages
                   the app.
@@ -105,13 +93,6 @@ spec:
               runtime:
                 description: AppRuntime configures how the app process runs.
                 properties:
-                  command:
-                    description: |-
-                      Command overrides the framework-derived container command.
-                      Required for framework=custom.
-                    items:
-                      type: string
-                    type: array
                   env:
                     items:
                       description: EnvVar represents an environment variable present
@@ -340,8 +321,8 @@ spec:
                     type: object
                 type: object
               source:
-                description: AppSource declares where the app's code (and environment)
-                  comes from.
+                description: AppSource declares where the app's static content comes
+                  from.
                 properties:
                   git:
                     description: GitSource references app content in a git repository.
@@ -361,19 +342,6 @@ spec:
                     required:
                     - url
                     type: object
-                  image:
-                    description: ImageSource references a prebuilt, self-contained
-                      container image.
-                    properties:
-                      repository:
-                        minLength: 1
-                        type: string
-                      tag:
-                        default: latest
-                        type: string
-                    required:
-                    - repository
-                    type: object
                   inline:
                     description: InlineSource carries small static content directly
                       in the CR.
@@ -386,71 +354,6 @@ spec:
                         type: object
                     required:
                     - files
-                    type: object
-                  ociEnv:
-                    description: |-
-                      OCIEnvSource runs Python app code inside a Nebi-published pixi environment
-                      delivered as an OCI artifact.
-                    properties:
-                      code:
-                        description: Code says where the app code lives (env != code).
-                        properties:
-                          git:
-                            description: GitSource references app content in a git
-                              repository.
-                            properties:
-                              ref:
-                                default: main
-                                description: Ref is the branch, tag, or commit to
-                                  check out.
-                                type: string
-                              subdir:
-                                description: Subdir is the path within the repository
-                                  containing the content root.
-                                type: string
-                              url:
-                                description: URL of the git repository (https).
-                                minLength: 1
-                                type: string
-                            required:
-                            - url
-                            type: object
-                          pvc:
-                            description: PVCSource references content already present
-                              on a PersistentVolumeClaim.
-                            properties:
-                              claimName:
-                                minLength: 1
-                                type: string
-                              subPath:
-                                description: SubPath within the volume containing
-                                  the content root.
-                                type: string
-                            required:
-                            - claimName
-                            type: object
-                          type:
-                            enum:
-                            - git
-                            - pvc
-                            type: string
-                        required:
-                        - type
-                        type: object
-                      entrypoint:
-                        description: Entrypoint is the app entrypoint relative to
-                          the code root.
-                        minLength: 1
-                        type: string
-                      ref:
-                        description: Ref is the OCI reference of the published pixi
-                          environment.
-                        minLength: 1
-                        type: string
-                    required:
-                    - code
-                    - entrypoint
-                    - ref
                     type: object
                   pvc:
                     description: PVCSource references content already present on a
@@ -467,11 +370,9 @@ spec:
                     - claimName
                     type: object
                   type:
-                    description: SourceType identifies where an app's code (and environment)
+                    description: SourceType identifies where an app's static content
                       comes from.
                     enum:
-                    - ociEnv
-                    - image
                     - git
                     - inline
                     - pvc
@@ -486,7 +387,6 @@ spec:
             required:
             - access
             - displayName
-            - framework
             - source
             type: object
           status:
@@ -558,7 +458,6 @@ spec:
                 description: AppPhase is a coarse summary of app state.
                 enum:
                 - Pending
-                - Building
                 - Deploying
                 - Running
                 - Failed

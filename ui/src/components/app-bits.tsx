@@ -25,8 +25,8 @@ export function PhaseBadge({ phase }: { phase: string }) {
   );
 }
 
-export function FrameworkBadge({ framework }: { framework: string }) {
-  return <Badge variant="ghost" className="border border-border font-mono text-xs">{framework}</Badge>;
+export function SourceBadge({ source }: { source: string }) {
+  return <Badge variant="ghost" className="border border-border font-mono text-xs">{source}</Badge>;
 }
 
 export function StatCard({

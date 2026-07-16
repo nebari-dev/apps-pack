@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getConfig } from '@/lib/auth';
 import { api } from '@/lib/api';
-import type { AppCreate, EnvVar, Framework, SourceType } from '@/lib/types';
+import type { AppCreate, EnvVar } from '@/lib/types';
 import { Alert, AlertDescription, AlertTitle } from '@/ui/alert';
 import { Button } from '@/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card';
@@ -22,18 +22,16 @@ import { Tabs, TabsList, TabsPanel, TabsTab } from '@/ui/tabs';
 
 const SUBDOMAIN_RE = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/;
 
-type SourceTab = 'upload' | 'git' | 'image';
+type SourceTab = 'upload' | 'git';
 
 export function LaunchPage() {
   const navigate = useNavigate();
   const capabilities = useQuery({ queryKey: ['capabilities'], queryFn: api.capabilities });
-  const frameworks = useQuery({ queryKey: ['frameworks'], queryFn: api.frameworks });
 
   const [name, setName] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [description, setDescription] = useState('');
   const [namespace, setNamespace] = useState('');
-  const [framework, setFramework] = useState<Framework>('static');
   const [sourceTab, setSourceTab] = useState<SourceTab>('upload');
 
   // Sources
@@ -41,9 +39,6 @@ export function LaunchPage() {
   const [gitUrl, setGitUrl] = useState('');
   const [gitRef, setGitRef] = useState('main');
   const [gitSubdir, setGitSubdir] = useState('');
-  const [imageRepo, setImageRepo] = useState('');
-  const [imageTag, setImageTag] = useState('latest');
-  const [command, setCommand] = useState('');
 
   // Runtime + access
   const [envVars, setEnvVars] = useState<EnvVar[]>([]);
@@ -54,8 +49,6 @@ export function LaunchPage() {
   const [groups, setGroups] = useState('');
   const [subdomain, setSubdomain] = useState('');
 
-  const isStatic = framework === 'static';
-  const fw = frameworks.data?.find((f) => f.name === framework);
   const appsDomain = capabilities.data?.appsDomain || getConfig().appsDomain;
   const appsScheme = getConfig().appsScheme ?? 'https';
   const namespaces = capabilities.data?.namespaces ?? [];
@@ -63,9 +56,7 @@ export function LaunchPage() {
     setNamespace(namespaces[0]);
   }
 
-  // Static apps: upload or git. Python apps: prebuilt image (pixi envs land in Phase 2).
-  const availableTabs: SourceTab[] = isStatic ? ['upload', 'git'] : ['image'];
-  const activeTab = availableTabs.includes(sourceTab) ? sourceTab : availableTabs[0];
+  const activeTab = sourceTab;
 
   const validationError = useMemo(() => {
     if (!name) return 'Give the app a name.';
@@ -76,10 +67,8 @@ export function LaunchPage() {
     if (!SUBDOMAIN_RE.test(subdomain)) return 'Subdomain must be lowercase letters, digits, and hyphens.';
     if (activeTab === 'upload' && !file) return 'Choose a .zip or .html file to upload.';
     if (activeTab === 'git' && !gitUrl) return 'Enter the git repository URL.';
-    if (activeTab === 'image' && !imageRepo) return 'Enter the container image repository.';
-    if (framework === 'custom' && !command.trim()) return 'Custom apps need a command.';
     return '';
-  }, [name, displayName, namespace, subdomain, activeTab, file, gitUrl, imageRepo, framework, command]);
+  }, [name, displayName, namespace, subdomain, activeTab, file, gitUrl]);
 
   const launch = useMutation({
     mutationFn: async () => {
@@ -91,7 +80,6 @@ export function LaunchPage() {
         runtime: {
           replicas,
           env: envVars.filter((e) => e.name),
-          command: command.trim() ? command.trim().split(/\s+/) : undefined,
           resources:
             cpu || memory
               ? { requests: { cpu: cpu || undefined, memory: memory || undefined } }
@@ -112,17 +100,11 @@ export function LaunchPage() {
         return api.uploadApp(base, file);
       }
 
-      let source: AppCreate['source'];
-      let sourceType: SourceType;
-      if (activeTab === 'git') {
-        sourceType = 'git';
-        source = { type: 'git', git: { url: gitUrl, ref: gitRef || 'main', subdir: gitSubdir || undefined } };
-      } else {
-        sourceType = 'image';
-        source = { type: 'image', image: { repository: imageRepo, tag: imageTag || 'latest' } };
-      }
-      void sourceType;
-      return api.createApp({ ...base, framework, source } as AppCreate);
+      const source: AppCreate['source'] = {
+        type: 'git',
+        git: { url: gitUrl, ref: gitRef || 'main', subdir: gitSubdir || undefined },
+      };
+      return api.createApp({ ...base, source } as AppCreate);
     },
     onSuccess: (app) => void navigate(`/apps/${app.namespace}/${app.name}`),
   });
@@ -189,22 +171,6 @@ export function LaunchPage() {
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label>Framework</Label>
-            <Select value={framework} onValueChange={(v) => setFramework(v as Framework)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(frameworks.data ?? []).map((f) => (
-                  <SelectItem key={f.name} value={f.name}>
-                    {f.displayName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {fw ? <p className="text-muted-foreground text-xs">{fw.description}</p> : null}
-          </div>
         </CardContent>
       </Card>
 
@@ -212,17 +178,14 @@ export function LaunchPage() {
         <CardHeader>
           <CardTitle>Source</CardTitle>
           <CardDescription>
-            {isStatic
-              ? 'Upload files directly or point at a git repository.'
-              : 'Python apps run from a prebuilt container image listening on port 8080. Pixi environments via Nebi are coming in a later release.'}
+            Upload files directly or point at a git repository.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={(v) => setSourceTab(v as SourceTab)}>
             <TabsList>
-              {availableTabs.includes('upload') ? <TabsTab value="upload">Upload</TabsTab> : null}
-              {availableTabs.includes('git') ? <TabsTab value="git">Git</TabsTab> : null}
-              {availableTabs.includes('image') ? <TabsTab value="image">Image</TabsTab> : null}
+              <TabsTab value="upload">Upload</TabsTab>
+              <TabsTab value="git">Git</TabsTab>
             </TabsList>
 
             <TabsPanel value="upload" className="mt-4">
@@ -272,33 +235,6 @@ export function LaunchPage() {
                   placeholder="e.g. public (optional)"
                   value={gitSubdir}
                   onChange={(e) => setGitSubdir(e.target.value)}
-                />
-              </div>
-            </TabsPanel>
-
-            <TabsPanel value="image" className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label htmlFor="imageRepo">Image repository</Label>
-                <Input
-                  id="imageRepo"
-                  placeholder="quay.io/org/my-streamlit-app"
-                  value={imageRepo}
-                  onChange={(e) => setImageRepo(e.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="imageTag">Tag</Label>
-                <Input id="imageTag" value={imageTag} onChange={(e) => setImageTag(e.target.value)} />
-              </div>
-              <div className="space-y-1.5 sm:col-span-3">
-                <Label htmlFor="command">
-                  Command {framework === 'custom' ? '(required)' : '(optional override)'}
-                </Label>
-                <Input
-                  id="command"
-                  placeholder="e.g. streamlit run app.py"
-                  value={command}
-                  onChange={(e) => setCommand(e.target.value)}
                 />
               </div>
             </TabsPanel>

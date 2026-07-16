@@ -13,15 +13,14 @@ from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request,
 from . import cr as crmod
 from .auth import User, current_user
 from .config import settings
-from .frameworks import FRAMEWORKS, FRAMEWORKS_BY_NAME
 from .k8s import AppStore, ConflictError, KubernetesAppStore, NotFoundError
 from .models import (
+    SOURCE_TYPES,
     AnalyticsSummary,
     AppCreate,
     AppOut,
     AppPatch,
     Capabilities,
-    FrameworkInfo,
 )
 from .upload import files_from_upload
 
@@ -77,21 +76,10 @@ def create_app(store: AppStore | None = None) -> FastAPI:
     @app.get(PREFIX + "/capabilities", response_model=Capabilities)
     def capabilities(store: Store, user: Me) -> Capabilities:
         return Capabilities(
-            nebi=False,
-            environments="none",
             appsDomain=settings.apps_domain,
-            frameworks=[f.name for f in FRAMEWORKS],
+            sourceTypes=list(SOURCE_TYPES),
             namespaces=settings.allowed_namespaces or store.list_managed_namespaces(),
         )
-
-    @app.get(PREFIX + "/frameworks", response_model=list[FrameworkInfo])
-    def frameworks(user: Me) -> list[FrameworkInfo]:
-        return FRAMEWORKS
-
-    @app.get(PREFIX + "/environments")
-    def environments(user: Me) -> list[dict[str, Any]]:
-        """Pixi environments from Nebi - empty until the Nebi integration lands."""
-        return []
 
     @app.get(PREFIX + "/auth/me")
     def me(user: Me) -> dict[str, Any]:
@@ -126,7 +114,6 @@ def create_app(store: AppStore | None = None) -> FastAPI:
             raise HTTPException(400, f"manifest is not valid JSON: {exc}") from exc
 
         files = files_from_upload(file.filename or "upload", file.file.read())
-        data["framework"] = data.get("framework", "static")
         data["source"] = {"type": "inline", "inline": {"files": files}}
         req = AppCreate.model_validate(data)
 
@@ -197,14 +184,14 @@ def create_app(store: AppStore | None = None) -> FastAPI:
     def analytics_summary(store: Store, user: Me, namespace: str | None = None) -> AnalyticsSummary:
         apps = [crmod.from_cr(item) for item in store.list_apps(namespace)]
         by_phase = Counter(a.status.phase or "Pending" for a in apps)
-        by_framework = Counter(a.framework for a in apps)
+        by_source_type = Counter(a.source.type if a.source else "unknown" for a in apps)
         by_namespace = Counter(a.namespace for a in apps)
         ready = sum(a.status.replicas.ready if a.status.replicas else 0 for a in apps)
         desired = sum(a.status.replicas.desired if a.status.replicas else 0 for a in apps)
         return AnalyticsSummary(
             total=len(apps),
             byPhase=dict(by_phase),
-            byFramework=dict(by_framework),
+            bySourceType=dict(by_source_type),
             byNamespace=dict(by_namespace),
             readyReplicas=ready,
             desiredReplicas=desired,
@@ -214,23 +201,7 @@ def create_app(store: AppStore | None = None) -> FastAPI:
 
 
 def _validate_request(req: AppCreate) -> None:
-    fw = FRAMEWORKS_BY_NAME.get(req.framework)
-    if fw is None:
-        raise HTTPException(422, f"unknown framework {req.framework!r}")
-    if req.source.type not in fw.sourceTypes:
-        raise HTTPException(
-            422, f"framework {req.framework!r} does not support source type {req.source.type!r}"
-        )
-    if req.source.type not in fw.implementedSources:
-        raise HTTPException(
-            422,
-            f"framework {req.framework!r} with source {req.source.type!r} is not available yet "
-            "(pixi environments via Nebi land in Phase 2)",
-        )
-    if req.framework == "custom" and not req.runtime.command:
-        raise HTTPException(422, "framework 'custom' requires runtime.command")
-    source_field = getattr(req.source, req.source.type if req.source.type != "ociEnv" else "ociEnv", None)
-    if source_field is None:
+    if getattr(req.source, req.source.type, None) is None:
         raise HTTPException(422, f"source.{req.source.type} is required for source type {req.source.type!r}")
 
 

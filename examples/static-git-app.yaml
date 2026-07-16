@@ -8,7 +8,6 @@ metadata:
 spec:
   displayName: "Team Site"
   description: "Static site cloned from git"
-  framework: static
   owner: jbouder
   source:
     type: git

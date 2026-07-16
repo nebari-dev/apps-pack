@@ -5,26 +5,23 @@ title: Launching apps
 Every launch path produces the same `App` custom resource — the UI and API are conveniences
 over one contract, so behavior is identical regardless of how an app was created.
 
-## Frameworks and sources
+This pack deploys **static apps only** (HTML/CSS/JS served by nginx). For Python services,
+use [python-capability-pack](https://github.com/nebari-dev/python-capability-pack).
 
-| Framework | Available sources | How it runs |
+## Sources
+
+| Source | Best for | How it runs |
 |---|---|---|
-| `static` | `inline`, `git`, `pvc` | nginx (unprivileged) serving the content root on 8080. |
-| `streamlit`, `panel`, `gradio`, `dash`, `voila`, `fastapi` | `image` (`ociEnv` planned) | Your prebuilt image, listening on port 8080. |
-| `custom` | `image` | Any container on port 8080; `runtime.command` is required. |
-
-Python frameworks get framework-appropriate environment variables injected (e.g.
-`STREAMLIT_SERVER_PORT=8080`, `GRADIO_SERVER_PORT=8080`, or a generic `PORT=8080`) and TCP
-readiness probes, so most images work unmodified as long as they bind `0.0.0.0:8080`.
+| `inline` | small sites (text assets, ~900KB) | Files carried in the `App` resource, served by nginx (unprivileged) on 8080. |
+| `git` | version-controlled sites | A non-root init container clones the repo; nginx serves the content root. |
+| `pvc` | larger sites, existing volumes | An existing PersistentVolumeClaim mounted as the content root. |
 
 ## From the UI
 
 Open `https://apps.<cluster-domain>`:
 
-1. **Launch app** → name, display name, namespace, and framework.
-2. **Source** — static apps offer **Upload** (a `.zip` of your site or a single `.html`
-   file) and **Git**; Python frameworks take an image repository/tag with an optional
-   command override.
+1. **Launch app** → name, display name, and namespace.
+2. **Source** — **Upload** (a `.zip` of your site or a single `.html` file) or **Git**.
 3. **Runtime** — replicas, CPU/memory requests, environment variables.
 4. **Access** — public toggle, allowed groups, and the subdomain.
 
@@ -56,13 +53,12 @@ curl -X POST https://apps.example.ai/api/v1/apps/upload \
 curl -X POST https://apps.example.ai/api/v1/apps \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   -d '{
-    "name": "sales-dashboard",
-    "namespace": "team-analytics",
-    "displayName": "Sales Dashboard",
-    "framework": "streamlit",
-    "source": {"type": "image", "image": {"repository": "quay.io/org/sales-dashboard", "tag": "v1"}},
+    "name": "team-site",
+    "namespace": "apps",
+    "displayName": "Team Site",
+    "source": {"type": "git", "git": {"url": "https://github.com/org/site", "ref": "main", "subdir": "public"}},
     "runtime": {"replicas": 1, "env": [{"name": "LOG_LEVEL", "value": "info"}]},
-    "access": {"public": false, "groups": ["analytics"], "subdomain": "sales-dashboard"}
+    "access": {"public": false, "groups": ["analysts"], "subdomain": "team-site"}
   }'
 ```
 
@@ -80,7 +76,6 @@ metadata:
   namespace: apps
 spec:
   displayName: "Team Site"
-  framework: static
   source:
     type: git
     git:

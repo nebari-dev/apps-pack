@@ -28,9 +28,7 @@ The API validates the signature against the realm JWKS, and stamps the caller's
 |---|---|
 | `GET /healthz` | Liveness (public). |
 | `GET /config` | UI bootstrap config (public): `authEnabled`, Keycloak url/realm/SPA client id, `appsDomain`, `appsScheme`. |
-| `GET /capabilities` | `{nebi, environments, appsDomain, frameworks, namespaces}` — what this cluster supports and where the caller may launch. |
-| `GET /frameworks` | Framework catalog: name, display name, allowed + implemented source types. |
-| `GET /environments` | Pixi environments from Nebi — empty until that integration lands. |
+| `GET /capabilities` | `{appsDomain, sourceTypes, namespaces}` — what this cluster supports and where the caller may launch. `sourceTypes` is `["git", "inline", "pvc"]`. |
 | `GET /auth/me` | The caller's username, email, and groups. |
 
 ### Apps
@@ -53,32 +51,31 @@ The API validates the signature against the realm JWKS, and stamps the caller's
 | `GET /apps/{ns}/{name}/status` | Phase, URL, replicas, conditions, message. |
 | `GET /apps/{ns}/{name}/logs?lines=200&container=` | Recent pod logs. |
 | `GET /apps/{ns}/{name}/events` | Kubernetes events for the app's resources. |
-| `GET /analytics/summary?namespace=` | Totals and breakdowns by phase / framework / namespace, plus replica readiness. |
+| `GET /analytics/summary?namespace=` | Totals and breakdowns by phase / source type / namespace, plus replica readiness. |
 
 ## Create request
 
 ```json
 {
-  "name": "sales-dashboard",
+  "name": "team-site",
   "namespace": "team-analytics",
-  "displayName": "Sales Dashboard",
-  "description": "Q2 sales explorer",
-  "framework": "streamlit",
+  "displayName": "Team Site",
+  "description": "The team's documentation site",
   "source": {
-    "type": "image",
-    "image": { "repository": "quay.io/org/sales-dashboard", "tag": "v1" }
+    "type": "git",
+    "git": { "url": "https://github.com/org/site", "ref": "main", "subdir": "public" }
   },
   "runtime": {
     "replicas": 1,
     "env": [{ "name": "LOG_LEVEL", "value": "info" }],
     "resources": { "requests": { "cpu": "250m", "memory": "512Mi" } }
   },
-  "access": { "public": false, "groups": ["analytics"], "subdomain": "sales-dashboard" }
+  "access": { "public": false, "groups": ["analytics"], "subdomain": "team-site" }
 }
 ```
 
-The API validates the framework/source combination against `/frameworks` before writing the
-CR, so impossible launches fail fast with a `422` and a human-readable `detail`.
+The API validates the source before writing the CR, so impossible launches fail fast with a
+`422` and a human-readable `detail`.
 
 ## Upload request
 
@@ -86,7 +83,7 @@ CR, so impossible launches fail fast with a `422` and a human-readable `detail`.
 
 | Part | Content |
 |---|---|
-| `manifest` | The create request JSON **without** `source` (and `framework` defaults to `static`). |
+| `manifest` | The create request JSON **without** `source`. |
 | `file` | A `.zip` of the site, or a single `.html` file. |
 
 Rules: archives need a root `index.html` (one top-level folder is flattened); text assets
@@ -110,6 +107,6 @@ curl -X POST https://apps.example.ai/api/v1/apps/upload \
 | `404` | App (or its pods, for logs) not found. |
 | `409` | An app with that name already exists in the namespace. |
 | `413` | Upload exceeds the inline size cap. |
-| `422` | Invalid request: unknown framework, unsupported/unimplemented source, missing required fields. |
+| `422` | Invalid request: unsupported source type, missing required fields. |
 
 Error bodies are `{"detail": "..."}` with an actionable message.

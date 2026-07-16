@@ -9,7 +9,6 @@ def make_app_body(name: str = "docs-site", namespace: str = "apps") -> dict:
         "name": name,
         "namespace": namespace,
         "displayName": "Docs Site",
-        "framework": "static",
         "source": {"type": "inline", "inline": {"files": {"index.html": "<h1>hi</h1>"}}},
         "access": {"public": True, "subdomain": name},
     }
@@ -20,7 +19,7 @@ def test_create_and_get_app(client):
     assert resp.status_code == 201, resp.text
     body = resp.json()
     assert body["name"] == "docs-site"
-    assert body["framework"] == "static"
+    assert body["source"]["type"] == "inline"
     assert body["status"]["phase"] == "Pending"
 
     resp = client.get("/api/v1/apps/apps/docs-site")
@@ -39,37 +38,19 @@ def test_create_rejects_unmanaged_namespace(client):
     assert resp.status_code == 403
 
 
-def test_create_rejects_unimplemented_source(client):
+def test_create_rejects_unknown_source_type(client):
     body = make_app_body()
-    body["framework"] = "streamlit"
-    body["source"] = {
-        "type": "ociEnv",
-        "ociEnv": {
-            "ref": "oci://x",
-            "entrypoint": "app.py",
-            "code": {"type": "git", "git": {"url": "https://x"}},
-        },
-    }
+    body["source"] = {"type": "image", "image": {"repository": "quay.io/x/app"}}
     resp = client.post("/api/v1/apps", json=body)
     assert resp.status_code == 422
-    assert "Phase 2" in resp.json()["detail"]
 
 
-def test_python_image_app(client):
-    body = make_app_body(name="st-demo")
-    body["framework"] = "streamlit"
-    body["source"] = {"type": "image", "image": {"repository": "quay.io/x/streamlit", "tag": "v1"}}
+def test_create_rejects_missing_source_payload(client):
+    body = make_app_body()
+    body["source"] = {"type": "git"}
     resp = client.post("/api/v1/apps", json=body)
-    assert resp.status_code == 201, resp.text
-
-
-def test_custom_requires_command(client):
-    body = make_app_body(name="custom-app")
-    body["framework"] = "custom"
-    body["source"] = {"type": "image", "image": {"repository": "quay.io/x/app"}}
-    assert client.post("/api/v1/apps", json=body).status_code == 422
-    body["runtime"] = {"command": ["./run.sh"]}
-    assert client.post("/api/v1/apps", json=body).status_code == 201
+    assert resp.status_code == 422
+    assert "source.git" in resp.json()["detail"]
 
 
 def test_stop_start(client, store):
@@ -102,11 +83,8 @@ def test_logs_and_events(client):
 
 
 def test_catalogs(client):
-    frameworks = client.get("/api/v1/frameworks").json()
-    names = [f["name"] for f in frameworks]
-    assert "static" in names and "streamlit" in names
     caps = client.get("/api/v1/capabilities").json()
-    assert caps["nebi"] is False
+    assert caps["sourceTypes"] == ["git", "inline", "pvc"]
     assert "apps" in caps["namespaces"]
     config = client.get("/api/v1/config").json()
     assert config["authEnabled"] is False
@@ -115,13 +93,12 @@ def test_catalogs(client):
 def test_analytics_summary(client):
     client.post("/api/v1/apps", json=make_app_body())
     body = make_app_body(name="two", namespace="team-a")
-    body["framework"] = "streamlit"
-    body["source"] = {"type": "image", "image": {"repository": "q/x"}}
+    body["source"] = {"type": "git", "git": {"url": "https://github.com/example/site"}}
     client.post("/api/v1/apps", json=body)
 
     summary = client.get("/api/v1/analytics/summary").json()
     assert summary["total"] == 2
-    assert summary["byFramework"] == {"static": 1, "streamlit": 1}
+    assert summary["bySourceType"] == {"inline": 1, "git": 1}
     assert summary["byNamespace"] == {"apps": 1, "team-a": 1}
 
 

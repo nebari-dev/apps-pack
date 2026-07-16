@@ -55,12 +55,6 @@ func (r *AppReconciler) aggregateStatus(ctx context.Context, app *appsv1alpha1.A
 	// Routing readiness mirrors the NebariApp Ready condition.
 	routingReady := r.readNebariAppReady(ctx, app)
 
-	// Static apps have no environment to materialize.
-	if app.Spec.Framework == appsv1alpha1.FrameworkStatic {
-		setCondition(app, appsv1alpha1.ConditionEnvironmentReady, metav1.ConditionTrue,
-			"NotRequired", "static apps do not use an environment")
-	}
-
 	app.Status.URL = r.Config.Scheme() + "://" + r.Config.Hostname(app)
 
 	switch {

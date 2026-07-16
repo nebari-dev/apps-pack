@@ -20,45 +20,41 @@ cp -r skill/new-nebari-app .claude/skills/
 cp -r skill/new-nebari-app ~/.claude/skills/
 ```
 
-It triggers on requests like *"create a nebari app"*, *"scaffold a streamlit app for the
+It triggers on requests like *"create a nebari app"*, *"scaffold a static site for the
 cluster"*, or *"launch it"* in a directory containing `nebari-app.yaml`.
 
 ## What it scaffolds
 
 ```
-docs-site/                    sales-dashboard/
-  nebari-app.yaml               nebari-app.yaml
-  index.html                    app.py             # framework starter
-  styles.css                    pixi.toml          # local dev env (pixi run dev)
-                                Dockerfile         # deployment image (port 8080, non-root)
-                                README.md
+docs-site/
+  nebari-app.yaml
+  index.html
+  styles.css
 ```
 
-Static apps get real files (never hand-written inline YAML); Python apps get a
-framework starter, a `pixi.toml` for local development, and a Dockerfile for deployment.
-Starter templates ship for static, Streamlit, and FastAPI; other frameworks adapt the
-Streamlit template. All starters follow the platform conventions: listen on
-`0.0.0.0:8080`, run as non-root, and **no auth code in the app** — the gateway handles SSO.
+Static apps get real files (never hand-written inline YAML). The starter follows the
+platform conventions: static assets served as-is, and **no auth code in the app** — the
+gateway handles SSO.
 
 ## The manifest
 
 `nebari-app.yaml` sits next to the code and maps 1:1 onto the [App resource](/app-crd-reference/):
 
 ```yaml
-name: sales-dashboard
+name: docs-site
 namespace: apps
-displayName: "Sales Dashboard"
-framework: streamlit
+displayName: "Docs Site"
 source:
-  type: image
-  image: { repository: quay.io/org/sales-dashboard, tag: v1 }
+  type: files
+  files: { path: "." }
 access:
-  public: false
-  subdomain: sales-dashboard
+  public: true
+  subdomain: docs-site
 ```
 
-One authoring convenience: static apps use `source.type: files` with a directory path —
-on launch, the agent reads those files and passes them as the app's inline source (same
+Manifest source types are `files`, `git`, and `pvc`. `files` is an authoring convenience:
+a directory path next to the manifest — on launch, the agent reads those files and passes
+them as the app's `inline` source (same
 rules as [uploads](/launching-apps/#uploading-files)). The full schema and the
 manifest → `launch_app` mapping live in the skill's
 [`references/manifest.md`](https://github.com/nebari-dev/nebari-apps-pack/blob/main/skill/new-nebari-app/references/manifest.md).
@@ -73,6 +69,5 @@ When the user asks, the agent:
 4. polls `get_app_status` until `Running` (checking `get_app_logs` on failure),
 5. reports the app URL.
 
-For Python apps the image must be built and pushed first (`docker build` / `docker push`
-with the scaffolded Dockerfile) — the cluster pulls it. The committed `nebari-app.yaml`
+The committed `nebari-app.yaml`
 also doubles as the GitOps artifact for teams who keep their apps in version control.

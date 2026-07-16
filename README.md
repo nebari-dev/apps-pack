@@ -1,8 +1,11 @@
 # Nebari Apps Pack
 
-A [Nebari](https://nebari.dev) Software Pack for launching, managing, and observing **web
-applications** on a Nebari Kubernetes cluster — both **static** sites and **Python** apps
-(Streamlit, Panel, Gradio, Dash, Voila, FastAPI, custom) — behind Keycloak SSO.
+A [Nebari](https://nebari.dev) Software Pack for launching, managing, and observing **static
+web apps** (HTML/CSS/JS) on a Nebari Kubernetes cluster, behind Keycloak SSO.
+
+> Looking to deploy **Python services** (Streamlit, FastAPI, …)? That's
+> [python-capability-pack](https://github.com/nebari-dev/python-capability-pack) — this
+> pack deliberately scopes to static sites.
 
 Apps can be launched four ways, all converging on a single declarative `App` resource:
 
@@ -14,21 +17,15 @@ Apps can be launched four ways, all converging on a single declarative `App` res
 - 🔧 **The MCP server** directly (launch / list / status / logs / update / stop / remove as
   agent tools; Keycloak device-flow auth).
 
-Python apps run from **prebuilt container images** today; **pixi environments** managed by
-[Nebi](https://nebi.nebari.dev/) and delivered as OCI artifacts are planned.
-
 > **Status:** In development. Implemented so far: the **`App` CRD** and
-> **apps-operator** (static apps from `inline`/`git`/`pvc` sources, Python
-> apps from prebuilt images), the **apps-api** (CRUD, logs/events/status,
-> analytics, zip/.html upload), the **apps-ui** (Nebari design system:
-> dashboard + analytics, app detail with logs, launch form with upload),
-> the **apps-mcp** server (agent tools + device-flow auth at `/mcp`), and
-> the **`new-nebari-app` skill** (scaffold apps with a `nebari-app.yaml`
-> manifest, then "launch it").
+> **apps-operator** (static apps from `inline`/`git`/`pvc` sources), the
+> **apps-api** (CRUD, logs/events/status, analytics, zip/.html upload), the
+> **apps-ui** (Nebari design system: dashboard + analytics, app detail with
+> logs, launch form with upload), the **apps-mcp** server (agent tools +
+> device-flow auth at `/mcp`), and the **`new-nebari-app` skill** (scaffold
+> apps with a `nebari-app.yaml` manifest, then "launch it").
 > Apps are served at `https://<subdomain>.apps.<cluster-domain>` (TLS can be
 > switched off via `tls.enabled=false`, as local dev does).
-> Still to come: pixi environments via Nebi (`ociEnv`) — see
-> [`docs/PLAN.md`](docs/PLAN.md).
 
 ---
 
@@ -63,7 +60,7 @@ writes `App` CRs directly via a ServiceAccount, so **GitHub/GitOps is optional, 
 | **apps-api** | Python / FastAPI | CRUD + observability + zip/.html upload; writes `App` CRs. |
 | **apps-ui** | React + TS + Vite + [nebari-design](https://github.com/nebari-dev/nebari-design) | Dashboard + analytics, launch form, app detail with logs/events. |
 | **apps-mcp** | Python / FastMCP | Agent-facing tools at `/mcp`; Keycloak device-flow auth. |
-| **skill** | Claude Code skill | Scaffold static/Python apps + `nebari-app.yaml`; "launch it" via the MCP. |
+| **skill** | Claude Code skill | Scaffold static apps + `nebari-app.yaml`; "launch it" via the MCP. |
 
 ### Authentication model
 
@@ -125,7 +122,6 @@ metadata:
   name: team-site
 spec:
   displayName: "Team Site"
-  framework: static
   source:
     type: git
     git: { url: "https://github.com/org/site", ref: "main", subdir: "public" }
@@ -135,35 +131,8 @@ spec:
     subdomain: team-site
 ```
 
-### Python app
-
-From a prebuilt image listening on port 8080 (the operator injects framework env like
-`STREAMLIT_SERVER_PORT`; probes and hardening come standard):
-
-```yaml
-apiVersion: apps.nebari.dev/v1alpha1
-kind: App
-metadata:
-  name: sales-dashboard
-  namespace: team-analytics
-spec:
-  displayName: "Sales Dashboard"
-  framework: streamlit
-  source:
-    type: image
-    image: { repository: "quay.io/org/sales-dashboard", tag: "v1" }
-  access:
-    public: false
-    groups: ["analytics"]
-    subdomain: sales-dashboard
-```
-
 `kubectl apply` it (or `POST /api/v1/apps`, or use the UI's launch form) → reachable at
-`https://sales-dashboard.apps.<cluster-domain>` behind Keycloak SSO.
-
-> **Planned:** `source.type: ociEnv` will run app code inside a Nebi-published pixi
-> environment (no image build needed) — the CRD already carries the fields, and the API/UI
-> will enable it once the Nebi integration lands (Phase 2 in [`docs/PLAN.md`](docs/PLAN.md)).
+`https://team-site.apps.<cluster-domain>` behind Keycloak SSO.
 
 ### Agent flow — generate, then "launch it"
 
@@ -191,8 +160,6 @@ form, the API, or GitOps.
 
 - A Nebari cluster with **nebari-operator** (provides the `NebariApp` CRD), Envoy Gateway,
   cert-manager issuer (only when TLS is enabled), and a Keycloak realm.
-- **Nebi** is **optional** — static apps and image-based Python apps work without it; full
-  pixi environment management will delegate to Nebi when that integration lands.
 
 ---
 

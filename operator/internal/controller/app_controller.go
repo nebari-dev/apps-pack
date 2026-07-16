@@ -158,26 +158,7 @@ func (r *AppReconciler) validate(ctx context.Context, app *appsv1alpha1.App) err
 			app.Namespace, managedNamespaceLabel)
 	}
 
-	fw, ok := Frameworks[app.Spec.Framework]
-	if !ok {
-		return fmt.Errorf("unknown framework %q", app.Spec.Framework)
-	}
-	if !fw.SupportsSource(app.Spec.Source.Type) {
-		return fmt.Errorf("framework %q does not support source type %q", app.Spec.Framework, app.Spec.Source.Type)
-	}
-	if !fw.ImplementsSource(app.Spec.Source.Type) {
-		return fmt.Errorf("framework %q with source type %q is not implemented yet (ociEnv/Nebi environments land in Phase 2)",
-			app.Spec.Framework, app.Spec.Source.Type)
-	}
-	if app.Spec.Framework == appsv1alpha1.FrameworkCustom && len(app.Spec.Runtime.Command) == 0 {
-		return fmt.Errorf("runtime.command is required for framework custom")
-	}
-
 	switch app.Spec.Source.Type {
-	case appsv1alpha1.SourceTypeImage:
-		if app.Spec.Source.Image == nil || app.Spec.Source.Image.Repository == "" {
-			return fmt.Errorf("source.image.repository is required for source type image")
-		}
 	case appsv1alpha1.SourceTypeInline:
 		if app.Spec.Source.Inline == nil || len(app.Spec.Source.Inline.Files) == 0 {
 			return fmt.Errorf("source.inline.files is required for source type inline")
@@ -193,6 +174,8 @@ func (r *AppReconciler) validate(ctx context.Context, app *appsv1alpha1.App) err
 		if app.Spec.Source.PVC == nil || app.Spec.Source.PVC.ClaimName == "" {
 			return fmt.Errorf("source.pvc.claimName is required for source type pvc")
 		}
+	default:
+		return fmt.Errorf("unknown source type %q", app.Spec.Source.Type)
 	}
 
 	if app.Spec.Access.Subdomain == "" {

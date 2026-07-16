@@ -8,7 +8,6 @@ metadata:
 spec:
   displayName: "Docs Site"
   description: "A tiny inline static site"
-  framework: static
   source:
     type: inline
     inline:

@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ExternalLink, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FrameworkBadge, PhaseBadge } from '@/components/app-bits';
+import { PhaseBadge, SourceBadge } from '@/components/app-bits';
 import { api } from '@/lib/api';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
@@ -25,7 +25,7 @@ export function AppsPage() {
     const term = filter.trim().toLowerCase();
     if (!term) return list;
     return list.filter((a) =>
-      [a.name, a.displayName, a.namespace, a.framework, a.owner, a.status.phase]
+      [a.name, a.displayName, a.namespace, a.source?.type ?? '', a.owner, a.status.phase]
         .join(' ')
         .toLowerCase()
         .includes(term),
@@ -47,7 +47,7 @@ export function AppsPage() {
       <div className="relative max-w-sm">
         <Search className="-translate-y-1/2 absolute top-1/2 left-2.5 size-4 text-muted-foreground" />
         <Input
-          placeholder="Filter by name, framework, status…"
+          placeholder="Filter by name, source, status…"
           className="pl-8"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
@@ -68,7 +68,7 @@ export function AppsPage() {
             <TableRow>
               <TableHead>App</TableHead>
               <TableHead>Namespace</TableHead>
-              <TableHead>Framework</TableHead>
+              <TableHead>Source</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Replicas</TableHead>
               <TableHead>Owner</TableHead>
@@ -89,7 +89,7 @@ export function AppsPage() {
                 </TableCell>
                 <TableCell className="text-muted-foreground">{app.namespace}</TableCell>
                 <TableCell>
-                  <FrameworkBadge framework={app.framework} />
+                  <SourceBadge source={app.source?.type ?? '—'} />
                 </TableCell>
                 <TableCell>
                   <PhaseBadge phase={app.status.phase} />

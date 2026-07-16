@@ -20,7 +20,6 @@ LAUNCH_ARGS = {
     "name": "docs-site",
     "namespace": "apps",
     "display_name": "Docs Site",
-    "framework": "static",
     "subdomain": "docs-site",
     "source_type": "inline",
     "inline_files": {"index.html": "<h1>hi</h1>"},
@@ -34,8 +33,6 @@ async def test_tool_catalog():
     assert tools == {
         "authenticate",
         "describe_cluster",
-        "list_frameworks",
-        "list_environments",
         "list_apps",
         "launch_app",
         "get_app",
@@ -50,9 +47,8 @@ async def test_tool_catalog():
 
 async def test_describe_cluster():
     caps = await call("describe_cluster")
-    assert caps["nebi"] is False
     assert "apps" in caps["namespaces"]
-    assert "static" in caps["frameworks"]
+    assert "inline" in caps["sourceTypes"]
 
 
 async def test_launch_and_status_flow(store):
@@ -75,35 +71,26 @@ async def test_launch_is_idempotent(store):
     assert len(store.apps) == 1
 
 
-async def test_launch_python_image(store):
+async def test_launch_git_source(store):
     app = await call(
         "launch_app",
         {
-            "name": "st-demo",
+            "name": "git-site",
             "namespace": "apps",
-            "display_name": "Streamlit Demo",
-            "framework": "streamlit",
-            "subdomain": "st-demo",
-            "source_type": "image",
-            "image_repository": "quay.io/org/st-demo",
-            "image_tag": "v1",
+            "display_name": "Git Site",
+            "subdomain": "git-site",
+            "source_type": "git",
+            "git_url": "https://github.com/org/site",
+            "git_ref": "v1.0",
+            "git_subdir": "public",
             "env": {"LOG_LEVEL": "debug"},
             "groups": ["analysts"],
         },
     )
-    assert app["framework"] == "streamlit"
-    cr = store.apps[("apps", "st-demo")]
-    assert cr["spec"]["source"]["image"]["repository"] == "quay.io/org/st-demo"
+    assert app["source"]["type"] == "git"
+    cr = store.apps[("apps", "git-site")]
+    assert cr["spec"]["source"]["git"]["url"] == "https://github.com/org/site"
     assert {"name": "LOG_LEVEL", "value": "debug"} in cr["spec"]["runtime"]["env"]
-
-
-async def test_launch_invalid_framework_source():
-    result = await call(
-        "launch_app",
-        {**LAUNCH_ARGS, "framework": "streamlit", "source_type": "inline"},
-    )
-    assert result["status"] == 422
-    assert "does not support" in result["error"]
 
 
 async def test_stop_start_remove(store):

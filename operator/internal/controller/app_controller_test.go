@@ -50,7 +50,6 @@ func inlineApp(ns string) *appsv1alpha1.App {
 		ObjectMeta: metav1.ObjectMeta{Name: "docs-site", Namespace: ns, Generation: 1},
 		Spec: appsv1alpha1.AppSpec{
 			DisplayName: "Docs Site",
-			Framework:   appsv1alpha1.FrameworkStatic,
 			Source: appsv1alpha1.AppSource{
 				Type:   appsv1alpha1.SourceTypeInline,
 				Inline: &appsv1alpha1.InlineSource{Files: map[string]string{"index.html": "<h1>hi</h1>"}},
@@ -222,71 +221,18 @@ func TestReconcileRejectsUnmanagedNamespace(t *testing.T) {
 	}
 }
 
-func TestReconcilePythonImageApp(t *testing.T) {
+func TestReconcileRejectsIncompleteSource(t *testing.T) {
 	app := inlineApp("team-a")
-	app.Name = "dash-demo"
-	app.Spec.Framework = appsv1alpha1.FrameworkStreamlit
-	app.Spec.Source = appsv1alpha1.AppSource{
-		Type:  appsv1alpha1.SourceTypeImage,
-		Image: &appsv1alpha1.ImageSource{Repository: "quay.io/example/streamlit-demo", Tag: "v1"},
-	}
-	r, c := newReconciler(t, managedNamespace("team-a"), app)
-	reconcile(t, r, app)
-
-	deploy := &appsv1.Deployment{}
-	if err := c.Get(context.Background(), types.NamespacedName{Name: "app-dash-demo", Namespace: "team-a"}, deploy); err != nil {
-		t.Fatalf("Deployment not created: %v", err)
-	}
-	container := deploy.Spec.Template.Spec.Containers[0]
-	if container.Image != "quay.io/example/streamlit-demo:v1" {
-		t.Errorf("image = %q", container.Image)
-	}
-	if container.ReadinessProbe.TCPSocket == nil {
-		t.Error("python apps should use TCP readiness probes")
-	}
-	env := map[string]string{}
-	for _, e := range container.Env {
-		env[e.Name] = e.Value
-	}
-	if env["STREAMLIT_SERVER_PORT"] != "8080" {
-		t.Errorf("expected streamlit port env, got %+v", env)
-	}
-
-	got := getApp(t, c, "dash-demo", "team-a")
-	if got.Status.Phase == appsv1alpha1.AppPhaseFailed {
-		t.Errorf("python image app should reconcile, got Failed: %s", got.Status.Message)
-	}
-}
-
-func TestReconcileRejectsCustomWithoutCommand(t *testing.T) {
-	app := inlineApp("team-a")
-	app.Spec.Framework = appsv1alpha1.FrameworkCustom
-	app.Spec.Source = appsv1alpha1.AppSource{
-		Type:  appsv1alpha1.SourceTypeImage,
-		Image: &appsv1alpha1.ImageSource{Repository: "quay.io/example/custom"},
-	}
+	app.Spec.Source = appsv1alpha1.AppSource{Type: appsv1alpha1.SourceTypeGit}
 	r, c := newReconciler(t, managedNamespace("team-a"), app)
 	reconcile(t, r, app)
 
 	got := getApp(t, c, "docs-site", "team-a")
 	if got.Status.Phase != appsv1alpha1.AppPhaseFailed {
-		t.Errorf("phase = %q, want Failed (custom requires runtime.command)", got.Status.Phase)
+		t.Errorf("phase = %q, want Failed (git source requires url)", got.Status.Phase)
 	}
-}
-
-func TestReconcileRejectsUnimplementedFramework(t *testing.T) {
-	app := inlineApp("team-a")
-	app.Spec.Framework = appsv1alpha1.FrameworkStreamlit
-	app.Spec.Source = appsv1alpha1.AppSource{
-		Type:   appsv1alpha1.SourceTypeOCIEnv,
-		OCIEnv: &appsv1alpha1.OCIEnvSource{Ref: "oci://x", Entrypoint: "app.py", Code: appsv1alpha1.CodeSource{Type: "git"}},
-	}
-	r, c := newReconciler(t, managedNamespace("team-a"), app)
-	reconcile(t, r, app)
-
-	got := getApp(t, c, "docs-site", "team-a")
-	if got.Status.Phase != appsv1alpha1.AppPhaseFailed {
-		t.Errorf("phase = %q, want Failed", got.Status.Phase)
+	if meta.IsStatusConditionTrue(got.Status.Conditions, appsv1alpha1.ConditionValidated) {
+		t.Error("Validated should be False")
 	}
 }
 

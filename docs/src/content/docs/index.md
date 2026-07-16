@@ -2,10 +2,10 @@
 title: Nebari Apps Pack
 ---
 
-The Nebari Apps Pack lets users launch, manage, and observe **web applications** on a
-[Nebari](https://nebari.dev) Kubernetes cluster — both **static sites** and **Python apps**
-(Streamlit, Panel, Gradio, Dash, Voilà, FastAPI, or anything custom) — behind Keycloak SSO,
-with no Kubernetes knowledge required.
+The Nebari Apps Pack lets users launch, manage, and observe **static web apps**
+(HTML/CSS/JS, served by nginx) on a [Nebari](https://nebari.dev) Kubernetes cluster —
+behind Keycloak SSO, with no Kubernetes knowledge required. Python services are handled
+by the separate [python-capability-pack](https://github.com/nebari-dev/python-capability-pack).
 
 Everything converges on one declarative resource: the **`App`** custom resource
 (`apps.nebari.dev/v1alpha1`). Whether an app is launched from the web UI, the REST API, or
@@ -22,7 +22,7 @@ https://<subdomain>.apps.<cluster-domain>
 ## What ships today
 
 - **apps-operator** — reconciles `App` resources. Static apps from inline files, a git
-  repository, or a PVC; Python apps from prebuilt container images.
+  repository, or a PVC.
 - **apps-api** — REST API for CRUD, status, logs, events, analytics, and direct
   **zip/.html upload**.
 - **apps-ui** — a dashboard built on the [Nebari design system](https://github.com/nebari-dev/nebari-design):
@@ -50,9 +50,10 @@ https://<subdomain>.apps.<cluster-domain>
 - **[Architecture & auth](/architecture/)** — how the pieces fit together and how
   authentication works
 
-## Planned
+## Looking for Python apps?
 
-Pixi environments via [Nebi](https://nebi.nebari.dev/) (`source.type: ociEnv`) — running
-Python apps without an image build. See
+Python app support was removed from this pack in favor of
+[python-capability-pack](https://github.com/nebari-dev/python-capability-pack), which owns
+Python services. See
 [`docs/PLAN.md`](https://github.com/nebari-dev/nebari-apps-pack/blob/main/docs/PLAN.md) in the
 repository for the full roadmap.
