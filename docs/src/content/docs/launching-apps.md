@@ -91,6 +91,13 @@ spec:
 The namespace must carry the `nebari.dev/managed=true` label. See the
 [App CRD reference](/app-crd-reference/) for every field.
 
+## From an agent (MCP)
+
+Coding agents (Claude Code, Codex, or any MCP client) can launch and manage apps with
+natural language through the **apps-mcp** server — `launch_app` is idempotent on
+(namespace, name), so re-launching updates instead of failing. See the
+[MCP server](/mcp/) page for connection and authentication details.
+
 ## Access control
 
 - **`access.public: true`** — no authentication; anyone with the URL.
