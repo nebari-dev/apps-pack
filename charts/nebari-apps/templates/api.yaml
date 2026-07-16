@@ -74,6 +74,10 @@ spec:
           env:
             - name: APPS_DOMAIN
               value: {{ include "nebari-apps.appsDomain" . }}
+            {{- with .Values.api.allowedNamespaces }}
+            - name: APPS_NAMESPACES
+              value: {{ join "," . | quote }}
+            {{- end }}
             - name: AUTH_ENABLED
               value: {{ .Values.api.auth.enabled | quote }}
             - name: TLS_DISABLED

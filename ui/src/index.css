@@ -155,6 +155,10 @@
   --foreground: var(--zinc-950);
   --scrim: rgba(0, 0, 0, 0.5);
 
+  /* Top bar and page fills shared across Nebari apps (landing, llm-serving, …). */
+  --header-background: var(--zinc-50);
+  --body-background: var(--white);
+
   --card: var(--white);
   --card-foreground: var(--zinc-950);
 
@@ -223,6 +227,9 @@
   --background: var(--zinc-950);
   --foreground: var(--zinc-50);
   --scrim: rgba(0, 0, 0, 0.6);
+
+  --header-background: var(--zinc-900);
+  --body-background: var(--zinc-950);
 
   --card: var(--zinc-900);
   --card-foreground: var(--zinc-50);
@@ -321,6 +328,8 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-scrim: var(--scrim);
+  --color-header-background: var(--header-background);
+  --color-body-background: var(--body-background);
 
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);

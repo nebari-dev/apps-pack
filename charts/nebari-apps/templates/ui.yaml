@@ -133,4 +133,7 @@ spec:
     displayName: Apps
     description: Launch and manage web applications on this cluster.
     category: Platform
+    # files/icon.svg is a copy of assets/icon.svg (Helm can only read files
+    # inside the chart); embedded as a data URI so no extra hosting is needed.
+    icon: data:image/svg+xml;base64,{{ .Files.Get "files/icon.svg" | b64enc }}
 {{- end }}

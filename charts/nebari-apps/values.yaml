@@ -53,6 +53,10 @@ api:
   # Disable only for local development without a browser-reachable Keycloak.
   auth:
     enabled: true
+  # Namespaces users may launch apps into. An empty list falls back to every
+  # namespace labeled nebari.dev/managed=true.
+  allowedNamespaces:
+    - apps
   resources:
     requests:
       cpu: 100m

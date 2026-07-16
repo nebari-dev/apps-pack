@@ -38,6 +38,21 @@ def test_create_rejects_unmanaged_namespace(client):
     assert resp.status_code == 403
 
 
+def test_allowed_namespaces_restricts_managed_namespaces(client, monkeypatch):
+    """APPS_NAMESPACES wins over the managed-namespace label: even a managed
+    namespace (team-a) is rejected when it is not in the allowlist."""
+    from nebari_apps_api.config import settings
+
+    monkeypatch.setattr(settings, "allowed_namespaces", ["apps"])
+
+    assert client.post("/api/v1/apps", json=make_app_body()).status_code == 201
+    resp = client.post("/api/v1/apps", json=make_app_body(name="other", namespace="team-a"))
+    assert resp.status_code == 403
+
+    caps = client.get("/api/v1/capabilities").json()
+    assert caps["namespaces"] == ["apps"]
+
+
 def test_create_rejects_unknown_source_type(client):
     body = make_app_body()
     body["source"] = {"type": "image", "image": {"repository": "quay.io/x/app"}}
