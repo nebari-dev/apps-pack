@@ -24,7 +24,7 @@ tls:
 # =============================================================================
 operator:
   image:
-    repository: ghcr.io/nebari-dev/nebari-apps-pack/apps-operator
+    repository: ghcr.io/nebari-dev/apps-pack/apps-operator
     tag: ""            # Defaults to .Chart.appVersion
     pullPolicy: IfNotPresent
 
@@ -45,7 +45,7 @@ operator:
 api:
   enabled: true
   image:
-    repository: ghcr.io/nebari-dev/nebari-apps-pack/apps-api
+    repository: ghcr.io/nebari-dev/apps-pack/apps-api
     tag: ""            # Defaults to .Chart.appVersion
     pullPolicy: IfNotPresent
   replicaCount: 1
@@ -71,7 +71,7 @@ api:
 ui:
   enabled: true
   image:
-    repository: ghcr.io/nebari-dev/nebari-apps-pack/apps-ui
+    repository: ghcr.io/nebari-dev/apps-pack/apps-ui
     tag: ""            # Defaults to .Chart.appVersion
     pullPolicy: IfNotPresent
   replicaCount: 1
@@ -101,7 +101,7 @@ ui:
 mcp:
   enabled: true
   image:
-    repository: ghcr.io/nebari-dev/nebari-apps-pack/apps-mcp
+    repository: ghcr.io/nebari-dev/apps-pack/apps-mcp
     tag: ""            # Defaults to .Chart.appVersion
     pullPolicy: IfNotPresent
   replicaCount: 1
