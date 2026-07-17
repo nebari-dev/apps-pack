@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { type ReactNode, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AppThumbnail, ConfirmDeleteDialog, KindBadge, PhaseBadge, SourceBadge } from '@/components/app-bits';
+import { AppThumbnail, ConfirmDeleteDialog, PhaseBadge, SourceBadge } from '@/components/app-bits';
 import { Onboarding } from '@/components/onboarding';
 import { api } from '@/lib/api';
 import type { App } from '@/lib/types';
@@ -43,7 +43,10 @@ const isStopped = (app: App) => (app.status.replicas?.desired ?? app.runtime?.re
 
 const PHASES = ['Running', 'Deploying', 'Pending', 'Stopped', 'Failed'] as const;
 
-type SortCol = 'name' | 'namespace' | 'source' | 'status' | 'owner';
+type SortCol = 'name' | 'namespace' | 'type' | 'source' | 'status' | 'owner';
+
+/** App kind shown in the Type column: pixi-launched apps are python, the rest static. */
+const appType = (app: App) => (app.runtime?.pixiTask ? 'python' : 'static');
 type SortDir = 'asc' | 'desc';
 
 export function AppsPage() {
@@ -100,7 +103,7 @@ export function AppsPage() {
     let out = list.filter((a) => {
       if (phaseFilter && a.status.phase !== phaseFilter) return false;
       if (!term) return true;
-      return [a.name, a.displayName, a.namespace, a.source?.type ?? '', a.owner, a.status.phase]
+      return [a.name, a.displayName, a.namespace, appType(a), a.source?.type ?? '', a.owner, a.status.phase]
         .join(' ')
         .toLowerCase()
         .includes(term);
@@ -109,6 +112,8 @@ export function AppsPage() {
       switch (sort.col) {
         case 'namespace':
           return a.namespace;
+        case 'type':
+          return appType(a);
         case 'source':
           return a.source?.type ?? '';
         case 'status':
@@ -240,6 +245,7 @@ export function AppsPage() {
               </TableHead>
               <SortableHead label="App" col="name" sort={sort} onToggle={toggleSort} />
               <SortableHead label="Namespace" col="namespace" sort={sort} onToggle={toggleSort} />
+              <SortableHead label="Type" col="type" sort={sort} onToggle={toggleSort} />
               <SortableHead label="Source" col="source" sort={sort} onToggle={toggleSort} />
               <SortableHead label="Status" col="status" sort={sort} onToggle={toggleSort} />
               <TableHead>Replicas</TableHead>
@@ -269,8 +275,10 @@ export function AppsPage() {
                   </TableCell>
                   <TableCell className="text-muted-foreground">{app.namespace}</TableCell>
                   <TableCell>
+                    <SourceBadge source={appType(app)} />
+                  </TableCell>
+                  <TableCell>
                     <SourceBadge source={app.source?.type ?? '—'} />
-                    <KindBadge pixiTask={app.runtime?.pixiTask} />
                   </TableCell>
                   <TableCell>
                     <PhaseBadge phase={app.status.phase} />
