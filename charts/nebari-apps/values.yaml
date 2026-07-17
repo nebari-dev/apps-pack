@@ -78,6 +78,15 @@ ui:
   # Hostname for the UI; defaults to the apps domain itself, so the UI lives
   # at https://apps.<clusterDomain> and launched apps at https://<name>.apps.<clusterDomain>.
   hostname: ""
+  # Health indicator for the UI's tile on the Nebari landing page. When enabled,
+  # the nebari-operator polls the UI's health endpoint and surfaces up/down
+  # status next to the tile. Disable to hide the indicator.
+  landingPage:
+    healthCheck:
+      enabled: true
+      path: /healthz
+      intervalSeconds: 30
+      timeoutSeconds: 5
   resources:
     requests:
       cpu: 50m
