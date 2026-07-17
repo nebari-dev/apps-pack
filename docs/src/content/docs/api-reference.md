@@ -37,7 +37,7 @@ The API validates the signature against the realm JWKS, and stamps the caller's
 |---|---|
 | `GET /apps?namespace=` | List apps (all managed namespaces, or one). |
 | `POST /apps` | Create + launch. Body mirrors `App.spec` plus `name`/`namespace` (see below). `409` if the name exists. |
-| `POST /apps/upload` | Create + launch a static app from an upload. Multipart: `manifest` (JSON, source omitted) + `file` (`.zip` or `.html`). |
+| `POST /apps/upload` | Create + launch an app from an upload. Multipart: `manifest` (JSON, source omitted) + `file` (`.zip` or `.html`). A manifest with `runtime.pixiTask` launches the zip as a Python/pixi app. |
 | `GET /apps/{ns}/{name}` | Full spec + status. |
 | `PATCH /apps/{ns}/{name}` | Update any of `displayName`, `description`, `thumbnail`, `source`, `runtime`, `access`. |
 | `DELETE /apps/{ns}/{name}` | Delete (cascades to all children). |
@@ -77,6 +77,10 @@ The API validates the signature against the realm JWKS, and stamps the caller's
 }
 ```
 
+To launch a **Python/pixi app**, add `"pixiTask": "<task>"` to `runtime` — the source
+(any type) must then contain a `pixi.toml` or `pyproject.toml` at its root, and the task
+must start a server on `0.0.0.0:8080`. See [Launching apps](/launching-apps/#python-apps-pixi).
+
 `name` must be a valid Kubernetes name — lowercase letters, digits, and hyphens
 (`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`), at most 53 characters.
 
@@ -90,11 +94,12 @@ The API validates the source before writing the CR, so impossible launches fail 
 | Part | Content |
 |---|---|
 | `manifest` | The create request JSON **without** `source`. |
-| `file` | A `.zip` of the site, or a single `.html` file. |
+| `file` | A `.zip` of the app, or a single `.html` file (static apps only). |
 
-Rules: archives need a root `index.html` (one top-level folder is flattened); text assets
-only; ~900KB total. Violations return `400`/`413` with the reason. The extracted files
-become the App's `inline` source.
+Rules: static archives need a root `index.html`; pixi archives (`runtime.pixiTask` in the
+manifest) need a root `pixi.toml` or `pyproject.toml` instead (one top-level folder is
+flattened either way). Text files only; ~900KB total. Violations return `400`/`413` with
+the reason. The extracted files become the App's `inline` source.
 
 ```bash
 curl -X POST https://apps.example.ai/api/v1/apps/upload \

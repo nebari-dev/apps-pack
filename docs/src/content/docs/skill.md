@@ -21,20 +21,21 @@ cp -r skill/new-nebari-app ~/.claude/skills/
 ```
 
 It triggers on requests like *"create a nebari app"*, *"scaffold a static site for the
-cluster"*, or *"launch it"* in a directory containing `nebari-app.yaml`.
+cluster"*, *"scaffold a python app for nebari"*, or *"launch it"* in a directory
+containing `nebari-app.yaml`.
 
 ## What it scaffolds
 
 ```
-docs-site/
-  nebari-app.yaml
-  index.html
-  styles.css
+docs-site/                     py-app/
+  nebari-app.yaml                nebari-app.yaml
+  index.html                     pixi.toml
+  styles.css                     app.py
 ```
 
-Static apps get real files (never hand-written inline YAML). The starter follows the
-platform conventions: static assets served as-is, and **no auth code in the app** — the
-gateway handles SSO.
+Apps get real files (never hand-written inline YAML). The starters follow the platform
+conventions: static assets served as-is, Python apps launched by a pixi task that serves
+on `0.0.0.0:8080`, and **no auth code in the app** — the gateway handles SSO.
 
 ## The manifest
 

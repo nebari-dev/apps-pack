@@ -241,6 +241,93 @@ def test_upload_requires_index(client):
     assert "index.html" in resp.json()["detail"]
 
 
+def test_upload_pixi_zip(client, store):
+    manifest = (
+        '{"name": "py-app", "namespace": "apps", "displayName": "Py App",'
+        ' "runtime": {"pixiTask": "start"},'
+        ' "access": {"public": true, "subdomain": "py-app"}}'
+    )
+    data = _zip_bytes({
+        "app/pixi.toml": '[project]\nname = "py-app"',
+        "app/main.py": "print('hi')",
+        "app/pkg/util.py": "X = 1",
+    })
+    resp = client.post(
+        "/api/v1/apps/upload",
+        data={"manifest": manifest},
+        files={"file": ("app.zip", data, "application/zip")},
+    )
+    assert resp.status_code == 201, resp.text
+    cr = store.apps[("apps", "py-app")]
+    assert cr["spec"]["runtime"]["pixiTask"] == "start"
+    files = cr["spec"]["source"]["inline"]["files"]
+    # single top-level dir is flattened; no index.html required for pixi apps
+    assert "pixi.toml" in files
+    assert files["pkg/util.py"] == "X = 1"
+
+
+def test_upload_pixi_requires_manifest(client):
+    manifest = (
+        '{"name": "no-pixi", "namespace": "apps", "displayName": "NoPixi",'
+        ' "runtime": {"pixiTask": "start"},'
+        ' "access": {"public": true, "subdomain": "no-pixi"}}'
+    )
+    data = _zip_bytes({"main.py": "print('hi')"})
+    resp = client.post(
+        "/api/v1/apps/upload",
+        data={"manifest": manifest},
+        files={"file": ("app.zip", data, "application/zip")},
+    )
+    assert resp.status_code == 400
+    assert "pixi.toml" in resp.json()["detail"]
+
+
+def test_upload_pixi_rejects_single_html(client):
+    manifest = (
+        '{"name": "html-pixi", "namespace": "apps", "displayName": "HtmlPixi",'
+        ' "runtime": {"pixiTask": "start"},'
+        ' "access": {"public": true, "subdomain": "html-pixi"}}'
+    )
+    resp = client.post(
+        "/api/v1/apps/upload",
+        data={"manifest": manifest},
+        files={"file": ("page.html", b"<h1>x</h1>", "text/html")},
+    )
+    assert resp.status_code == 400
+    assert "zip" in resp.json()["detail"]
+
+
+def test_create_pixi_app_json(client, store):
+    body = {
+        "name": "py-json",
+        "namespace": "apps",
+        "displayName": "Py JSON",
+        "source": {
+            "type": "inline",
+            "inline": {"files": {"pixi.toml": "[project]", "main.py": "print(1)"}},
+        },
+        "runtime": {"pixiTask": "serve"},
+        "access": {"public": True, "subdomain": "py-json"},
+    }
+    resp = client.post("/api/v1/apps", json=body)
+    assert resp.status_code == 201, resp.text
+    assert store.apps[("apps", "py-json")]["spec"]["runtime"]["pixiTask"] == "serve"
+
+
+def test_create_pixi_inline_requires_manifest(client):
+    body = {
+        "name": "py-bad",
+        "namespace": "apps",
+        "displayName": "Py Bad",
+        "source": {"type": "inline", "inline": {"files": {"main.py": "print(1)"}}},
+        "runtime": {"pixiTask": "serve"},
+        "access": {"public": True, "subdomain": "py-bad"},
+    }
+    resp = client.post("/api/v1/apps", json=body)
+    assert resp.status_code == 422
+    assert "pixi.toml" in resp.json()["detail"]
+
+
 def test_upload_rejects_binary(client):
     manifest = (
         '{"name": "bin", "namespace": "apps", "displayName": "Bin",'

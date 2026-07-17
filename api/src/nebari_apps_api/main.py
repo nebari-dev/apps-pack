@@ -26,7 +26,7 @@ from .models import (
     ClusterMetrics,
     NamespaceUsage,
 )
-from .upload import files_from_upload
+from .upload import PIXI_MANIFESTS, files_from_upload
 
 PREFIX = "/api/v1"
 
@@ -111,13 +111,18 @@ def create_app(store: AppStore | None = None) -> FastAPI:
         manifest: Annotated[str, Form(description="AppCreate JSON, source omitted")],
         file: Annotated[UploadFile, File(description="zip archive or single .html file")],
     ) -> AppOut:
-        """Launch a static app from an uploaded zip or .html file."""
+        """Launch an app from an uploaded zip or .html file.
+
+        A manifest with runtime.pixiTask set marks a Python/pixi app: the zip
+        must contain a pixi manifest instead of an index.html.
+        """
         try:
             data = json.loads(manifest)
         except json.JSONDecodeError as exc:
             raise HTTPException(400, f"manifest is not valid JSON: {exc}") from exc
 
-        files = files_from_upload(file.filename or "upload", file.file.read())
+        pixi = bool((data.get("runtime") or {}).get("pixiTask"))
+        files = files_from_upload(file.filename or "upload", file.file.read(), pixi=pixi)
         data["source"] = {"type": "inline", "inline": {"files": files}}
         req = AppCreate.model_validate(data)
 
@@ -268,6 +273,12 @@ def create_app(store: AppStore | None = None) -> FastAPI:
 def _validate_request(req: AppCreate) -> None:
     if getattr(req.source, req.source.type, None) is None:
         raise HTTPException(422, f"source.{req.source.type} is required for source type {req.source.type!r}")
+    if req.runtime.pixiTask and req.source.type == "inline":
+        files = req.source.inline.files if req.source.inline else {}
+        if not any(m in files for m in PIXI_MANIFESTS):
+            raise HTTPException(
+                422, "pixi apps need a pixi.toml or pyproject.toml at the source root"
+            )
 
 
 app = create_app()

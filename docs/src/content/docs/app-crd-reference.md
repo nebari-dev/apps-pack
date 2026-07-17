@@ -67,15 +67,18 @@ status:
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `type` | string | Yes | `git` \| `inline` \| `pvc`. Exactly one matching payload field must be set. |
-| `inline` | [InlineSource](#inlinesource) | For `inline` | Small static content carried in the CR. |
-| `git` | [GitSource](#gitsource) | For `git` | Static content cloned from a git repository. |
+| `inline` | [InlineSource](#inlinesource) | For `inline` | Small content carried in the CR. |
+| `git` | [GitSource](#gitsource) | For `git` | Content cloned from a git repository. |
 | `pvc` | [PVCSource](#pvcsource) | For `pvc` | Content already present on a PersistentVolumeClaim. |
+
+The source is independent of the app **kind**: without `runtime.pixiTask` the content is
+served statically by nginx; with it, the content is a pixi project run as a Python app.
 
 ### InlineSource
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `files` | map[string]string | Yes | Relative file paths → contents. Materialized as a ConfigMap-backed volume served by nginx. Keep under ~900KB total (ConfigMap limit). |
+| `files` | map[string]string | Yes | Relative file paths → contents (nested paths like `pkg/mod.py` are supported). Materialized as a ConfigMap-backed volume. Keep under ~900KB total (ConfigMap limit). Paths must be relative and must not contain `..`. |
 
 ### GitSource
 
@@ -103,6 +106,7 @@ current state of the ref.
 | `resources` | [ResourceRequirements](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) | No | — | CPU/memory requests and limits. |
 | `replicas` | int | No | `1` | Desired replicas. `0` stops the app (phase `Stopped`). |
 | `keepAlive` | bool | No | `false` | Reserved for scale-to-zero idle reaping (not yet implemented). |
+| `pixiTask` | string | No | — | When set, the app runs as a **Python/pixi service**: the operator copies the source into a writable workspace, runs `pixi install` (`--locked` when a `pixi.lock` is present), then `pixi run <pixiTask>`. The task must start a server on `0.0.0.0:8080` (`PORT=8080` and `HOME=/app` are injected). Max 64 chars. |
 
 ## spec.access
 

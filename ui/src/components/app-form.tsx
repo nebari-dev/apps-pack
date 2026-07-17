@@ -14,6 +14,9 @@ const SUBDOMAIN_RE = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/;
 /** Source authoring tabs. "keep" is edit-only: leave the current source as-is. */
 type SourceTab = 'upload' | 'git' | 'pvc' | 'keep';
 
+/** What the app is: a static site served by nginx, or a Python/pixi service. */
+type AppKind = 'static' | 'pixi';
+
 /** Resource presets that fill both requests and limits in one click. */
 const PRESETS: Record<string, { cpuReq: string; memReq: string; cpuLim: string; memLim: string }> = {
   Small: { cpuReq: '100m', memReq: '128Mi', cpuLim: '250m', memLim: '256Mi' },
@@ -57,6 +60,10 @@ export function AppForm({
   const [sourceTab, setSourceTab] = useState<SourceTab>(isEdit ? 'keep' : 'upload');
   const [nameInput, setNameInput] = useState(initial?.name ?? '');
 
+  // App kind: presence of a pixi task is the wire discriminator.
+  const [kind, setKind] = useState<AppKind>(initial?.runtime?.pixiTask ? 'pixi' : 'static');
+  const [pixiTask, setPixiTask] = useState(initial?.runtime?.pixiTask ?? '');
+
   // Sources
   const [file, setFile] = useState<File | null>(null);
   const [gitUrl, setGitUrl] = useState(initial?.source?.git?.url ?? '');
@@ -89,11 +96,17 @@ export function AppForm({
     }
     if (!displayName) return 'Give the app a display name.';
     if (!namespace) return 'Pick a namespace.';
-    if (sourceTab === 'upload' && !file) return 'Choose a .zip or .html file to upload.';
+    if (kind === 'pixi' && !pixiTask) return 'Enter the pixi task that launches the app.';
+    if (sourceTab === 'upload' && !file) {
+      return kind === 'pixi' ? 'Choose a .zip of your pixi project to upload.' : 'Choose a .zip or .html file to upload.';
+    }
+    if (kind === 'pixi' && sourceTab === 'upload' && file && !file.name.toLowerCase().endsWith('.zip')) {
+      return 'Pixi apps must be uploaded as a .zip archive.';
+    }
     if (sourceTab === 'git' && !gitUrl) return 'Enter the git repository URL.';
     if (sourceTab === 'pvc' && !pvcClaim) return 'Enter the PVC claim name.';
     return '';
-  }, [isEdit, nameInput, displayName, namespace, subdomain, sourceTab, file, gitUrl, pvcClaim]);
+  }, [isEdit, nameInput, displayName, namespace, subdomain, kind, pixiTask, sourceTab, file, gitUrl, pvcClaim]);
 
   const applyPreset = (preset: keyof typeof PRESETS) => {
     const p = PRESETS[preset];
@@ -121,6 +134,7 @@ export function AppForm({
       replicas,
       env: envVars.filter((e) => e.name),
       resources: buildResources(),
+      pixiTask: kind === 'pixi' ? pixiTask : '',
     };
 
     if (isEdit) {
@@ -206,6 +220,38 @@ export function AppForm({
               </SelectContent>
             </Select>
           </div>
+          <div className="space-y-1.5">
+            <Label>App type</Label>
+            <Select
+              value={kind}
+              onValueChange={(v) => setKind(v as AppKind)}
+              items={{ static: 'Static site (HTML/CSS/JS)', pixi: 'Python app (pixi)' }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="static">Static site (HTML/CSS/JS)</SelectItem>
+                <SelectItem value="pixi">Python app (pixi)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {kind === 'pixi' ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="pixiTask">Launch task</Label>
+              <Input
+                id="pixiTask"
+                className="font-mono"
+                placeholder="start"
+                value={pixiTask}
+                onChange={(e) => setPixiTask(e.target.value)}
+              />
+              <p className="text-muted-foreground text-xs">
+                Runs <span className="font-mono">pixi run {pixiTask || '<task>'}</span>; the task must serve on{' '}
+                <span className="font-mono">0.0.0.0:8080</span>.
+              </p>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -242,13 +288,26 @@ export function AppForm({
                   <UploadCloud className="size-6 text-muted-foreground" />
                   {file ? (
                     <p className="font-medium text-sm">{file.name}</p>
+                  ) : kind === 'pixi' ? (
+                    <>
+                      <p className="font-medium text-sm">Drop a .zip of your pixi project</p>
+                      <p className="text-muted-foreground text-xs">
+                        Needs a pixi.toml (or pyproject.toml) at the root · text files only · up to ~900KB
+                      </p>
+                    </>
                   ) : (
                     <>
                       <p className="font-medium text-sm">Drop a .zip of your site, or a single .html file</p>
                       <p className="text-muted-foreground text-xs">Needs an index.html at the root · text assets only · up to ~900KB</p>
                     </>
                   )}
-                  <input id="file-upload" type="file" accept=".zip,.html,.htm" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+                  <input
+                    id="file-upload"
+                    type="file"
+                    accept={kind === 'pixi' ? '.zip' : '.zip,.html,.htm'}
+                    className="hidden"
+                    onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                  />
                 </label>
               </TabsPanel>
             )}

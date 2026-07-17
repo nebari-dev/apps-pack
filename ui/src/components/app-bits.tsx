@@ -41,6 +41,12 @@ export function SourceBadge({ source }: { source: string }) {
   return <Badge variant="ghost" className="border border-border font-mono text-xs">{source}</Badge>;
 }
 
+/** Shown for Python/pixi apps (runtime.pixiTask set); static apps get no extra badge. */
+export function KindBadge({ pixiTask }: { pixiTask?: string }) {
+  if (!pixiTask) return null;
+  return <Badge variant="ghost" className="border border-border font-mono text-xs">python</Badge>;
+}
+
 /** Deterministic accent color from a string so fallback tiles stay stable. */
 const TILE_COLORS = [
   'bg-blue-500/15 text-blue-600 dark:text-blue-300',

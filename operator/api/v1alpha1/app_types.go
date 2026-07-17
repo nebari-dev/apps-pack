@@ -78,6 +78,14 @@ type AppRuntime struct {
 	// +kubebuilder:validation:Minimum=0
 	// +optional
 	Replicas *int32 `json:"replicas,omitempty"`
+
+	// PixiTask, when set, runs the app as a Python/pixi service instead of
+	// serving its source as static content: the operator installs the pixi
+	// environment from the app source and executes `pixi run <PixiTask>`.
+	// The task must start a server listening on 0.0.0.0:8080.
+	// +kubebuilder:validation:MaxLength=64
+	// +optional
+	PixiTask string `json:"pixiTask,omitempty"`
 }
 
 // AppAccess configures who can reach the app and at which subdomain.

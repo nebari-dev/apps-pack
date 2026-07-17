@@ -51,6 +51,10 @@ class AppRuntime(BaseModel):
     env: list[EnvVar] = Field(default_factory=list)
     resources: Resources | None = None
     replicas: int = 1
+    # When set, the app runs as a Python/pixi service: the operator installs
+    # the pixi environment and executes `pixi run <pixiTask>`. The task must
+    # start a server listening on 0.0.0.0:8080.
+    pixiTask: str = Field(default="", max_length=64)
 
 
 class AppAccess(BaseModel):

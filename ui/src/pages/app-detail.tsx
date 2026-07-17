@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { AppThumbnail, ConfirmDeleteDialog, metricValue, PhaseBadge, Sparkline, SourceBadge } from '@/components/app-bits';
+import { AppThumbnail, ConfirmDeleteDialog, KindBadge, metricValue, PhaseBadge, Sparkline, SourceBadge } from '@/components/app-bits';
 import { api } from '@/lib/api';
 import type { App } from '@/lib/types';
 import { Alert, AlertDescription, AlertTitle } from '@/ui/alert';
@@ -158,6 +158,7 @@ export function AppDetailPage() {
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="font-semibold text-2xl">{a.displayName || a.name}</h1>
               <SourceBadge source={a.source?.type ?? '—'} />
+              <KindBadge pixiTask={a.runtime?.pixiTask} />
               <PhaseBadge phase={a.status.phase} />
             </div>
             <p className="mt-1 text-muted-foreground text-sm">

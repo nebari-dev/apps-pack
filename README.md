@@ -1,11 +1,10 @@
 # Nebari Apps Pack
 
-A [Nebari](https://nebari.dev) Software Pack for launching, managing, and observing **static
-web apps** (HTML/CSS/JS) on a Nebari Kubernetes cluster, behind Keycloak SSO.
-
-> Looking to deploy **Python services** (Streamlit, FastAPI, …)? That's
-> [python-capability-pack](https://github.com/nebari-dev/python-capability-pack) — this
-> pack deliberately scopes to static sites.
+A [Nebari](https://nebari.dev) Software Pack for launching, managing, and observing **web
+apps** on a Nebari Kubernetes cluster, behind Keycloak SSO. Two kinds of app are
+supported: **static sites** (HTML/CSS/JS, served by nginx) and **Python apps** launched
+by a [pixi](https://pixi.sh) task — upload a zip with a `pixi.toml` and your source, name
+the task, and the pack runs it. No Dockerfile, no image build.
 
 Apps can be launched four ways, all converging on a single declarative `App` resource:
 
@@ -18,7 +17,7 @@ Apps can be launched four ways, all converging on a single declarative `App` res
   agent tools; Keycloak device-flow auth).
 
 > **Status:** In development. Implemented so far: the **`App` CRD** and
-> **apps-operator** (static apps from `inline`/`git`/`pvc` sources), the
+> **apps-operator** (static + Python/pixi apps from `inline`/`git`/`pvc` sources), the
 > **apps-api** (CRUD, logs/events/status, analytics, zip/.html upload), the
 > **apps-ui** (Nebari design system: dashboard + analytics, app detail with
 > logs, launch form with upload), the **apps-mcp** server (agent tools +

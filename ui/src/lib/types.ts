@@ -25,6 +25,8 @@ export interface AppRuntime {
     requests?: { cpu?: string; memory?: string };
     limits?: { cpu?: string; memory?: string };
   };
+  /** When set, the app runs as a Python/pixi service via `pixi run <task>`. */
+  pixiTask?: string;
 }
 
 export interface AppAccess {

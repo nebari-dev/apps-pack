@@ -39,6 +39,9 @@ type OperatorConfig struct {
 	StaticImage string
 	// GitImage is used by init containers to fetch git sources.
 	GitImage string
+	// PythonImage runs Python/pixi apps (runtime.pixiTask). Must provide the
+	// `pixi` binary and be runnable as a non-root user.
+	PythonImage string
 	// TLSDisabled serves apps over plain HTTP: emitted NebariApps set
 	// routing.tls.enabled=false and status URLs use http://.
 	TLSDisabled bool
@@ -162,6 +165,13 @@ func (r *AppReconciler) validate(ctx context.Context, app *appsv1alpha1.App) err
 	case appsv1alpha1.SourceTypeInline:
 		if app.Spec.Source.Inline == nil || len(app.Spec.Source.Inline.Files) == 0 {
 			return fmt.Errorf("source.inline.files is required for source type inline")
+		}
+		// File paths become volume item paths, which must stay relative and
+		// inside the mount.
+		for p := range app.Spec.Source.Inline.Files {
+			if strings.HasPrefix(p, "/") || strings.Contains(p, "..") {
+				return fmt.Errorf("source.inline.files: path %q must be relative and must not contain '..'", p)
+			}
 		}
 	case appsv1alpha1.SourceTypeGit:
 		if app.Spec.Source.Git == nil || app.Spec.Source.Git.URL == "" {

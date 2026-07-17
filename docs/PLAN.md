@@ -7,11 +7,13 @@ Companion to [`DESIGN.md`](./DESIGN.md). Phased, each phase ends with a usable i
 > shipped). Per-phase notes below record deviations.
 >
 > **Scope change (2026-07-16):** Python app support (frameworks, `image`/`ociEnv` sources,
-> Nebi pixi environments — the old Phase 2) has been **removed from this pack**. It
-> overlapped with [python-capability-pack](https://github.com/nebari-dev/python-capability-pack),
-> which owns pixi-backed Python services. This pack now focuses on **static web apps**
-> (`inline`/`git`/`pvc` sources served by nginx). The `framework` field and
-> `runtime.command` were dropped from the `App` CRD and all client surfaces.
+> Nebi pixi environments — the old Phase 2) was **removed from this pack** in the morning
+> (overlap with python-capability-pack's framework/image model), then **reintroduced the
+> same day in a simpler form**: any source (`inline` zip upload / `git` / `pvc`) carrying
+> a pixi project, launched by a named pixi task (`runtime.pixiTask`) that must serve on
+> `0.0.0.0:8080`. One shared pixi runtime image (`pythonImage` chart value) — no per-app
+> images, no framework table, no build pipeline. The `framework` field and
+> `runtime.command` remain dropped.
 
 ## Guiding principles
 - **The `App` CR is the contract.** Build it first; everything else produces or reconciles it.
@@ -51,13 +53,19 @@ Companion to [`DESIGN.md`](./DESIGN.md). Phased, each phase ends with a usable i
 > checks (finer group-based RBAC deferred); the API is not its own `NebariApp` — it is
 > served same-origin at `/api` through the UI's nginx.
 
-## ~~Phase 2 — Python apps + Nebi env delivery~~ ❌ Removed from scope
-> **Removed 2026-07-16.** Python frameworks, prebuilt-image sources, and Nebi/`ociEnv`
-> pixi environments were cut in favor of
-> [python-capability-pack](https://github.com/nebari-dev/python-capability-pack), which
-> already implements the pixi runtime model for Python services. The Python-via-image
-> support that had been pulled forward (framework table, `image` source, TCP probes,
-> framework env injection) was removed from the operator, API, UI, MCP, and skill.
+## Phase 2 — Python apps via pixi tasks ✅ Complete (reworked)
+> **Removed 2026-07-16, reintroduced the same day in a simpler form.** The original
+> Phase 2 (framework table, `image`/`ociEnv` sources, Nebi env delivery) was cut for
+> overlapping python-capability-pack's model, then Python support returned as:
+> - `runtime.pixiTask` on the `App` CRD — set = pixi runtime, empty = static nginx.
+> - Any source (`inline` zip upload / `git` / `pvc`) carrying a pixi project
+>   (`pixi.toml`/`pyproject.toml` at the root).
+> - Operator: source copied into a writable `/app` emptyDir → `pixi install`
+>   (`--locked` with a lockfile) → `pixi run <task>`; TCP + generous startup probes;
+>   task must serve on `0.0.0.0:8080` (`PORT` injected). Shared `pythonImage` chart value.
+> - UI: app-type toggle + **Launch task** field; API/MCP: `pixiTask`/`pixi_task`;
+>   skill: `assets/python/` starter. Inline files now support nested paths (ConfigMap
+>   generated keys + volume items).
 
 ## Phase 3 — apps-ui ✅ Complete
 **Goal:** the jhub-apps-style form launcher, JupyterHub-free.

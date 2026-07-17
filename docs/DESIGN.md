@@ -10,12 +10,14 @@
 ## 1. Summary
 
 The **Nebari Apps Pack** is a Nebari Software Pack that lets users launch, manage, and
-observe **static web apps** (HTML/CSS/JS bundles served by nginx) on a Nebari Kubernetes
-cluster. Apps run as **pods** behind Nebari's gateway with Keycloak SSO.
+observe **web apps** on a Nebari Kubernetes cluster: **static sites** (HTML/CSS/JS
+bundles served by nginx) and **Python apps** launched by a pixi task
+(`runtime.pixiTask`). Apps run as **pods** behind Nebari's gateway with Keycloak SSO.
 
-> **Scope note:** Python app support was removed 2026-07-16 in favor of
-> [python-capability-pack](https://github.com/nebari-dev/python-capability-pack), which owns
-> Python services. This document describes the static-only pack.
+> **Scope note:** Python app support (frameworks/`image` sources) was removed 2026-07-16,
+> then reintroduced the same day in a simpler form: an app source (zip upload, git, or
+> PVC) containing a pixi manifest, launched by a named **pixi task** that serves on
+> `0.0.0.0:8080`. No per-app images, no framework table, no build pipeline.
 
 Apps can be created and launched through four interfaces that all converge on a single
 declarative resource (the `App` custom resource):
@@ -26,7 +28,7 @@ declarative resource (the `App` custom resource):
 3. **A REST API** (programmatic CRUD + observability).
 4. **A form-based UI** — like `jhub-apps`, but with **no JupyterHub dependency**.
 
-A companion **Claude Code skill** teaches agents how to scaffold static apps in the exact
+A companion **Claude Code skill** teaches agents how to scaffold apps in the exact
 layout this pack expects, so "generate then launch" is a smooth flow.
 
 ---
@@ -34,7 +36,7 @@ layout this pack expects, so "generate then launch" is a smooth flow.
 ## 2. Goals & Non-Goals
 
 ### Goals
-- Launch **static web** apps as pods on Nebari, behind Keycloak SSO.
+- Launch **static web** apps and **Python/pixi** apps as pods on Nebari, behind Keycloak SSO.
 - One **declarative `App` resource** that the UI, API, MCP, *and* optional GitOps all produce.
 - **Natural-language launching** of agent-generated apps via an in-cluster **MCP** server.
 - A **form-based launch UI** modeled on `jhub-apps` but free of JupyterHub.
@@ -44,9 +46,8 @@ layout this pack expects, so "generate then launch" is a smooth flow.
 - Reuse Nebari conventions: Helm chart, `pack-metadata.yaml`, `NebariApp` for routing/auth.
 
 ### Non-Goals (v1)
-- Not a general PaaS / arbitrary container scheduler (static content only).
-- **No Python apps** — Python services are out of scope; see
-  [python-capability-pack](https://github.com/nebari-dev/python-capability-pack).
+- Not a general PaaS / arbitrary container scheduler — apps are static content or pixi
+  projects run in the platform's shared Python image (no per-app images or build pipeline).
 - Not building a new auth system — Keycloak (via nebari-operator) is the IdP.
 - No multi-cluster federation in v1.
 - No autoscaling beyond fixed replicas + optional scale-to-zero (deferred; see §15).
@@ -534,5 +535,5 @@ nebari-apps-pack/
 |---|---|---|
 | Pod orchestration | **App CRD + Go operator** | One declarative contract for all producers; self-healing; GitHub optional (API writes CRs directly). |
 | API / UI / MCP stack | **FastAPI + React + FastMCP (Python/TS)** | Reuse jhub-apps model + your frontend/backend skills; operator stays Go (matches nebari-operator). |
-| Scope | **Static apps only** | Python services moved to `python-capability-pack` (2026-07-16); this pack stays a small, sharp tool for static content. |
+| Scope | **Static + Python/pixi apps** | Python was cut 2026-07-16 (overlap with `python-capability-pack`'s framework/image model), then reintroduced the same day as zip/git/pvc source + `runtime.pixiTask` — no images, no build pipeline, one shared pixi runtime image. |
 | GitOps | **Optional, not required** | API writes CRs dynamically via ServiceAccount; ArgoCD path for teams who want version control. |

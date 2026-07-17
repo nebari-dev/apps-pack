@@ -254,6 +254,14 @@ spec:
                     description: KeepAlive prevents idle scale-down when scale-to-zero
                       is enabled.
                     type: boolean
+                  pixiTask:
+                    description: |-
+                      PixiTask, when set, runs the app as a Python/pixi service instead of
+                      serving its source as static content: the operator installs the pixi
+                      environment from the app source and executes `pixi run <PixiTask>`.
+                      The task must start a server listening on 0.0.0.0:8080.
+                    maxLength: 64
+                    type: string
                   replicas:
                     default: 1
                     format: int32

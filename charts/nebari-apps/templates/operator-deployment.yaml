@@ -31,6 +31,7 @@ spec:
             - --gateway={{ .Values.gateway }}
             - --static-image={{ .Values.staticImage }}
             - --git-image={{ .Values.gitImage }}
+            - --python-image={{ .Values.pythonImage }}
             {{- if not .Values.tls.enabled }}
             - --tls-disabled
             {{- end }}

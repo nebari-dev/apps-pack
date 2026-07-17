@@ -125,6 +125,10 @@ staticImage: nginxinc/nginx-unprivileged:1.27-alpine
 # Image used by init containers to fetch git sources.
 gitImage: alpine/git:v2.47.2
 
+# Image running Python/pixi apps (runtime.pixiTask). Must provide the `pixi`
+# binary and be runnable as a non-root user.
+pythonImage: ghcr.io/prefix-dev/pixi:0.68.1-noble
+
 # =============================================================================
 # Overrides
 # =============================================================================

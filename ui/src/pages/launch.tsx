@@ -34,7 +34,7 @@ export function LaunchPage() {
     <div className="space-y-6">
       <div>
         <h1 className="font-semibold text-2xl">Launch an app</h1>
-        <p className="text-muted-foreground text-sm">Deploy a static web app behind the cluster gateway.</p>
+        <p className="text-muted-foreground text-sm">Deploy a static site or Python app behind the cluster gateway.</p>
       </div>
       <AppForm
         mode="create"

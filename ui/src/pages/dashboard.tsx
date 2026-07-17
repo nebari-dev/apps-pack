@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Activity, Boxes, Layers, Rocket } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { AppThumbnail, BarList, PhaseBadge, SourceBadge, StatCard } from '@/components/app-bits';
+import { AppThumbnail, BarList, KindBadge, PhaseBadge, SourceBadge, StatCard } from '@/components/app-bits';
 import { Onboarding } from '@/components/onboarding';
 import { api } from '@/lib/api';
 import { Button } from '@/ui/button';
@@ -123,6 +123,7 @@ export function DashboardPage() {
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <SourceBadge source={app.source?.type ?? '—'} />
+                    <KindBadge pixiTask={app.runtime?.pixiTask} />
                     <PhaseBadge phase={app.status.phase} />
                   </div>
                 </li>

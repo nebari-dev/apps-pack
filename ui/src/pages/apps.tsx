@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { type ReactNode, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AppThumbnail, ConfirmDeleteDialog, PhaseBadge, SourceBadge } from '@/components/app-bits';
+import { AppThumbnail, ConfirmDeleteDialog, KindBadge, PhaseBadge, SourceBadge } from '@/components/app-bits';
 import { Onboarding } from '@/components/onboarding';
 import { api } from '@/lib/api';
 import type { App } from '@/lib/types';
@@ -270,6 +270,7 @@ export function AppsPage() {
                   <TableCell className="text-muted-foreground">{app.namespace}</TableCell>
                   <TableCell>
                     <SourceBadge source={app.source?.type ?? '—'} />
+                    <KindBadge pixiTask={app.runtime?.pixiTask} />
                   </TableCell>
                   <TableCell>
                     <PhaseBadge phase={app.status.phase} />

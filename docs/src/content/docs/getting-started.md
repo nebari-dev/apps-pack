@@ -48,6 +48,7 @@ Every app launched afterwards gets `https://<subdomain>.apps.example.ai`.
 | `gateway` | `public` | Shared Gateway apps attach to (`public` \| `internal`). |
 | `staticImage` | `nginxinc/nginx-unprivileged:1.27-alpine` | Serves static app content. |
 | `gitImage` | `alpine/git:v2.47.2` | Init-container image for git sources. |
+| `pythonImage` | `ghcr.io/prefix-dev/pixi:0.68.1-noble` | Runs Python/pixi apps (`runtime.pixiTask`). |
 
 ## Launch your first app
 
@@ -66,7 +67,7 @@ Then either open the UI at `https://apps.example.ai` and use the launch form, or
 sample `App`:
 
 ```bash
-kubectl apply -n apps -f examples/static-inline-app.yaml
+kubectl apply -n apps -f examples/static-inline-app.yaml   # or python-inline-app.yaml
 kubectl get apps -n apps -w
 ```
 

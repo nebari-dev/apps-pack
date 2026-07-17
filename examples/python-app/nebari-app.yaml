@@ -1,0 +1,15 @@
+# Launch manifest for the Nebari Apps Pack (Python/pixi app).
+# Say "launch it" to a coding agent connected to the nebari-apps MCP server.
+name: python-app
+namespace: apps
+displayName: "Pixi Streamlit Demo"
+description: "Streamlit random-walk demo launched by a pixi task"
+source:
+  type: files
+  files:
+    path: .            # directory containing pixi.toml, relative to this file
+runtime:
+  pixiTask: start      # pixi task that starts the server on 0.0.0.0:8080
+access:
+  public: true
+  subdomain: python-app

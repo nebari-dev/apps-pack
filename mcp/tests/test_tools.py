@@ -73,6 +73,24 @@ async def test_launch_is_idempotent(store):
     assert len(store.apps) == 1
 
 
+async def test_launch_pixi_app(store):
+    app = await call(
+        "launch_app",
+        {
+            "name": "py-app",
+            "namespace": "apps",
+            "display_name": "Py App",
+            "subdomain": "py-app",
+            "source_type": "inline",
+            "inline_files": {"pixi.toml": "[project]", "main.py": "print(1)"},
+            "pixi_task": "start",
+        },
+    )
+    assert app["runtime"]["pixiTask"] == "start"
+    cr = store.apps[("apps", "py-app")]
+    assert cr["spec"]["runtime"]["pixiTask"] == "start"
+
+
 async def test_launch_git_source(store):
     app = await call(
         "launch_app",

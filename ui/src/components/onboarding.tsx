@@ -26,7 +26,7 @@ export function Onboarding() {
         <div>
           <h2 className="font-semibold text-lg">No apps yet</h2>
           <p className="text-muted-foreground text-sm">
-            Deploy a static web app (HTML/CSS/JS) three ways — all served behind the cluster gateway.
+            Deploy a static site (HTML/CSS/JS) or a Python app (pixi) three ways — all served behind the cluster gateway.
           </p>
         </div>
 

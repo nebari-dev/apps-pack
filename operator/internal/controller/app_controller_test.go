@@ -71,10 +71,11 @@ func newReconciler(t *testing.T, objs ...client.Object) (*AppReconciler, client.
 		Client: c,
 		Scheme: s,
 		Config: OperatorConfig{
-			AppsDomain:    testDomain,
-			Gateway:       "public",
-			StaticImage:   "nginxinc/nginx-unprivileged:1.27-alpine",
-			GitImage:      "alpine/git:v2.47.2",
+			AppsDomain:  testDomain,
+			Gateway:     "public",
+			StaticImage: "nginxinc/nginx-unprivileged:1.27-alpine",
+			GitImage:    "alpine/git:v2.47.2",
+			PythonImage: "ghcr.io/prefix-dev/pixi:0.68.1-noble",
 		},
 	}
 	return r, c
@@ -110,8 +111,10 @@ func TestReconcileInlineStaticApp(t *testing.T) {
 	if err := c.Get(ctx, types.NamespacedName{Name: "app-docs-site-content", Namespace: "team-a"}, cm); err != nil {
 		t.Fatalf("content ConfigMap not created: %v", err)
 	}
-	if cm.Data["index.html"] != "<h1>hi</h1>" {
-		t.Errorf("ConfigMap content mismatch: %q", cm.Data["index.html"])
+	// Inline files are stored under generated keys (paths may contain '/',
+	// which ConfigMap keys cannot) and mapped back via volume items.
+	if cm.Data["f0000"] != "<h1>hi</h1>" {
+		t.Errorf("ConfigMap content mismatch: %q", cm.Data["f0000"])
 	}
 
 	deploy := &appsv1.Deployment{}
@@ -306,7 +309,118 @@ func TestInlineContentChangeRollsPods(t *testing.T) {
 	if err := c.Get(ctx, types.NamespacedName{Name: "app-docs-site-content", Namespace: "team-a"}, cm); err != nil {
 		t.Fatal(err)
 	}
-	if cm.Data["index.html"] != "<h1>changed</h1>" {
-		t.Errorf("ConfigMap not updated: %q", cm.Data["index.html"])
+	if cm.Data["f0000"] != "<h1>changed</h1>" {
+		t.Errorf("ConfigMap not updated: %q", cm.Data["f0000"])
+	}
+}
+
+func pixiApp(ns string) *appsv1alpha1.App {
+	return &appsv1alpha1.App{
+		ObjectMeta: metav1.ObjectMeta{Name: "py-app", Namespace: ns, Generation: 1},
+		Spec: appsv1alpha1.AppSpec{
+			DisplayName: "Python App",
+			Source: appsv1alpha1.AppSource{
+				Type: appsv1alpha1.SourceTypeInline,
+				Inline: &appsv1alpha1.InlineSource{Files: map[string]string{
+					"pixi.toml":   "[project]\nname = \"py-app\"",
+					"app.py":      "print('hi')",
+					"pkg/util.py": "X = 1",
+				}},
+			},
+			Runtime: appsv1alpha1.AppRuntime{PixiTask: "start"},
+			Access:  appsv1alpha1.AppAccess{Public: true, Subdomain: "py-app"},
+		},
+	}
+}
+
+func TestReconcileInlinePixiApp(t *testing.T) {
+	app := pixiApp("team-a")
+	r, c := newReconciler(t, managedNamespace("team-a"), app)
+	reconcile(t, r, app)
+
+	ctx := context.Background()
+	deploy := &appsv1.Deployment{}
+	if err := c.Get(ctx, types.NamespacedName{Name: "app-py-app", Namespace: "team-a"}, deploy); err != nil {
+		t.Fatalf("Deployment not created: %v", err)
+	}
+
+	pod := deploy.Spec.Template.Spec
+	main := pod.Containers[0]
+	if main.Image != r.Config.PythonImage {
+		t.Errorf("image = %q, want PythonImage", main.Image)
+	}
+	env := map[string]string{}
+	for _, e := range main.Env {
+		env[e.Name] = e.Value
+	}
+	if env["PIXI_TASK"] != "start" || env["PORT"] != "8080" || env["HOME"] != appWorkdir {
+		t.Errorf("pixi env mismatch: %+v", env)
+	}
+	if main.StartupProbe == nil || main.StartupProbe.TCPSocket == nil {
+		t.Error("pixi app must have a TCP startup probe")
+	}
+	if main.ReadinessProbe == nil || main.ReadinessProbe.HTTPGet != nil {
+		t.Error("pixi readiness probe must not assume HTTP GET / succeeds")
+	}
+	if len(pod.InitContainers) != 1 || pod.InitContainers[0].Name != "copy-source" {
+		t.Fatalf("expected copy-source init container, got %+v", pod.InitContainers)
+	}
+	if pod.SecurityContext.RunAsUser == nil || *pod.SecurityContext.RunAsUser != pixiUID {
+		t.Error("pixi pod must run as the fixed non-root user")
+	}
+	if deploy.Spec.Template.Annotations["apps.nebari.dev/content-checksum"] == "" {
+		t.Error("expected content checksum annotation on pixi pod template")
+	}
+
+	// Nested paths must be mapped via volume items.
+	var contentVol *corev1.Volume
+	for i := range pod.Volumes {
+		if pod.Volumes[i].Name == contentVolume {
+			contentVol = &pod.Volumes[i]
+		}
+	}
+	if contentVol == nil || contentVol.ConfigMap == nil {
+		t.Fatalf("expected content ConfigMap volume, got %+v", pod.Volumes)
+	}
+	paths := map[string]bool{}
+	for _, item := range contentVol.ConfigMap.Items {
+		paths[item.Path] = true
+	}
+	if !paths["pkg/util.py"] || !paths["pixi.toml"] {
+		t.Errorf("volume items missing nested paths: %+v", contentVol.ConfigMap.Items)
+	}
+}
+
+func TestReconcileGitPixiApp(t *testing.T) {
+	app := pixiApp("team-a")
+	app.Spec.Source = appsv1alpha1.AppSource{
+		Type: appsv1alpha1.SourceTypeGit,
+		Git:  &appsv1alpha1.GitSource{URL: "https://github.com/example/svc", Ref: "v2", Subdir: ""},
+	}
+	r, c := newReconciler(t, managedNamespace("team-a"), app)
+	reconcile(t, r, app)
+
+	deploy := &appsv1.Deployment{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "app-py-app", Namespace: "team-a"}, deploy); err != nil {
+		t.Fatalf("Deployment not created: %v", err)
+	}
+	pod := deploy.Spec.Template.Spec
+	if len(pod.InitContainers) != 1 || pod.InitContainers[0].Name != "git-clone" {
+		t.Fatalf("expected git-clone init container, got %+v", pod.InitContainers)
+	}
+	if pod.Containers[0].Image != r.Config.PythonImage {
+		t.Errorf("image = %q, want PythonImage", pod.Containers[0].Image)
+	}
+}
+
+func TestReconcileRejectsUnsafeInlinePaths(t *testing.T) {
+	app := pixiApp("team-a")
+	app.Spec.Source.Inline.Files["../escape.py"] = "boom"
+	r, c := newReconciler(t, managedNamespace("team-a"), app)
+	reconcile(t, r, app)
+
+	got := getApp(t, c, "py-app", "team-a")
+	if got.Status.Phase != appsv1alpha1.AppPhaseFailed {
+		t.Errorf("phase = %q, want Failed for unsafe inline path", got.Status.Phase)
 	}
 }

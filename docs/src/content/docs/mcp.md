@@ -57,7 +57,7 @@ anonymously.
 |---|---|
 | `authenticate` | Start/complete the device-flow login, or confirm the cached token. |
 | `describe_cluster` | Source types, launchable namespaces, apps domain — call first to pick valid options. |
-| `launch_app` | Create + launch. **Idempotent on (namespace, name)** — re-launching updates instead of failing, so retries are safe. |
+| `launch_app` | Create + launch (static, or Python/pixi via `pixi_task`). **Idempotent on (namespace, name)** — re-launching updates instead of failing, so retries are safe. |
 | `list_apps` | Apps with phase, URL, owner; optional namespace filter. |
 | `get_app` | Full spec + status for one app. |
 | `get_app_status` | Lightweight poll: phase, URL, replicas, conditions. |
@@ -80,6 +80,9 @@ Every tool returns structured JSON. Errors carry the API's human-readable `detai
    `inline_files`, `public: true`, `subdomain: docs-site`
 3. `get_app_status` until `phase: Running`
 4. Report `https://docs-site.apps.example.ai` back to the user
+
+For a Python app ("launch the pixi app in ./py-app with task `start`"), step 2 adds
+`pixi_task: "start"` and the files must include a `pixi.toml` (or `pyproject.toml`).
 
 Pair it with the [scaffolding skill](/skill/): the skill generates apps with a
 `nebari-app.yaml` manifest, and "launch it" maps that manifest onto `launch_app` with no

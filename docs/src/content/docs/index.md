@@ -2,10 +2,10 @@
 title: Apps Pack
 ---
 
-The Nebari Apps Pack lets users launch, manage, and observe **static web apps**
-(HTML/CSS/JS, served by nginx) on a [Nebari](https://nebari.dev) Kubernetes cluster —
-behind Keycloak SSO, with no Kubernetes knowledge required. Python services are handled
-by the separate [python-capability-pack](https://github.com/nebari-dev/python-capability-pack).
+The Nebari Apps Pack lets users launch, manage, and observe **web apps** on a
+[Nebari](https://nebari.dev) Kubernetes cluster — behind Keycloak SSO, with no Kubernetes
+knowledge required. Two kinds of app are supported: **static sites** (HTML/CSS/JS, served
+by nginx) and **Python apps** launched by a [pixi](https://pixi.sh) task.
 
 Everything converges on one declarative resource: the **`App`** custom resource
 (`apps.nebari.dev/v1alpha1`). Whether an app is launched from the web UI, the REST API, or
@@ -21,10 +21,10 @@ https://<subdomain>.apps.<cluster-domain>
 
 ## What ships today
 
-- **apps-operator** — reconciles `App` resources. Static apps from inline files, a git
-  repository, or a PVC.
+- **apps-operator** — reconciles `App` resources. Static sites and Python/pixi apps, from
+  inline files, a git repository, or a PVC.
 - **apps-api** — REST API for CRUD, status, logs, events, analytics, and direct
-  **zip/.html upload**.
+  **zip/.html upload** (a zip with a `pixi.toml` launches as a Python app).
 - **apps-ui** — a dashboard built on the [Nebari design system](https://github.com/nebari-dev/nebari-design):
   analytics plus a cluster-wide **Metrics** page, a searchable / sortable apps table with bulk
   actions, per-app detail pages with live logs, events, usage, restart, and a copyable manifest,
@@ -51,10 +51,9 @@ https://<subdomain>.apps.<cluster-domain>
 - **[Architecture & auth](/architecture/)** — how the pieces fit together and how
   authentication works
 
-## Looking for Python apps?
+## Python apps
 
-Python app support was removed from this pack in favor of
-[python-capability-pack](https://github.com/nebari-dev/python-capability-pack), which owns
-Python services. See
-[`docs/PLAN.md`](https://github.com/nebari-dev/nebari-apps-pack/blob/main/docs/PLAN.md) in the
-repository for the full roadmap.
+Upload a zip containing a `pixi.toml` and your Python source, name the pixi task that
+starts your server, and the pack runs it — no Dockerfile, no image build. See
+[Launching apps](/launching-apps/) for the contract (the task must serve on
+`0.0.0.0:8080`).

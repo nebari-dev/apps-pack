@@ -22,7 +22,9 @@ from .config import settings
 mcp = FastMCP(
     name="nebari-apps",
     instructions=(
-        "Launch and manage static web apps (HTML/CSS/JS) on this Nebari cluster. "
+        "Launch and manage web apps on this Nebari cluster: static sites (HTML/CSS/JS) "
+        "and Python apps launched by a pixi task (pixi_task; the task must serve on "
+        "0.0.0.0:8080). "
         "Typical flow: describe_cluster to see what is available, then launch_app; "
         "poll get_app_status until phase is Running and share the app URL with the user. "
         "If a tool reports an authentication problem, call authenticate and follow its "
@@ -134,7 +136,7 @@ async def launch_app(
     ],
     inline_files: Annotated[
         dict[str, str] | None,
-        Field(description="source_type=inline: relative path -> file content (must include index.html); text files only, ~900KB total"),
+        Field(description="source_type=inline: relative path -> file content; text files only, ~900KB total. Static apps must include index.html; pixi apps (pixi_task set) must include pixi.toml or pyproject.toml"),
     ] = None,
     git_url: Annotated[str, Field(description="source_type=git: HTTPS repository URL")] = "",
     git_ref: Annotated[str, Field(description="source_type=git: branch, tag, or commit")] = "main",
@@ -146,10 +148,16 @@ async def launch_app(
     public: Annotated[bool, Field(description="true = anonymous access; false = Keycloak SSO at the gateway")] = False,
     groups: Annotated[list[str] | None, Field(description="Keycloak groups allowed to use the app; empty = any signed-in user")] = None,
     description: Annotated[str, Field(description="Short description for catalogs")] = "",
+    pixi_task: Annotated[
+        str,
+        Field(description="Run the app as a Python/pixi service: the pixi task to execute (e.g. 'start'). The task must start a server on 0.0.0.0:8080. Empty = static app served by nginx"),
+    ] = "",
 ) -> dict[str, Any]:
-    """Create and launch a static app. Idempotent on (namespace, name): if the app already
-    exists its spec is updated instead of failing, so retrying is safe. Returns the app with
-    its (pending) URL; poll get_app_status until phase=Running."""
+    """Create and launch an app: static (HTML/CSS/JS served by nginx) or, with pixi_task set,
+    a Python/pixi service whose source includes a pixi manifest. Idempotent on
+    (namespace, name): if the app already exists its spec is updated instead of failing, so
+    retrying is safe. Returns the app with its (pending) URL; poll get_app_status until
+    phase=Running."""
     source: dict[str, Any] = {"type": source_type}
     if source_type == "inline":
         source["inline"] = {"files": inline_files or {}}
@@ -167,6 +175,7 @@ async def launch_app(
         "runtime": {
             "replicas": replicas,
             "env": [{"name": k, "value": v} for k, v in (env or {}).items()],
+            "pixiTask": pixi_task,
         },
         "access": {"public": public, "groups": groups or [], "subdomain": subdomain},
     }

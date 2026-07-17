@@ -42,6 +42,8 @@ func main() {
 		"Image serving static app content; must listen on 8080 as non-root.")
 	flag.StringVar(&cfg.GitImage, "git-image", envOr("GIT_IMAGE", "alpine/git:v2.47.2"),
 		"Image used by init containers to fetch git sources.")
+	flag.StringVar(&cfg.PythonImage, "python-image", envOr("PYTHON_IMAGE", "ghcr.io/prefix-dev/pixi:0.68.1-noble"),
+		"Image running Python/pixi apps (runtime.pixiTask); must provide pixi and run as non-root.")
 	flag.BoolVar(&cfg.TLSDisabled, "tls-disabled", envOr("TLS_DISABLED", "") == "true",
 		"Serve apps over plain HTTP (no certificates, no HTTPS listeners).")
 
