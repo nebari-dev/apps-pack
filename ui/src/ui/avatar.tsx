@@ -1,5 +1,5 @@
-import { Avatar as AvatarPrimitive } from '@base-ui-components/react/avatar';
-import { useRender } from '@base-ui-components/react/use-render';
+import { Avatar as AvatarPrimitive } from '@base-ui/react/avatar';
+import { useRender } from '@base-ui/react/use-render';
 import { cva, type VariantProps } from 'class-variance-authority';
 import * as React from 'react';
 import { cn } from '@/lib/utils';
