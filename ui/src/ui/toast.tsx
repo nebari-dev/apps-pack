@@ -1,4 +1,4 @@
-import { Toast as ToastPrimitive } from '@base-ui-components/react/toast';
+import { Toast as ToastPrimitive } from '@base-ui/react/toast';
 import { CheckCircle2, X, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
