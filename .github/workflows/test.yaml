@@ -69,3 +69,7 @@ jobs:
         run: |
           npm ci
           npm run build
+
+      - name: Unit tests
+        working-directory: ui
+        run: npm test

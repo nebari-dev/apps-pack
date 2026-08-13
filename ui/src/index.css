@@ -157,7 +157,14 @@
 
   /* Top bar and page fills shared across Nebari apps (landing, llm-serving, …). */
   --header-background: var(--zinc-50);
+  --header-border: var(--zinc-300);
+  --header-foreground: var(--zinc-950);
+  --header-action-hover: #d9d9dc; /* between zinc-200 and zinc-300; matches nebari-landing */
   --body-background: var(--white);
+
+  /* Header accents shared across Nebari apps (values mirror nebari-landing). */
+  --notification-badge: #d00000;
+  --sign-out-foreground: var(--red-600);
 
   --card: var(--white);
   --card-foreground: var(--zinc-950);
@@ -229,7 +236,13 @@
   --scrim: rgba(0, 0, 0, 0.6);
 
   --header-background: var(--zinc-900);
+  --header-border: var(--zinc-700);
+  --header-foreground: var(--zinc-50);
+  --header-action-hover: #4a4a50; /* between zinc-800 and zinc-700; matches nebari-landing */
   --body-background: var(--zinc-950);
+
+  --notification-badge: #e00000;
+  --sign-out-foreground: #ff6b6b; /* lighter than red-300 for contrast on dark popovers */
 
   --card: var(--zinc-900);
   --card-foreground: var(--zinc-50);
@@ -329,7 +342,12 @@
   --color-foreground: var(--foreground);
   --color-scrim: var(--scrim);
   --color-header-background: var(--header-background);
+  --color-header-border: var(--header-border);
+  --color-header-foreground: var(--header-foreground);
+  --color-header-action-hover: var(--header-action-hover);
   --color-body-background: var(--body-background);
+  --color-notification-badge: var(--notification-badge);
+  --color-sign-out-foreground: var(--sign-out-foreground);
 
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
