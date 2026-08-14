@@ -44,7 +44,7 @@ UI_DIR         := ../ui
 EXAMPLES_DIR   := ../examples
 CACHE_DIR      := .cache
 OPERATOR_REPO  := $(CACHE_DIR)/nebari-operator
-OPERATOR_REF   := v0.1.0-alpha.19
+OPERATOR_REF   := v0.1.0-alpha.20
 
 IMG            := apps-operator:dev
 API_IMG        := apps-api:dev
@@ -173,7 +173,6 @@ _operator:
 _namespaces:
 	kubectl create namespace $(APP_NAMESPACE) --dry-run=client -o yaml | kubectl apply -f -
 	kubectl label namespace $(APP_NAMESPACE) nebari.dev/managed=true --overwrite
-	kubectl label namespace default nebari.dev/managed=true --overwrite
 
 # --------------------------------------------------------------------------
 # images - build the operator/api/ui images and load them into kind

@@ -43,8 +43,14 @@ def create_app(store: AppStore | None = None) -> FastAPI:
     Store = Annotated[AppStore, Depends(get_store)]
     Me = Annotated[User, Depends(current_user)]
 
+    def launchable_namespaces(store: AppStore) -> list[str]:
+        # The nebari-operator rejects NebariApps in "default" and system
+        # namespaces, so never offer them even if labeled/configured.
+        namespaces = settings.allowed_namespaces or store.list_managed_namespaces()
+        return [ns for ns in namespaces if ns != "default" and not ns.startswith("kube-")]
+
     def check_namespace(store: AppStore, namespace: str) -> None:
-        allowed = settings.allowed_namespaces or store.list_managed_namespaces()
+        allowed = launchable_namespaces(store)
         if namespace not in allowed:
             raise HTTPException(
                 403,
@@ -82,7 +88,7 @@ def create_app(store: AppStore | None = None) -> FastAPI:
         return Capabilities(
             appsDomain=settings.apps_domain,
             sourceTypes=list(SOURCE_TYPES),
-            namespaces=settings.allowed_namespaces or store.list_managed_namespaces(),
+            namespaces=launchable_namespaces(store),
         )
 
     @app.get(PREFIX + "/auth/me")
