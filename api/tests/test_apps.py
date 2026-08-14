@@ -53,6 +53,18 @@ def test_allowed_namespaces_restricts_managed_namespaces(client, monkeypatch):
     assert caps["namespaces"] == ["apps"]
 
 
+def test_reserved_namespaces_never_offered(client, store):
+    """The nebari-operator rejects apps in "default" and kube-* namespaces, so
+    the API filters them out even when they carry the managed label."""
+    store.namespaces = ["apps", "default", "kube-system"]
+
+    caps = client.get("/api/v1/capabilities").json()
+    assert caps["namespaces"] == ["apps"]
+
+    resp = client.post("/api/v1/apps", json=make_app_body(namespace="default"))
+    assert resp.status_code == 403
+
+
 def test_create_rejects_unknown_source_type(client):
     body = make_app_body()
     body["source"] = {"type": "image", "image": {"repository": "quay.io/x/app"}}
