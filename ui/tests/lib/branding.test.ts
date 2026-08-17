@@ -79,6 +79,27 @@ describe('applyBranding', () => {
     expect(css).toContain('--primary: #4da6ff;');
   });
 
+  it('injects the derived-shade tokens when pinned explicitly', () => {
+    // primaryHover / sidebar* normally follow primary, primaryForeground and
+    // ring (see index.css); they are still overridable for a shade that is not
+    // a plain derivation.
+    applyBranding({
+      theme: {
+        light: {
+          primaryHover: '#004c99',
+          sidebarPrimary: '#0066cc',
+          sidebarPrimaryForeground: '#ffffff',
+          sidebarRing: '#0066cc',
+        },
+      },
+    });
+    const css = document.querySelector('style[data-branding]')?.textContent ?? '';
+    expect(css).toContain('--primary-hover: #004c99;');
+    expect(css).toContain('--sidebar-primary: #0066cc;');
+    expect(css).toContain('--sidebar-primary-foreground: #ffffff;');
+    expect(css).toContain('--sidebar-ring: #0066cc;');
+  });
+
   it('drops unsafe theme token values while keeping safe ones', () => {
     applyBranding({
       theme: { light: { primary: '#0066cc', background: 'red; } body { color: red' } },

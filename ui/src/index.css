@@ -17,6 +17,15 @@
  *
  * Keep this file and the `theme` item in `registry.json` in sync: the installable
  * theme ships the same semantic values (flattened to their resolved oklch).
+ *
+ * One deliberate departure from the flattened form: the semantic tokens that are
+ * pure shades of --primary / --ring (--primary-hover, --sidebar-primary,
+ * --sidebar-primary-foreground, --sidebar-ring) reference those tokens instead of
+ * naming a primitive, so a runtime `primary` / `primaryForeground` / `ring`
+ * override from /config.json (see lib/branding.ts) propagates to them. Each still
+ * resolves to its previous value for an unbranded install. Re-pulling the theme
+ * with `shadcn add @nebari/theme` would restore the primitives, so
+ * tests/lib/index-css.test.ts guards the derivation.
  */
 :root {
   /* ── Primitives: Primary Magenta ─────────────────────────────────────── */
@@ -174,8 +183,15 @@
 
   --primary: var(--primary-magenta-600);
   --primary-foreground: var(--white);
-  /* Figma color/background/primary-hover — hover/pressed fill. */
-  --primary-hover: var(--primary-magenta-700);
+  /* Figma color/background/primary-hover — hover/pressed fill. Derived from
+   * --primary rather than pinned to magenta-700, so a runtime `primary`
+   * override from /config.json (see lib/branding.ts) carries into the hover
+   * state instead of flashing the Nebari magenta back. Mixed in oklab: the
+   * space is rectangular, so mixing toward an achromatic anchor cannot drift
+   * the hue the way a polar space can. 15% black lands on
+   * oklch(46.80% 0.1603 311.45) — #77379a against magenta-700's #77399a,
+   * 0.003 oklab ΔE, so the default rendering is unchanged. */
+  --primary-hover: color-mix(in oklab, var(--primary), black 15%);
 
   --secondary: var(--neutral-100);
   --secondary-foreground: var(--neutral-900);
@@ -214,12 +230,15 @@
 
   --sidebar: var(--zinc-50);
   --sidebar-foreground: var(--zinc-950);
-  --sidebar-primary: var(--primary-magenta-600);
-  --sidebar-primary-foreground: var(--white);
+  /* Aliases, not copies: these were byte-identical to --primary /
+   * --primary-foreground / --ring, so following them keeps the default
+   * rendering exact while letting a branding override reach them. */
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
   --sidebar-accent: var(--neutral-100);
   --sidebar-accent-foreground: var(--neutral-900);
   --sidebar-border: var(--zinc-300);
-  --sidebar-ring: var(--primary-magenta-500);
+  --sidebar-ring: var(--ring);
 
   /* Motion tokens */
   --duration-fast: 100ms;
@@ -252,7 +271,11 @@
 
   --primary: var(--primary-magenta-500);
   --primary-foreground: var(--black);
-  --primary-hover: var(--primary-magenta-400);
+  /* Lighter in dark mode, so the mix runs toward white. 18% lands on
+   * oklch(68.82% 0.1770 311.67) — #bf76e9 against magenta-400's #c575f4,
+   * 0.019 oklab ΔE. That is the closest a mix toward white can get, since
+   * white contributes no chroma while the ramp gains some as it lightens. */
+  --primary-hover: color-mix(in oklab, var(--primary), white 18%);
 
   --secondary: var(--neutral-800);
   --secondary-foreground: var(--neutral-100);
@@ -286,12 +309,12 @@
 
   --sidebar: var(--zinc-950);
   --sidebar-foreground: var(--zinc-50);
-  --sidebar-primary: var(--primary-magenta-500);
-  --sidebar-primary-foreground: var(--black);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
   --sidebar-accent: var(--neutral-800);
   --sidebar-accent-foreground: var(--neutral-100);
   --sidebar-border: var(--zinc-700);
-  --sidebar-ring: var(--primary-magenta-400);
+  --sidebar-ring: var(--ring);
 }
 
 @keyframes nebari-fade-in {
