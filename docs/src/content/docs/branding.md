@@ -44,11 +44,11 @@ Plus this pack's top-bar tokens, since its chrome is a full-width header:
 
 `headerBackground`, `headerForeground`, `headerBorder`, `bodyBackground`
 
-`primaryHover` — the hover and pressed fill on buttons, badges, switches, sliders,
-checkboxes and radios — along with `sidebarPrimary`, `sidebarPrimaryForeground` and
-`sidebarRing`, is **derived** from `primary`, `primaryForeground` and `ring`, so overriding
-those three rebrands them too. Set a derived token explicitly only to pin a shade that is
-not a plain derivation of `primary`.
+`primaryHover` (the hover and pressed fill on buttons, badges, switches, sliders, checkboxes
+and radios), `sidebarPrimary`, `sidebarPrimaryForeground` and `sidebarRing` are **derived**
+from `primary`, `primaryForeground` and `ring`, so overriding those three rebrands them too.
+Set a derived token explicitly only to pin a shade that is not a plain derivation of
+`primary`.
 
 The `header*` and `bodyBackground` tokens are deliberately *not* derived: the top bar is
 neutral chrome by design, so it stays neutral unless you rebrand it on purpose.
