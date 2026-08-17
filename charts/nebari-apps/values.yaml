@@ -78,10 +78,72 @@ ui:
   # Hostname for the UI; defaults to the apps domain itself, so the UI lives
   # at https://apps.<clusterDomain> and launched apps at https://<name>.apps.<clusterDomain>.
   hostname: ""
-  # Health indicator for the UI's tile on the Nebari landing page. When enabled,
-  # the nebari-operator polls the UI's health endpoint and surfaces up/down
-  # status next to the tile. Disable to hide the indicator.
+
+  # Browser-tab title. Leave empty for the built-in default ("Nebari Apps").
+  title: ""
+
+  # Branding rendered into /config.json at deploy time and applied by the UI
+  # before it mounts. Leave everything empty to use the built-in Nebari defaults
+  # (no visual change from an unbranded install). Outside Kubernetes the same
+  # fields resolve from a local config.json or BRANDING_* env vars - see the
+  # Branding docs and ui/docker-entrypoint.sh.
+  branding:
+    # URL to a custom logo shown in the header. Leave empty for the built-in
+    # Nebari logo. May be an absolute http(s) URL, a root-relative path, or a
+    # base64 data: image URI.
+    logoUrl: ""
+    # URL to a custom dark-mode logo. Leave empty to fall back to logoUrl, then
+    # the built-in Nebari dark logo.
+    logoUrlDark: ""
+    # URL to a custom favicon. Leave empty for the built-in favicon.
+    faviconUrl: ""
+    # CSS variable overrides injected at runtime - no image rebuild required.
+    # Values are validated in the browser and rejected if they contain CSS
+    # injection characters (';', '{', '}', quotes, url(), javascript:, etc.).
+    # Supported tokens: primary, primaryForeground, background, foreground,
+    # secondary, secondaryForeground, muted, mutedForeground, accent,
+    # accentForeground, border, ring, radius, plus this pack's top-bar tokens
+    # headerBackground, headerForeground, headerBorder, and bodyBackground.
+    # Example:
+    #   theme:
+    #     light:
+    #       primary: "oklch(55% 0.19 250)"
+    #       primaryForeground: "#ffffff"
+    #     dark:
+    #       primary: "oklch(62% 0.21 250)"
+    theme:
+      light: {}
+      dark: {}
+    # Optional classification banners (e.g. U.S. government CUI markings)
+    # rendered full-width above the header (top) and below the page content
+    # (bottom). A banner is disabled while its text is empty. background and
+    # foreground accept CSS color values; when omitted the banner uses the
+    # theme's inverted colors, which follow light/dark mode.
+    # Example:
+    #   banners:
+    #     top:
+    #       text: "CUI"
+    #       background: "#502b85"
+    #       foreground: "#ffffff"
+    #     bottom:
+    #       text: "CUI"
+    banners:
+      top: {}
+      bottom: {}
+
+  # The UI's tile on the Nebari landing page.
   landingPage:
+    # Tile label, blurb, and grouping shown on the landing page.
+    displayName: Apps
+    description: Launch and manage web applications on this cluster.
+    category: Platform
+    # Tile icon. Leave empty for the pack's built-in icon (files/icon.svg,
+    # embedded as a data URI); set an absolute http(s) URL or data: URI to
+    # override it.
+    icon: ""
+    # Health indicator for the tile. When enabled, the nebari-operator polls the
+    # UI's health endpoint and surfaces up/down status next to the tile. Disable
+    # to hide the indicator.
     healthCheck:
       enabled: true
       path: /healthz

@@ -5,6 +5,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { Layout } from '@/components/layout';
 import { ThemeProvider } from '@/hooks/theme-provider';
 import { initAuth } from '@/lib/auth';
+import { applyBranding, loadBranding } from '@/lib/branding';
 import { AppDetailPage } from '@/pages/app-detail';
 import { AppsPage } from '@/pages/apps';
 import { DashboardPage } from '@/pages/dashboard';
@@ -14,8 +15,21 @@ import { MetricsPage } from '@/pages/metrics';
 import { Toaster } from '@/ui/toast';
 import '@/index.css';
 
+// Branding comes from /config.json (ui.branding.* in the chart). Start the
+// fetch before the auth round trip so the two overlap, and treat it as
+// best-effort: a missing or malformed config leaves the built-in Nebari
+// defaults in place rather than blocking the app from booting.
+const brandingReady = loadBranding().catch(() => null);
+
 // Initialize auth (and the Keycloak redirect dance) before rendering.
 await initAuth();
+
+// Apply the document-level branding - title, favicon, theme tokens - before the
+// first paint. Logos and banners are applied by the components that use them.
+const branding = await brandingReady;
+if (branding) {
+  applyBranding(branding);
+}
 
 // localStorage key for the theme preference. Must stay in sync with the
 // pre-paint bootstrap script inlined in index.html.

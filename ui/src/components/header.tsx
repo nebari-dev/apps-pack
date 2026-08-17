@@ -14,6 +14,7 @@ import { Link, useLocation } from 'react-router-dom';
 import nebariLogo from '@/assets/nebari-logo.svg';
 import nebariLogoDark from '@/assets/nebari-logo_dark.svg';
 import { isThemeMode, type ThemeMode } from '@/hooks/use-theme-preference';
+import { getBranding } from '@/lib/branding';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback } from '@/ui/avatar';
 import {
@@ -46,6 +47,12 @@ type User = {
 export type HeaderProps = {
   user?: User | null;
   themeMode?: ThemeMode;
+  /**
+   * Whether dark mode is currently active. Only consulted when a branded logo
+   * is configured, which forces the light/dark choice into JS; the built-in
+   * logos switch with CSS and need no prop.
+   */
+  isDarkMode?: boolean;
   onThemeChange?: (mode: ThemeMode) => void;
   onSignOut?: () => void;
 };
@@ -55,14 +62,32 @@ export type HeaderProps = {
  * (nebari-dev/nebari-design#131), mirroring nebari-landing's Header. The app
  * has no notifications feature, so the notifications bell is omitted.
  */
-export function Header({ user, themeMode = 'system', onThemeChange, onSignOut }: HeaderProps) {
+export function Header({
+  user,
+  themeMode = 'system',
+  isDarkMode = false,
+  onThemeChange,
+  onSignOut,
+}: HeaderProps) {
   const { pathname } = useLocation();
+
+  // Branded logo from /config.json (ui.branding.logoUrl / logoUrlDark), falling
+  // back to the bundled Nebari logos. Dark mode prefers the dark override, then
+  // the light one, then the built-in dark logo - mirroring nebari-landing.
+  const { logoUrl, logoUrlDark, title } = getBranding();
+  const brandedLogo = isDarkMode ? (logoUrlDark ?? logoUrl) : logoUrl;
 
   return (
     <NavigationMenu className="h-14 justify-between border-header-border bg-header-background pl-4 text-header-foreground">
       <MenuBarBrand href="/" aria-label="Go to homepage">
-        <img src={nebariLogo} alt="Nebari" className="h-8 w-auto dark:hidden" />
-        <img src={nebariLogoDark} alt="Nebari" className="hidden h-8 w-auto dark:block" />
+        {brandedLogo ? (
+          <img src={brandedLogo} alt={title || 'Nebari'} className="h-8 w-auto" />
+        ) : (
+          <>
+            <img src={nebariLogo} alt="Nebari" className="h-8 w-auto dark:hidden" />
+            <img src={nebariLogoDark} alt="Nebari" className="hidden h-8 w-auto dark:block" />
+          </>
+        )}
       </MenuBarBrand>
 
       <MenuBarNav className="ml-4">

@@ -401,6 +401,24 @@ Jotai, Keycloak via the standard Nebari SSO. Exposed as a `NebariApp`.
 The UI is deliberately a thin client over apps-api (same authority as MCP), so the launch
 semantics are identical whether a human uses the form or an agent uses NL.
 
+### Branding
+
+Operators can rebrand the UI without rebuilding the image, using the contract shared with
+nebari-landing, llm-serving-pack, and provenance-collector-pack: the chart renders
+`ui.title` / `ui.branding.*` into a `/config.json` ConfigMap mounted over the placeholder in
+the image, and the SPA fetches it at startup (`src/lib/branding.ts`). Title, favicon, and
+theme CSS variables are applied before React mounts; the logo is read by the header, and
+optional classification banners wrap the page. Outside Kubernetes the same fields resolve
+from a local `config.json` or `BRANDING_*` env vars overlaid by the image entrypoint.
+
+Two deliberate deviations from the sibling packs: Keycloak settings stay out of
+`/config.json` (this UI reads them from `GET /api/v1/config`, since the SPA client id depends
+on the namespace), and the overridable theme tokens include this pack's top-bar tokens
+(`headerBackground`, `headerForeground`, `headerBorder`, `bodyBackground`) because its chrome
+is a full-width header. Every branding value is validated in the browser before it is applied
+— CSS-injection characters are dropped, and logo/favicon URLs are restricted to `http(s)`,
+root-relative paths, and allow-listed base64 `data:` images.
+
 ---
 
 ## 11. The Skill — Scaffolding Compatible Apps
