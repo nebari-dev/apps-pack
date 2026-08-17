@@ -36,13 +36,27 @@ scoped to `:root` and `.dark` respectively.
 
 The tokens shared with every Nebari pack:
 
-`primary`, `primaryForeground`, `background`, `foreground`, `secondary`,
+`primary`, `primaryForeground`, `primaryHover`, `background`, `foreground`, `secondary`,
 `secondaryForeground`, `muted`, `mutedForeground`, `accent`, `accentForeground`, `border`,
-`ring`, `radius`
+`ring`, `radius`, `sidebarPrimary`, `sidebarPrimaryForeground`, `sidebarRing`
 
 Plus this pack's top-bar tokens, since its chrome is a full-width header:
 
 `headerBackground`, `headerForeground`, `headerBorder`, `bodyBackground`
+
+`primaryHover` — the hover and pressed fill on buttons, badges, switches, sliders,
+checkboxes and radios — along with `sidebarPrimary`, `sidebarPrimaryForeground` and
+`sidebarRing`, is **derived** from `primary`, `primaryForeground` and `ring`, so overriding
+those three rebrands them too. Set a derived token explicitly only to pin a shade that is
+not a plain derivation of `primary`.
+
+The `header*` and `bodyBackground` tokens are deliberately *not* derived: the top bar is
+neutral chrome by design, so it stays neutral unless you rebrand it on purpose.
+
+**On unlisted tokens:** the list above is the supported contract, not a runtime filter. Any
+other camelCase key under `theme.light` / `theme.dark` is still applied as the matching
+`--kebab-case` custom property, but it is unsupported and may stop working when the theme is
+re-pulled from the Nebari design registry.
 
 ### Classification banners
 

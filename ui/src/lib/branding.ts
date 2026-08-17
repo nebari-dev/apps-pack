@@ -26,14 +26,26 @@
  * `primaryForeground`). Applied at runtime as the kebab-case CSS custom
  * property `--primary-foreground`, scoped to `:root` (light) or `.dark`.
  *
- * The first thirteen are the tokens every Nebari pack accepts. The `header*`
+ * The first seventeen are the tokens every Nebari pack accepts. The `header*`
  * and `bodyBackground` tokens are extras specific to this pack, whose chrome is
  * a full-width top bar - see index.css.
+ *
+ * `primaryHover` (the button/badge/control hover and pressed fill),
+ * `sidebarPrimary`, `sidebarPrimaryForeground` and `sidebarRing` are derived
+ * from `primary` / `primaryForeground` / `ring` in index.css, so setting those
+ * three is normally enough to rebrand consistently - list a derived token only
+ * to pin a shade that is not a plain derivation of `primary`.
+ *
+ * Note: this is a compile-time type, not a runtime allow-list. toCssVars()
+ * below applies every key it is given, so an unlisted camelCase key still
+ * lands as its kebab-case custom property. That is unsupported and may stop
+ * working without notice; only the names below are part of the contract.
  */
 export type ThemeTokens = Partial<
   Record<
     | 'primary'
     | 'primaryForeground'
+    | 'primaryHover'
     | 'background'
     | 'foreground'
     | 'secondary'
@@ -45,6 +57,9 @@ export type ThemeTokens = Partial<
     | 'border'
     | 'ring'
     | 'radius'
+    | 'sidebarPrimary'
+    | 'sidebarPrimaryForeground'
+    | 'sidebarRing'
     | 'headerBackground'
     | 'headerForeground'
     | 'headerBorder'
