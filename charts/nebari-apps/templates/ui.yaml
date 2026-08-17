@@ -14,6 +14,10 @@ spec:
       app.kubernetes.io/component: ui
   template:
     metadata:
+      annotations:
+        # Roll the pod when branding changes, so a branding-only helm upgrade
+        # picks up the new /config.json.
+        checksum/config: {{ include (print $.Template.BasePath "/ui-configmap.yaml") . | sha256sum }}
       labels:
         {{- include "nebari-apps.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: ui
@@ -61,6 +65,17 @@ spec:
               drop: ["ALL"]
           resources:
             {{- toYaml .Values.ui.resources | nindent 12 }}
+          volumeMounts:
+            # Mounted as a single file so the rest of the built SPA (index.html,
+            # hashed assets) keeps coming from the image.
+            - name: config
+              mountPath: /usr/share/nginx/html/config.json
+              subPath: config.json
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "nebari-apps.fullname" . }}-ui-config
 ---
 apiVersion: v1
 kind: Service
@@ -130,12 +145,13 @@ spec:
   gateway: {{ .Values.gateway }}
   landingPage:
     enabled: true
-    displayName: Apps
-    description: Launch and manage web applications on this cluster.
-    category: Platform
-    # files/icon.svg is a copy of assets/icon.svg (Helm can only read files
-    # inside the chart); embedded as a data URI so no extra hosting is needed.
-    icon: data:image/svg+xml;base64,{{ .Files.Get "files/icon.svg" | b64enc }}
+    displayName: {{ .Values.ui.landingPage.displayName | quote }}
+    description: {{ .Values.ui.landingPage.description | quote }}
+    category: {{ .Values.ui.landingPage.category | quote }}
+    # Defaults to files/icon.svg - a copy of assets/icon.svg (Helm can only read
+    # files inside the chart) embedded as a data URI so no extra hosting is
+    # needed. Override with ui.landingPage.icon.
+    icon: {{ .Values.ui.landingPage.icon | default (printf "data:image/svg+xml;base64,%s" (.Files.Get "files/icon.svg" | b64enc)) | quote }}
     {{- with .Values.ui.landingPage.healthCheck }}
     {{- if .enabled }}
     healthCheck:

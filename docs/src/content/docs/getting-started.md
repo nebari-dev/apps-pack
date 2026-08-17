@@ -45,6 +45,8 @@ Every app launched afterwards gets `https://<subdomain>.apps.example.ai`.
 | `api.auth.enabled` | `true` | Keycloak JWT auth for the API + keycloak-js login in the UI. |
 | `api.allowedNamespaces` | `["apps"]` | Namespaces users may launch into via the API/UI/MCP. Empty list = every namespace labeled `nebari.dev/managed=true`. |
 | `ui.hostname` | `<appsDomain>` | Where the UI itself is served. |
+| `ui.title`, `ui.branding.*` | — | Rebrand the UI (title, logos, favicon, theme, banners) — see [Branding](/branding/). |
+| `ui.landingPage.*` | "Apps" tile | Landing-page tile label, description, category, icon, and health check — see [Branding](/branding/). |
 | `gateway` | `public` | Shared Gateway apps attach to (`public` \| `internal`). |
 | `staticImage` | `nginxinc/nginx-unprivileged:1.27-alpine` | Serves static app content. |
 | `gitImage` | `alpine/git:v2.47.2` | Init-container image for git sources. |

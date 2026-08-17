@@ -15,6 +15,7 @@ const TITLES: Record<string, string> = {
   'launching-apps': 'Launching apps',
   mcp: 'MCP server',
   skill: 'Scaffolding skill',
+  branding: 'Branding',
   'local-development': 'Local development',
   'app-crd-reference': 'App CRD Reference',
   'api-reference': 'REST API',
@@ -33,7 +34,7 @@ beforeAll(async () => {
   await $`bun run build`.cwd(SITE);
 });
 
-test('all 9 pages render at dist root with their titles', () => {
+test('all 10 pages render at dist root with their titles', () => {
   for (const [slug, title] of Object.entries(TITLES)) {
     expect(existsSync(pagePath(slug))).toBe(true);
     expect(readPage(slug)).toContain(title);

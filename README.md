@@ -69,6 +69,15 @@ writes `App` CRs directly via a ServiceAccount, so **GitHub/GitOps is optional, 
 - **Launched apps** — no auth code at all: private apps are enforced **at the gateway** by the
   `SecurityPolicy` their `NebariApp` creates; `access.public: true` skips it.
 
+### Branding
+
+The UI can be rebranded **without rebuilding the image** — title, logos, favicon, theme
+colors, classification banners, and its landing-page tile. Set `ui.title` / `ui.branding.*`
+in the chart (rendered into a `/config.json` ConfigMap the UI fetches at startup), or
+`BRANDING_*` env vars when running the image standalone. This is the same contract used by
+nebari-landing, llm-serving-pack, and provenance-collector-pack, so a fleet rebrands
+uniformly. See the [Branding docs](https://packs.nebari.dev/apps-pack/branding/).
+
 ---
 
 ## Repository layout

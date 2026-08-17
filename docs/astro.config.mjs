@@ -38,6 +38,7 @@ export default defineConfig({
             { label: 'Launching apps', link: '/launching-apps/' },
             { label: 'MCP server', link: '/mcp/' },
             { label: 'Scaffolding skill', link: '/skill/' },
+            { label: 'Branding', link: '/branding/' },
             { label: 'Local development', link: '/local-development/' },
           ],
         },
