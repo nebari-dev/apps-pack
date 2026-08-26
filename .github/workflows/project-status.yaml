@@ -7,7 +7,7 @@ name: Project Status
 #   - Release published -> every issue from this repo sitting in
 #     "Merged" moves to "Released".
 #
-# Requires a PROJECT_TOKEN secret (classic PAT with `project` scope, or a
+# Requires an ADD_TO_PROJECT_PAT secret (classic PAT with `project` scope, or a
 # GitHub App token with Projects read/write) — the built-in GITHUB_TOKEN
 # cannot access organization Projects v2.
 
@@ -31,7 +31,7 @@ jobs:
       - name: Move linked issues to "Merged"
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.PROJECT_TOKEN }}
+          github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}
           script: |
             const { owner, repo } = context.repo;
             const FROM = ['in progress', 'in review'];
@@ -111,7 +111,7 @@ jobs:
       - name: Move "Merged" issues to "Released"
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.PROJECT_TOKEN }}
+          github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}
           script: |
             const { owner, repo } = context.repo;
             const FROM = 'merged';

@@ -243,7 +243,7 @@ Issue tracking follows along automatically
 ([`project-status.yaml`](.github/workflows/project-status.yaml)): merging a PR into `main`
 moves its linked issues' project status from **In Progress** / **In Review** to **Merged**,
 and publishing a release moves every **Merged** issue to **Released**. This needs a
-`PROJECT_TOKEN` repository secret (a PAT or GitHub App token with Projects read/write —
+`ADD_TO_PROJECT_PAT` repository secret (a PAT or GitHub App token with Projects read/write —
 the built-in `GITHUB_TOKEN` cannot access organization Projects v2).
 
 ## Documentation
