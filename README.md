@@ -216,6 +216,29 @@ reachable as soon as its route reconciles. Type the `http://` scheme explicitly:
 auto-upgrade bare hostnames to https, which is disabled locally. See the
 [local development guide](docs/src/content/docs/local-development.md) for the full dev loop.
 
+## Releases
+
+Merges to `main` continuously publish `latest` + sha-tagged images to GHCR
+([`build-image.yaml`](.github/workflows/build-image.yaml)). Versioned releases are cut by
+**publishing a GitHub release** with a `vX.Y.Z` tag, which triggers
+[`release.yaml`](.github/workflows/release.yaml) to:
+
+- build and push all four images (`apps-operator`, `apps-api`, `apps-ui`, `apps-mcp`) to
+  GHCR tagged `X.Y.Z` and `X.Y`, and
+- package the Helm chart with `version`/`appVersion` set to `X.Y.Z` and push it to
+  `oci://ghcr.io/nebari-dev/apps-pack/charts`.
+
+Install a released version straight from the OCI registry (the chart's image tags default
+to its `appVersion`, so the matching images come along automatically):
+
+```bash
+helm install nebari-apps oci://ghcr.io/nebari-dev/apps-pack/charts/nebari-apps \
+  --version <X.Y.Z> \
+  --namespace nebari-apps --create-namespace \
+  --set clusterDomain=<your-cluster-domain> \
+  --set keycloak.url=https://keycloak.<your-cluster-domain>/auth
+```
+
 ## Documentation
 
 The user guide lives at **[packs.nebari.dev/nebari-apps-pack](https://packs.nebari.dev/nebari-apps-pack/)**
