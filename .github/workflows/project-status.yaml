@@ -1,0 +1,204 @@
+name: Project Status
+
+# Keeps GitHub Projects (v2) issue statuses in sync with the delivery
+# pipeline:
+#   - PR merged to the default branch -> linked issues move from
+#     "In Progress" / "In Review" to "Merged".
+#   - Release published -> every issue from this repo sitting in
+#     "Merged" moves to "Released".
+#
+# Requires a PROJECT_TOKEN secret (classic PAT with `project` scope, or a
+# GitHub App token with Projects read/write) — the built-in GITHUB_TOKEN
+# cannot access organization Projects v2.
+
+on:
+  pull_request_target:
+    types: [closed]
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  pr-merged:
+    if: >-
+      github.event_name == 'pull_request_target' &&
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.base.ref == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Move linked issues to "Merged"
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PROJECT_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const FROM = ['in progress', 'in review'];
+            const TO = 'Merged';
+
+            const result = await github.graphql(`
+              query($owner: String!, $repo: String!, $pr: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequest(number: $pr) {
+                    closingIssuesReferences(first: 50) {
+                      nodes {
+                        number
+                        projectItems(first: 20, includeArchived: false) {
+                          nodes {
+                            id
+                            project {
+                              id
+                              title
+                              field(name: "Status") {
+                                ... on ProjectV2SingleSelectField {
+                                  id
+                                  options { id name }
+                                }
+                              }
+                            }
+                            fieldValueByName(name: "Status") {
+                              ... on ProjectV2ItemFieldSingleSelectValue { name }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `, { owner, repo, pr: context.payload.pull_request.number });
+
+            const issues = result.repository.pullRequest.closingIssuesReferences.nodes;
+            if (issues.length === 0) {
+              core.info('PR has no linked issues; nothing to do.');
+              return;
+            }
+
+            for (const issue of issues) {
+              for (const item of issue.projectItems.nodes) {
+                const field = item.project.field;
+                if (!field?.options) {
+                  core.warning(`Project "${item.project.title}" has no single-select "Status" field; skipping.`);
+                  continue;
+                }
+                const current = item.fieldValueByName?.name ?? '(none)';
+                if (!FROM.includes(current.toLowerCase())) {
+                  core.info(`Issue #${issue.number} in "${item.project.title}" is "${current}", not one of [${FROM.join(', ')}]; skipping.`);
+                  continue;
+                }
+                const option = field.options.find(o => o.name.toLowerCase() === TO.toLowerCase());
+                if (!option) {
+                  core.warning(`Project "${item.project.title}" has no "${TO}" status option; skipping.`);
+                  continue;
+                }
+                await github.graphql(`
+                  mutation($project: ID!, $item: ID!, $field: ID!, $option: String!) {
+                    updateProjectV2ItemFieldValue(input: {
+                      projectId: $project, itemId: $item, fieldId: $field,
+                      value: { singleSelectOptionId: $option }
+                    }) { projectV2Item { id } }
+                  }
+                `, { project: item.project.id, item: item.id, field: field.id, option: option.id });
+                core.info(`Issue #${issue.number}: "${current}" -> "${TO}" in project "${item.project.title}".`);
+              }
+            }
+
+  release-published:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Move "Merged" issues to "Released"
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PROJECT_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const FROM = 'merged';
+            const TO = 'Released';
+
+            const result = await github.graphql(`
+              query($owner: String!, $repo: String!) {
+                repository(owner: $owner, name: $repo) {
+                  projectsV2(first: 10) {
+                    nodes {
+                      id
+                      title
+                      field(name: "Status") {
+                        ... on ProjectV2SingleSelectField {
+                          id
+                          options { id name }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `, { owner, repo });
+
+            const projects = result.repository.projectsV2.nodes;
+            if (projects.length === 0) {
+              core.info('Repository is linked to no Projects v2; nothing to do.');
+              return;
+            }
+
+            for (const project of projects) {
+              const field = project.field;
+              if (!field?.options) {
+                core.warning(`Project "${project.title}" has no single-select "Status" field; skipping.`);
+                continue;
+              }
+              const option = field.options.find(o => o.name.toLowerCase() === TO.toLowerCase());
+              if (!option) {
+                core.warning(`Project "${project.title}" has no "${TO}" status option; skipping.`);
+                continue;
+              }
+
+              let cursor = null;
+              let moved = 0;
+              do {
+                const page = await github.graphql(`
+                  query($project: ID!, $cursor: String) {
+                    node(id: $project) {
+                      ... on ProjectV2 {
+                        items(first: 100, after: $cursor) {
+                          pageInfo { hasNextPage endCursor }
+                          nodes {
+                            id
+                            content {
+                              ... on Issue {
+                                number
+                                repository { nameWithOwner }
+                              }
+                            }
+                            fieldValueByName(name: "Status") {
+                              ... on ProjectV2ItemFieldSingleSelectValue { name }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                `, { project: project.id, cursor });
+
+                for (const item of page.node.items.nodes) {
+                  // Only issues from this repository, currently in FROM status.
+                  if (item.content?.repository?.nameWithOwner !== `${owner}/${repo}`) continue;
+                  if ((item.fieldValueByName?.name ?? '').toLowerCase() !== FROM) continue;
+                  await github.graphql(`
+                    mutation($project: ID!, $item: ID!, $field: ID!, $option: String!) {
+                      updateProjectV2ItemFieldValue(input: {
+                        projectId: $project, itemId: $item, fieldId: $field,
+                        value: { singleSelectOptionId: $option }
+                      }) { projectV2Item { id } }
+                    }
+                  `, { project: project.id, item: item.id, field: field.id, option: option.id });
+                  core.info(`Issue #${item.content.number}: "Merged" -> "${TO}" in project "${project.title}".`);
+                  moved++;
+                }
+
+                cursor = page.node.items.pageInfo.hasNextPage ? page.node.items.pageInfo.endCursor : null;
+              } while (cursor);
+
+              core.info(`Project "${project.title}": moved ${moved} issue(s) to "${TO}".`);
+            }

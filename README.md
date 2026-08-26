@@ -239,6 +239,13 @@ helm install nebari-apps oci://ghcr.io/nebari-dev/apps-pack/charts/nebari-apps \
   --set keycloak.url=https://keycloak.<your-cluster-domain>/auth
 ```
 
+Issue tracking follows along automatically
+([`project-status.yaml`](.github/workflows/project-status.yaml)): merging a PR into `main`
+moves its linked issues' project status from **In Progress** / **In Review** to **Merged**,
+and publishing a release moves every **Merged** issue to **Released**. This needs a
+`PROJECT_TOKEN` repository secret (a PAT or GitHub App token with Projects read/write —
+the built-in `GITHUB_TOKEN` cannot access organization Projects v2).
+
 ## Documentation
 
 The user guide lives at **[packs.nebari.dev/nebari-apps-pack](https://packs.nebari.dev/nebari-apps-pack/)**
