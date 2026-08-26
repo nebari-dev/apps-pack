@@ -242,9 +242,12 @@ helm install nebari-apps oci://ghcr.io/nebari-dev/apps-pack/charts/nebari-apps \
 Issue tracking follows along automatically
 ([`project-status.yaml`](.github/workflows/project-status.yaml)): merging a PR into `main`
 moves its linked issues' project status from **In Progress** / **In Review** to **Merged**,
-and publishing a release moves every **Merged** issue to **Released**. This needs a
-`ADD_TO_PROJECT_PAT` repository secret (a PAT or GitHub App token with Projects read/write —
-the built-in `GITHUB_TOKEN` cannot access organization Projects v2).
+and publishing a release moves every **Merged** issue to **Released**. Updates are made as
+the **nebari-project-sync** GitHub App (via the `NEBARI_PROJECT_SYNC_APP_ID` /
+`NEBARI_PROJECT_SYNC_APP_PRIVATE_KEY` org secrets), so project history attributes them to
+the bot rather than a person; the built-in `GITHUB_TOKEN` cannot access organization
+Projects v2. The release job also requires the project board to be linked to this
+repository (repo **Projects** tab → *Link a project*).
 
 ## Documentation
 
