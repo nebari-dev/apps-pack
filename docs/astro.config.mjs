@@ -23,7 +23,12 @@ export default defineConfig({
       title: 'Nebari Apps Pack',
       description:
         'Launch, manage, and observe static and Python web applications on a Nebari cluster - one App resource, reconciled into routing, TLS, and Keycloak SSO.',
-      plugins: [nebari({ logoHref: 'https://packs.nebari.dev/' })],
+      plugins: [
+        nebari({
+          logoHref: 'https://packs.nebari.dev/',
+          githubHref: 'https://github.com/nebari-dev/apps-pack',
+        }),
+      ],
       editLink: {
         // Starlight appends the source path (src/content/docs/<file>.md) to this
         // base, so it must point at the Astro project root inside the repo.
