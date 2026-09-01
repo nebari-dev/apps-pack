@@ -50,10 +50,10 @@ jobs:
         # Dynamic base: subpath on main, root on PR previews (astro.config reads BASE_PATH).
         run: cd docs && BASE_PATH="${{ steps.cf.outputs.base_path }}" bun run build
 
-      # Fork PRs cannot read secrets; skip deploy there (build above still gates).
+      # Fork and Dependabot PRs cannot read secrets; skip deploy there (build above still gates).
       - name: Deploy to Cloudflare Pages
         id: deploy
-        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+        if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]') }}
         uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
