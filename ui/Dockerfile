@@ -1,4 +1,4 @@
-FROM node:22-alpine AS builder
+FROM node:26-alpine AS builder
 
 WORKDIR /app
 COPY package*.json ./
@@ -7,7 +7,7 @@ RUN npm ci
 COPY ./ ./
 RUN npm run build
 
-FROM nginx:1.27-alpine
+FROM nginx:1.31-alpine
 
 # envsubst (gettext) renders ${API_URL} into the config at startup; jq powers
 # the entrypoint's optional BRANDING_* overlay (standalone runs only).
