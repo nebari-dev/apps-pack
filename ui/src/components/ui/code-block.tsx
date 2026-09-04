@@ -8,7 +8,8 @@ import {
   useContext,
   useState,
 } from 'react';
-import { cn, copyText } from '@/lib/utils';
+import { cn } from '@/lib/utils';
+import { copyText } from '@/lib/clipboard';
 
 interface CodeBlockContextValue {
   /** The raw snippet, shared so descendants don't re-thread the text. */

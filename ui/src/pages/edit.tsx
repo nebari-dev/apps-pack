@@ -4,9 +4,9 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AppForm, type SubmitPayload } from '@/components/app-form';
 import { api } from '@/lib/api';
 import { getConfig } from '@/lib/auth';
-import { Alert, AlertDescription, AlertTitle } from '@/ui/alert';
-import { Spinner } from '@/ui/spinner';
-import { toast } from '@/ui/toast';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Spinner } from '@/components/ui/spinner';
+import { toast } from '@/components/ui/toast';
 
 export function EditPage() {
   const { namespace = '', name = '' } = useParams();

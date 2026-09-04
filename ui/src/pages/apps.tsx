@@ -18,8 +18,8 @@ import { AppThumbnail, ConfirmDeleteDialog, PhaseBadge, SourceBadge } from '@/co
 import { Onboarding } from '@/components/onboarding';
 import { api } from '@/lib/api';
 import type { App } from '@/lib/types';
-import { Button } from '@/ui/button';
-import { Checkbox } from '@/ui/checkbox';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogClose,
@@ -28,12 +28,12 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/ui/dialog';
-import { Input } from '@/ui/input';
-import { Spinner } from '@/ui/spinner';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table';
-import { toast } from '@/ui/toast';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Spinner } from '@/components/ui/spinner';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { toast } from '@/components/ui/toast';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 const appLabel = (app: App) => app.displayName || app.name;

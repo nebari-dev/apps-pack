@@ -10,7 +10,7 @@ import {
   type DropdownMenuProps,
   DropdownMenuTrigger,
   type DropdownMenuTriggerProps,
-} from '@/ui/dropdown-menu';
+} from '@/components/ui/dropdown-menu';
 
 type NavLinkProps = useRender.ComponentProps<'a'> & {
   /** Marks the link as the current page or section. */

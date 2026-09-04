@@ -4,7 +4,7 @@ import { Header } from '@/components/header';
 import { useTheme } from '@/hooks/theme-provider';
 import { getUser, logout } from '@/lib/auth';
 import { getBranding } from '@/lib/branding';
-import { TooltipProvider } from '@/ui/tooltip';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 export function Layout() {
   const user = getUser();

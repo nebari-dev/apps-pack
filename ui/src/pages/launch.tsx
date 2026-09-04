@@ -4,7 +4,7 @@ import { AppForm, type SubmitPayload } from '@/components/app-form';
 import { api } from '@/lib/api';
 import { getConfig } from '@/lib/auth';
 import type { AppCreate } from '@/lib/types';
-import { toast } from '@/ui/toast';
+import { toast } from '@/components/ui/toast';
 
 export function LaunchPage() {
   const navigate = useNavigate();

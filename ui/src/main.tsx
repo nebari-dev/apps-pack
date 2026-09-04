@@ -12,7 +12,7 @@ import { DashboardPage } from '@/pages/dashboard';
 import { EditPage } from '@/pages/edit';
 import { LaunchPage } from '@/pages/launch';
 import { MetricsPage } from '@/pages/metrics';
-import { Toaster } from '@/ui/toast';
+import { Toaster } from '@/components/ui/toast';
 import '@/index.css';
 
 // Branding comes from /config.json (ui.branding.* in the chart). Start the
