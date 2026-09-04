@@ -17,7 +17,7 @@ export function Onboarding() {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      toast.error('Could not copy to clipboard');
+      toast.add({ type: 'error', title: 'Could not copy to clipboard' });
     }
   };
 

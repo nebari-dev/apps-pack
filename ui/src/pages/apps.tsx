@@ -69,26 +69,26 @@ export function AppsPage() {
     mutationFn: (app: App) => api.stopApp(app.namespace, app.name),
     onSuccess: (_d, app) => {
       invalidate();
-      toast.success(`Stopped ${appLabel(app)}`);
+      toast.add({ type: 'success', title: `Stopped ${appLabel(app)}` });
     },
-    onError: (err, app) => toast.error(`Failed to stop ${appLabel(app)}`, errMessage(err)),
+    onError: (err, app) => toast.add({ type: 'error', title: `Failed to stop ${appLabel(app)}`, description: errMessage(err) }),
   });
   const start = useMutation({
     mutationFn: (app: App) => api.startApp(app.namespace, app.name),
     onSuccess: (_d, app) => {
       invalidate();
-      toast.success(`Started ${appLabel(app)}`);
+      toast.add({ type: 'success', title: `Started ${appLabel(app)}` });
     },
-    onError: (err, app) => toast.error(`Failed to start ${appLabel(app)}`, errMessage(err)),
+    onError: (err, app) => toast.add({ type: 'error', title: `Failed to start ${appLabel(app)}`, description: errMessage(err) }),
   });
   const remove = useMutation({
     mutationFn: (app: App) => api.deleteApp(app.namespace, app.name),
     onSuccess: (_d, app) => {
       invalidate();
       setDeleteTarget(null);
-      toast.success(`Deleted ${appLabel(app)}`);
+      toast.add({ type: 'success', title: `Deleted ${appLabel(app)}` });
     },
-    onError: (err, app) => toast.error(`Failed to delete ${appLabel(app)}`, errMessage(err)),
+    onError: (err, app) => toast.add({ type: 'error', title: `Failed to delete ${appLabel(app)}`, description: errMessage(err) }),
   });
 
   const list = apps.data ?? [];
@@ -164,9 +164,9 @@ export function AppsPage() {
       setBulkDeleteOpen(false);
       setBulkConfirm('');
       setSelected(new Set());
-      toast.success(`${action === 'delete' ? 'Deleted' : action === 'stop' ? 'Stopped' : 'Started'} ${selectedApps.length} app(s)`);
+      toast.add({ type: 'success', title: `${action === 'delete' ? 'Deleted' : action === 'stop' ? 'Stopped' : 'Started'} ${selectedApps.length} app(s)` });
     },
-    onError: (err) => toast.error('Bulk action failed', errMessage(err)),
+    onError: (err) => toast.add({ type: 'error', title: 'Bulk action failed', description: errMessage(err) }),
   });
 
   const toggleSort = (col: SortCol) =>

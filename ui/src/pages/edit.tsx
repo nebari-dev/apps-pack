@@ -27,10 +27,10 @@ export function EditPage() {
     onSuccess: (updated) => {
       void queryClient.invalidateQueries({ queryKey: ['app', namespace, name] });
       void queryClient.invalidateQueries({ queryKey: ['apps'] });
-      toast.success(`Saved ${updated.displayName || updated.name}`);
+      toast.add({ type: 'success', title: `Saved ${updated.displayName || updated.name}` });
       void navigate(`/apps/${namespace}/${name}`);
     },
-    onError: (err) => toast.error('Save failed', err instanceof Error ? err.message : String(err)),
+    onError: (err) => toast.add({ type: 'error', title: 'Save failed', description: err instanceof Error ? err.message : String(err) }),
   });
 
   if (app.isLoading) {
