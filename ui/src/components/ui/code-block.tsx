@@ -8,7 +8,7 @@ import {
   useContext,
   useState,
 } from 'react';
-import { cn, copyText } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 
 interface CodeBlockContextValue {
   /** The raw snippet, shared so descendants don't re-thread the text. */
@@ -25,6 +25,14 @@ interface CodeBlockContextValue {
 
 const CodeBlockContext = createContext<CodeBlockContextValue | null>(null);
 
+/**
+ * Reads the snippet and layout flags shared by the nearest {@link CodeBlock}.
+ * Use it to author a custom part — a line counter, a download button, a
+ * language badge — without re-threading `code` through props. Pass the calling
+ * component's name so a missing root reports which part failed; the context has
+ * no default value, so a call outside {@link CodeBlock} throws rather than
+ * rendering against an empty snippet.
+ */
 function useCodeBlockContext(component: string): CodeBlockContextValue {
   const context = useContext(CodeBlockContext);
   if (!context) {
@@ -230,7 +238,7 @@ function CodeBlockBody({
 }
 
 const codeBlockCopyButtonVariants = cva(
-  'inline-flex shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none motion-safe:transition-[color,background-color,opacity,transform] motion-safe:duration-[--duration-fast] motion-safe:ease-[--ease-standard] motion-safe:active:scale-[0.97] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring [&_svg]:pointer-events-none',
+  'inline-flex shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none motion-safe:transition-[color,background-color,opacity,transform] motion-safe:duration-(--duration-fast) motion-safe:ease-(--ease-standard) motion-safe:active:scale-[0.97] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring [&_svg]:pointer-events-none',
   {
     variants: {
       size: {
@@ -288,12 +296,12 @@ function CodeBlockCopyButton({
     async (event: React.MouseEvent<HTMLButtonElement>) => {
       onClick?.(event);
       try {
-        await copyText(code);
+        await navigator.clipboard.writeText(code);
         setCopied(true);
         window.setTimeout(() => setCopied(false), 2000);
       } catch {
-        // A denied permission rejects — keep the button resting rather than
-        // flashing a false confirmation.
+        // Insecure context or a denied permission rejects writeText — keep the
+        // button resting rather than flashing a false confirmation.
         setCopied(false);
       }
     },
@@ -321,11 +329,17 @@ function CodeBlockCopyButton({
   );
 }
 
-export type { CodeBlockBodyProps, CodeBlockCopyButtonProps, CodeBlockProps };
+export type {
+  CodeBlockBodyProps,
+  CodeBlockContextValue,
+  CodeBlockCopyButtonProps,
+  CodeBlockProps,
+};
 export {
   CodeBlock,
   CodeBlockBody,
   CodeBlockCopyButton,
   CodeBlockHeader,
   codeBlockCopyButtonVariants,
+  useCodeBlockContext,
 };

@@ -17,15 +17,15 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AppThumbnail, ConfirmDeleteDialog, KindBadge, metricValue, PhaseBadge, Sparkline, SourceBadge } from '@/components/app-bits';
 import { api } from '@/lib/api';
 import type { App } from '@/lib/types';
-import { Alert, AlertDescription, AlertTitle } from '@/ui/alert';
-import { Button } from '@/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/ui/card';
-import { CodeBlock, CodeBlockBody } from '@/ui/code-block';
-import { Input } from '@/ui/input';
-import { Spinner } from '@/ui/spinner';
-import { Switch } from '@/ui/switch';
-import { Tabs, TabsList, TabsPanel, TabsTab } from '@/ui/tabs';
-import { toast } from '@/ui/toast';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { CodeBlock, CodeBlockBody } from '@/components/ui/code-block';
+import { Input } from '@/components/ui/input';
+import { Spinner } from '@/components/ui/spinner';
+import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsList, TabsPanel, TabsTab } from '@/components/ui/tabs';
+import { toast } from '@/components/ui/toast';
 
 const MAX_SAMPLES = 30;
 const errMessage = (err: unknown) => (err instanceof Error ? err.message : String(err));
@@ -85,34 +85,34 @@ export function AppDetailPage() {
     mutationFn: () => api.stopApp(namespace, name),
     onSuccess: () => {
       invalidate();
-      toast.success(`Stopped ${label()}`);
+      toast.add({ type: 'success', title: `Stopped ${label()}` });
     },
-    onError: (err) => toast.error(`Failed to stop ${label()}`, errMessage(err)),
+    onError: (err) => toast.add({ type: 'error', title: `Failed to stop ${label()}`, description: errMessage(err) }),
   });
   const start = useMutation({
     mutationFn: () => api.startApp(namespace, name),
     onSuccess: () => {
       invalidate();
-      toast.success(`Started ${label()}`);
+      toast.add({ type: 'success', title: `Started ${label()}` });
     },
-    onError: (err) => toast.error(`Failed to start ${label()}`, errMessage(err)),
+    onError: (err) => toast.add({ type: 'error', title: `Failed to start ${label()}`, description: errMessage(err) }),
   });
   const restart = useMutation({
     mutationFn: () => api.restartApp(namespace, name),
     onSuccess: () => {
       invalidate();
-      toast.success(`Restarting ${label()}`, 'Pods are rolling now.');
+      toast.add({ type: 'success', title: `Restarting ${label()}`, description: 'Pods are rolling now.' });
     },
-    onError: (err) => toast.error(`Failed to restart ${label()}`, errMessage(err)),
+    onError: (err) => toast.add({ type: 'error', title: `Failed to restart ${label()}`, description: errMessage(err) }),
   });
   const remove = useMutation({
     mutationFn: () => api.deleteApp(namespace, name),
     onSuccess: () => {
       invalidate();
-      toast.success(`Deleted ${label()}`);
+      toast.add({ type: 'success', title: `Deleted ${label()}` });
       void navigate('/apps');
     },
-    onError: (err) => toast.error(`Failed to delete ${label()}`, errMessage(err)),
+    onError: (err) => toast.add({ type: 'error', title: `Failed to delete ${label()}`, description: errMessage(err) }),
   });
 
   if (app.isLoading) {

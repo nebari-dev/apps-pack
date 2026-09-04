@@ -4,9 +4,9 @@ import { Link } from 'react-router-dom';
 import { AppThumbnail, BarList, KindBadge, PhaseBadge, SourceBadge, StatCard } from '@/components/app-bits';
 import { Onboarding } from '@/components/onboarding';
 import { api } from '@/lib/api';
-import { Button } from '@/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/ui/card';
-import { Spinner } from '@/ui/spinner';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Spinner } from '@/components/ui/spinner';
 
 export function DashboardPage() {
   const analytics = useQuery({ queryKey: ['analytics'], queryFn: api.analytics });

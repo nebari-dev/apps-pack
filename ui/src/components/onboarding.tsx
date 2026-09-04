@@ -1,10 +1,10 @@
 import { BookOpen, Copy, Rocket, Sparkles } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Button } from '@/ui/button';
-import { Card, CardContent } from '@/ui/card';
-import { toast } from '@/ui/toast';
-import { copyText } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { toast } from '@/components/ui/toast';
+import { copyText } from '@/lib/clipboard';
 
 /** First-run guidance shown when no apps exist yet. */
 export function Onboarding() {
@@ -17,7 +17,7 @@ export function Onboarding() {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      toast.error('Could not copy to clipboard');
+      toast.add({ type: 'error', title: 'Could not copy to clipboard' });
     }
   };
 

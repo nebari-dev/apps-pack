@@ -4,7 +4,7 @@ import { AppForm, type SubmitPayload } from '@/components/app-form';
 import { api } from '@/lib/api';
 import { getConfig } from '@/lib/auth';
 import type { AppCreate } from '@/lib/types';
-import { toast } from '@/ui/toast';
+import { toast } from '@/components/ui/toast';
 
 export function LaunchPage() {
   const navigate = useNavigate();
@@ -21,13 +21,14 @@ export function LaunchPage() {
       throw new Error('unexpected payload for launch');
     },
     onSuccess: (app) => {
-      toast.success(
-        `Launched ${app.displayName || app.name}`,
-        'Deploying now — status will update on the app page.',
-      );
+      toast.add({
+        type: 'success',
+        title: `Launched ${app.displayName || app.name}`,
+        description: 'Deploying now — status will update on the app page.',
+      });
       void navigate(`/apps/${app.namespace}/${app.name}`);
     },
-    onError: (err) => toast.error('Launch failed', err instanceof Error ? err.message : String(err)),
+    onError: (err) => toast.add({ type: 'error', title: 'Launch failed', description: err instanceof Error ? err.message : String(err) }),
   });
 
   return (

@@ -4,8 +4,8 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '@/lib/api';
 import type { App } from '@/lib/types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/ui/card';
-import { Spinner } from '@/ui/spinner';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Spinner } from '@/components/ui/spinner';
 
 export function MetricsPage() {
   const metrics = useQuery({

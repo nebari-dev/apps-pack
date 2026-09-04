@@ -1,13 +1,13 @@
 import { Plus, Trash2, UploadCloud } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { App, AppCreate, AppPatch, AppSource, EnvVar } from '@/lib/types';
-import { Button } from '@/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card';
-import { Input } from '@/ui/input';
-import { Label } from '@/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
-import { Switch } from '@/ui/switch';
-import { Tabs, TabsList, TabsPanel, TabsTab } from '@/ui/tabs';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsList, TabsPanel, TabsTab } from '@/components/ui/tabs';
 
 const SUBDOMAIN_RE = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/;
 

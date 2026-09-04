@@ -16,7 +16,7 @@ import nebariLogoDark from '@/assets/nebari-logo_dark.svg';
 import { isThemeMode, type ThemeMode } from '@/hooks/use-theme-preference';
 import { getBranding } from '@/lib/branding';
 import { cn } from '@/lib/utils';
-import { Avatar, AvatarFallback } from '@/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/avatar';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,14 +24,14 @@ import {
   DropdownMenuPortal,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/ui/dropdown-menu';
+} from '@/components/ui/dropdown-menu';
 import {
   MenuBarActions,
   MenuBarBrand,
   MenuBarNav,
   NavigationMenu,
   NavLink,
-} from '@/ui/navigation-menu';
+} from '@/components/ui/navigation-menu';
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -78,7 +78,7 @@ export function Header({
   const brandedLogo = isDarkMode ? (logoUrlDark ?? logoUrl) : logoUrl;
 
   return (
-    <NavigationMenu className="h-14 justify-between border-header-border bg-header-background pl-4 text-header-foreground">
+    <NavigationMenu className="h-14 justify-between border-header-border bg-header pl-4 text-header-foreground">
       <MenuBarBrand href="/" aria-label="Go to homepage">
         {brandedLogo ? (
           <img src={brandedLogo} alt={title || 'Nebari'} className="h-8 w-auto" />

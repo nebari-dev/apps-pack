@@ -74,7 +74,7 @@ describe('applyBranding', () => {
     expect(css).toContain(':root {');
     expect(css).toContain('--primary: #0066cc;');
     expect(css).toContain('--primary-foreground: #ffffff;');
-    expect(css).toContain('--header-background: #f5f5f5;');
+    expect(css).toContain('--header: #f5f5f5;');
     expect(css).toContain('.dark {');
     expect(css).toContain('--primary: #4da6ff;');
   });

@@ -18,8 +18,8 @@ import { AppThumbnail, ConfirmDeleteDialog, PhaseBadge, SourceBadge } from '@/co
 import { Onboarding } from '@/components/onboarding';
 import { api } from '@/lib/api';
 import type { App } from '@/lib/types';
-import { Button } from '@/ui/button';
-import { Checkbox } from '@/ui/checkbox';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogClose,
@@ -28,12 +28,12 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/ui/dialog';
-import { Input } from '@/ui/input';
-import { Spinner } from '@/ui/spinner';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table';
-import { toast } from '@/ui/toast';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Spinner } from '@/components/ui/spinner';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { toast } from '@/components/ui/toast';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 const appLabel = (app: App) => app.displayName || app.name;
@@ -69,26 +69,26 @@ export function AppsPage() {
     mutationFn: (app: App) => api.stopApp(app.namespace, app.name),
     onSuccess: (_d, app) => {
       invalidate();
-      toast.success(`Stopped ${appLabel(app)}`);
+      toast.add({ type: 'success', title: `Stopped ${appLabel(app)}` });
     },
-    onError: (err, app) => toast.error(`Failed to stop ${appLabel(app)}`, errMessage(err)),
+    onError: (err, app) => toast.add({ type: 'error', title: `Failed to stop ${appLabel(app)}`, description: errMessage(err) }),
   });
   const start = useMutation({
     mutationFn: (app: App) => api.startApp(app.namespace, app.name),
     onSuccess: (_d, app) => {
       invalidate();
-      toast.success(`Started ${appLabel(app)}`);
+      toast.add({ type: 'success', title: `Started ${appLabel(app)}` });
     },
-    onError: (err, app) => toast.error(`Failed to start ${appLabel(app)}`, errMessage(err)),
+    onError: (err, app) => toast.add({ type: 'error', title: `Failed to start ${appLabel(app)}`, description: errMessage(err) }),
   });
   const remove = useMutation({
     mutationFn: (app: App) => api.deleteApp(app.namespace, app.name),
     onSuccess: (_d, app) => {
       invalidate();
       setDeleteTarget(null);
-      toast.success(`Deleted ${appLabel(app)}`);
+      toast.add({ type: 'success', title: `Deleted ${appLabel(app)}` });
     },
-    onError: (err, app) => toast.error(`Failed to delete ${appLabel(app)}`, errMessage(err)),
+    onError: (err, app) => toast.add({ type: 'error', title: `Failed to delete ${appLabel(app)}`, description: errMessage(err) }),
   });
 
   const list = apps.data ?? [];
@@ -164,9 +164,9 @@ export function AppsPage() {
       setBulkDeleteOpen(false);
       setBulkConfirm('');
       setSelected(new Set());
-      toast.success(`${action === 'delete' ? 'Deleted' : action === 'stop' ? 'Stopped' : 'Started'} ${selectedApps.length} app(s)`);
+      toast.add({ type: 'success', title: `${action === 'delete' ? 'Deleted' : action === 'stop' ? 'Stopped' : 'Started'} ${selectedApps.length} app(s)` });
     },
-    onError: (err) => toast.error('Bulk action failed', errMessage(err)),
+    onError: (err) => toast.add({ type: 'error', title: 'Bulk action failed', description: errMessage(err) }),
   });
 
   const toggleSort = (col: SortCol) =>

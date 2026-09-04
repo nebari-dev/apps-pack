@@ -4,7 +4,7 @@ import { Header } from '@/components/header';
 import { useTheme } from '@/hooks/theme-provider';
 import { getUser, logout } from '@/lib/auth';
 import { getBranding } from '@/lib/branding';
-import { TooltipProvider } from '@/ui/tooltip';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 export function Layout() {
   const user = getUser();
@@ -26,7 +26,7 @@ export function Layout() {
           onSignOut={() => void logout()}
         />
 
-        <main className="min-w-0 flex-1 bg-body-background px-10 py-8">
+        <main className="min-w-0 flex-1 bg-canvas px-10 py-8">
           <Outlet />
         </main>
 
