@@ -28,7 +28,9 @@
  *
  * The first seventeen are the tokens every Nebari pack accepts. The `header*`
  * and `bodyBackground` tokens are extras specific to this pack, whose chrome is
- * a full-width top bar - see index.css.
+ * a full-width top bar - see index.css. `headerBackground` and `bodyBackground`
+ * land on the registry theme's surface tokens (`--header` and `--canvas`, see
+ * TOKEN_ALIASES) so the header and page keep following the design system.
  *
  * `primaryHover` (the button/badge/control hover and pressed fill),
  * `sidebarPrimary`, `sidebarPrimaryForeground` and `sidebarRing` are derived
@@ -176,12 +178,25 @@ export function getBranding(): BrandingConfig {
 
 const toKebab = (s: string) => s.replace(/([A-Z])/g, '-$1').toLowerCase();
 
+/**
+ * Branding keys whose CSS custom property is not the plain kebab-case of the
+ * key. The public config names predate the @nebari/theme surface tokens, so
+ * they keep working while mapping onto the registry's `--header` / `--canvas`.
+ */
+const TOKEN_ALIASES: Partial<Record<keyof ThemeTokens, string>> = {
+  headerBackground: 'header',
+  bodyBackground: 'canvas',
+};
+
+const toCssVarName = (key: string) =>
+  TOKEN_ALIASES[key as keyof ThemeTokens] ?? toKebab(key);
+
 /** Renders a token map to CSS declarations, dropping empty/unsafe values. */
 function toCssVars(tokens: ThemeTokens): string {
   return Object.entries(tokens)
     .map(([key, value]) => [key, safeCssValue(value)] as const)
     .filter((entry): entry is readonly [string, string] => entry[1] !== undefined)
-    .map(([key, value]) => `  --${toKebab(key)}: ${value};`)
+    .map(([key, value]) => `  --${toCssVarName(key)}: ${value};`)
     .join('\n');
 }
 

@@ -78,7 +78,7 @@ export function Header({
   const brandedLogo = isDarkMode ? (logoUrlDark ?? logoUrl) : logoUrl;
 
   return (
-    <NavigationMenu className="h-14 justify-between border-header-border bg-header-background pl-4 text-header-foreground">
+    <NavigationMenu className="h-14 justify-between border-header-border bg-header pl-4 text-header-foreground">
       <MenuBarBrand href="/" aria-label="Go to homepage">
         {brandedLogo ? (
           <img src={brandedLogo} alt={title || 'Nebari'} className="h-8 w-auto" />

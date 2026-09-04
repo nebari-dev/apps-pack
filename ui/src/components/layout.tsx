@@ -26,7 +26,7 @@ export function Layout() {
           onSignOut={() => void logout()}
         />
 
-        <main className="min-w-0 flex-1 bg-body-background px-10 py-8">
+        <main className="min-w-0 flex-1 bg-canvas px-10 py-8">
           <Outlet />
         </main>
 
