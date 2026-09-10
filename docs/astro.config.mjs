@@ -34,6 +34,7 @@ export default defineConfig({
         // base, so it must point at the Astro project root inside the repo.
         baseUrl: 'https://github.com/nebari-dev/nebari-apps-pack/edit/main/docs/',
       },
+      lastUpdated: true,
       sidebar: [
         {
           label: 'Getting Started',
