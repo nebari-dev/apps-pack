@@ -1,0 +1,15 @@
+# Launch manifest for the Nebari Apps Pack (Python/pixi app).
+# Say "launch it" to a coding agent connected to the nebari-apps MCP server.
+name: web-terminal
+namespace: apps
+displayName: "Web Terminal"
+description: "A bash shell in the app pod, served in the browser by ttyd"
+source:
+  type: files
+  files:
+    path: .            # directory containing pixi.toml, relative to this file
+runtime:
+  pixiTask: start      # pixi task that starts the server on 0.0.0.0:8080
+access:
+  public: false        # a shell: keep it behind Keycloak SSO at the gateway
+  subdomain: web-terminal
