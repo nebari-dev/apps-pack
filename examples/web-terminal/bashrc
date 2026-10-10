@@ -1,0 +1,19 @@
+# Interactive shell setup (sourced by terminal.sh via `bash --rcfile`).
+# Identity/nss_wrapper handling lives in terminal.sh.
+
+# --- git: a usable default identity (override with `git config --global`) ----
+git config --global user.name  >/dev/null 2>&1 || git config --global user.name  "$USER"
+git config --global user.email >/dev/null 2>&1 || git config --global user.email "$USER@${HOSTNAME:-nebari}"
+
+# --- shell niceties ----------------------------------------------------------
+# ${USER} rather than \u: \u needs a passwd entry for the UID, which app pods
+# only have where nss_wrapper could be installed (see terminal.sh).
+PS1="\[\e[1;32m\]${USER}@\h\[\e[0m\]:\[\e[1;34m\]\w\[\e[0m\]\$ "
+export EDITOR=vim
+export BAT_THEME=ansi
+alias ll='ls -lah --color=auto'
+alias ls='ls --color=auto'
+alias cat='bat --paging=never --style=plain'
+eval "$(fzf --bash 2>/dev/null)"
+
+echo "Nebari web terminal — $(python --version 2>&1), $(git --version), vim, tmux, jq, rg and friends on PATH"
