@@ -1,0 +1,49 @@
+[workspace]
+name = "web-terminal"
+channels = ["conda-forge"]
+platforms = ["linux-64", "linux-aarch64", "osx-arm64"]
+
+[dependencies]
+# ttyd shares a shell over a websocket, rendered in the browser with xterm.js.
+ttyd = ">=1.7"
+python = "3.12.*"
+# --- tools on the shell's PATH ------------------------------------------
+# editors
+vim = "*"
+nano = "*"
+# version control
+git = "*"
+gh = "*"
+# network
+curl = "*"
+wget = "*"
+openssh = "*"
+# data wrangling
+jq = "*"
+yq = "*"
+ripgrep = "*"
+fd-find = "*"
+bat = "*"
+# system / navigation
+htop = "*"
+tree = "*"
+less = "*"
+tmux = "*"
+fzf = "*"
+# build & archives
+make = "*"
+zip = "*"
+unzip = "*"
+
+# App pods run as a UID with no /etc/passwd entry; nss_wrapper (used from
+# terminal.sh) gives it a name so `whoami`, ssh and bash's \u work. conda-forge
+# builds it for linux-64 only — other platforms get a $USER-based prompt.
+[target.linux-64.dependencies]
+nss_wrapper = "*"
+
+[tasks]
+# The platform runs `pixi run start` and expects a server on 0.0.0.0:8080.
+# -W makes the terminal writable (ttyd defaults to read-only). terminal.sh
+# runs per browser session: identity setup, then an interactive bash that
+# sources bashrc, all inside this pixi environment so every tool is on PATH.
+start = "ttyd -p 8080 -W -t titleFixed='Nebari web terminal' pixi run bash terminal.sh"
