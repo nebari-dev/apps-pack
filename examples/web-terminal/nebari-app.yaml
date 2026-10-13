@@ -10,6 +10,10 @@ source:
     path: .            # directory containing pixi.toml, relative to this file
 runtime:
   pixiTask: start      # pixi task that starts the server on 0.0.0.0:8080
+  resources:           # a shell can run anything; cap it. Limits leave headroom
+    requests: { cpu: 250m, memory: 512Mi }   # for the cold-start `pixi install`.
+    limits: { cpu: "2", memory: 2Gi }
 access:
-  public: false        # a shell: keep it behind Keycloak SSO at the gateway
+  public: false        # a shell: keep it behind Keycloak SSO at the gateway...
+  groups: ["admin"]    # ...and only for this group (empty = any signed-in user)
   subdomain: web-terminal
