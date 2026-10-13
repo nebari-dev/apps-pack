@@ -14,6 +14,10 @@ runtime:
     requests: { cpu: 250m, memory: 512Mi }   # for the cold-start `pixi install`.
     limits: { cpu: "2", memory: 2Gi }
 access:
-  public: false        # a shell: keep it behind Keycloak SSO at the gateway...
-  groups: ["admin"]    # ...and only for this group (empty = any signed-in user)
+  public: false        # a shell: keep it behind Keycloak SSO at the gateway
+  # Intended audience. NOTE: as of nebari-operator 0.1.0 this only controls
+  # landing-page tile visibility — the gateway SecurityPolicy has no group
+  # authorization rule, so ANY signed-in realm user who knows the URL can open
+  # the shell. Treat `public: false` as "authenticated", not "authorized".
+  groups: ["admin"]
   subdomain: web-terminal
