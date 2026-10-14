@@ -4,8 +4,8 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { Layout } from '@/components/layout';
 import { ThemeProvider } from '@/hooks/theme-provider';
-import { initAuth } from '@/lib/auth';
-import { applyBranding, loadBranding } from '@/lib/branding';
+import { getSubject, initAuth } from '@/lib/auth';
+import { applyBranding, hashDistinctId, loadBranding } from '@/lib/branding';
 import { AppDetailPage } from '@/pages/app-detail';
 import { AppsPage } from '@/pages/apps';
 import { DashboardPage } from '@/pages/dashboard';
@@ -26,9 +26,13 @@ await initAuth();
 
 // Apply the document-level branding - title, favicon, theme tokens - before the
 // first paint. Logos and banners are applied by the components that use them.
+// When the analytics tracker is configured it is loaded here too, after
+// sign-in, so the hashed Keycloak subject can identify the visitor.
 const branding = await brandingReady;
 if (branding) {
-  applyBranding(branding);
+  const identify = branding.analytics?.identify !== false;
+  const distinctId = identify ? await hashDistinctId(getSubject()) : null;
+  applyBranding(branding, distinctId);
 }
 
 // localStorage key for the theme preference. Must stay in sync with the

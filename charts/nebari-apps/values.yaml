@@ -139,6 +139,23 @@ ui:
       top: {}
       bottom: {}
 
+  # Usage analytics - rendered into /config.json next to the branding and
+  # applied by the UI after sign-in. Loads the Umami tracker from the
+  # nebari-analytics pack; nothing is injected while scriptUrl or websiteId
+  # is empty.
+  analytics:
+    # Tracker script URL, e.g. https://analytics.<domain>/script.js
+    # (published as `tracker-url` in the pack's websites ConfigMap).
+    scriptUrl: ""
+    # Umami website id for this UI (`nebari-apps.id` in that ConfigMap).
+    websiteId: ""
+    # Collect endpoint origin, only when it differs from the script's origin.
+    hostUrl: ""
+    # Identify the signed-in user as a SHA-256 hash of the Keycloak subject.
+    identify: true
+    # Drop URL query strings from tracked page views.
+    excludeSearch: false
+
   # The UI's tile on the Nebari landing page.
   landingPage:
     # Tile label, blurb, and grouping shown on the landing page.

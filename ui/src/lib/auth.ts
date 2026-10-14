@@ -72,6 +72,12 @@ export function getUser(): { name: string; email: string } | null {
   };
 }
 
+/** Opaque, stable subject of the signed-in user (the Keycloak `sub` claim). */
+export function getSubject(): string | undefined {
+  if (!keycloak?.authenticated) return undefined;
+  return keycloak.tokenParsed?.sub;
+}
+
 export async function logout(): Promise<void> {
   if (keycloak) {
     await keycloak.logout({ redirectUri: window.location.origin });
