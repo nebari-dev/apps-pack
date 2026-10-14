@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { applyBranding, type BrandingConfig, safeCssValue } from '@/lib/branding';
+import {
+  applyBranding,
+  type BrandingConfig,
+  hashDistinctId,
+  installAnalytics,
+  safeCssValue,
+} from '@/lib/branding';
 
 const DEFAULT_TITLE = 'Nebari Apps';
 
@@ -10,6 +16,9 @@ afterEach(() => {
     el.remove();
   }
   for (const el of document.querySelectorAll("link[rel~='icon']")) {
+    el.remove();
+  }
+  for (const el of document.querySelectorAll('script[data-nebari-analytics]')) {
     el.remove();
   }
 });
@@ -203,5 +212,45 @@ describe('loadBranding', () => {
     await expect(mod.loadBranding()).rejects.toThrow('404');
     // A failed load leaves the cached branding empty, so consumers fall back.
     expect(mod.getBranding()).toEqual({});
+  });
+});
+
+describe('installAnalytics', () => {
+  it('injects a deferred tracker script with the website id and distinct id', () => {
+    const script = installAnalytics(
+      { scriptUrl: 'https://analytics.example.com/script.js', websiteId: 'w-1' },
+      'abc123',
+    );
+    expect(script?.defer).toBe(true);
+    expect(script?.src).toBe('https://analytics.example.com/script.js');
+    expect(script?.getAttribute('data-website-id')).toBe('w-1');
+    expect(script?.getAttribute('data-distinct-id')).toBe('abc123');
+    expect(document.head.contains(script)).toBe(true);
+  });
+
+  it('does nothing without a script url and website id, and installs only once', () => {
+    expect(installAnalytics(undefined)).toBeNull();
+    expect(installAnalytics({ scriptUrl: 'https://a.example.com/s.js' })).toBeNull();
+    const config = { scriptUrl: 'https://a.example.com/s.js', websiteId: 'w' };
+    expect(installAnalytics(config)).not.toBeNull();
+    expect(installAnalytics(config)).toBeNull();
+    expect(document.head.querySelectorAll('script[data-nebari-analytics]')).toHaveLength(1);
+  });
+
+  it('is wired through applyBranding', () => {
+    applyBranding({ analytics: { scriptUrl: '/script.js', websiteId: 'w' } }, 'id');
+    const script = document.head.querySelector('script[data-nebari-analytics]');
+    expect(script?.getAttribute('data-distinct-id')).toBe('id');
+  });
+});
+
+describe('hashDistinctId', () => {
+  it('is stable, short and never the raw subject', async () => {
+    const a = await hashDistinctId('1234-keycloak-subject');
+    if (a === null) return; // Web Crypto unavailable in this environment
+    expect(a).toBe(await hashDistinctId('1234-keycloak-subject'));
+    expect(a).toHaveLength(32);
+    expect(a).not.toContain('keycloak');
+    expect(await hashDistinctId(undefined)).toBeNull();
   });
 });

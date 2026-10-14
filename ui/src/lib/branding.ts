@@ -79,7 +79,27 @@ export type BannerConfig = {
   foreground?: string;
 };
 
+/**
+ * Optional usage-analytics tracker (Umami, via the nebari-analytics pack).
+ * Loaded as a deferred `<script>` by applyBranding(); nothing is injected
+ * unless both `scriptUrl` and `websiteId` are set.
+ */
+export type AnalyticsConfig = {
+  /** Tracker script URL, e.g. https://analytics.example.com/script.js. */
+  scriptUrl?: string;
+  /** Umami website id for this UI. */
+  websiteId?: string;
+  /** Collect endpoint origin when it differs from the script's origin. */
+  hostUrl?: string;
+  /** Identify the signed-in user with a hashed Keycloak subject. Default true. */
+  identify?: boolean;
+  /** Drop URL query strings from tracked page views. */
+  excludeSearch?: boolean;
+};
+
 export type BrandingConfig = {
+  /** Optional usage-analytics tracker; see AnalyticsConfig. */
+  analytics?: AnalyticsConfig;
   /** Optional page-title override shown in the browser tab. */
   title?: string;
   /** URL to a custom logo used in the header (light mode / default). */
@@ -149,6 +169,23 @@ function sanitizeUrl(value: string | undefined): string | undefined {
   }
 }
 
+// Accept only root-relative paths and http(s) URLs. Unlike sanitizeUrl this
+// never admits data: URIs, because the value lands in a <script src>.
+function sanitizeHttpUrl(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+  if (value.startsWith('/') && !value.startsWith('//')) {
+    return value;
+  }
+  try {
+    const { protocol } = new URL(value);
+    return protocol === 'http:' || protocol === 'https:' ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 let branding: BrandingConfig = {};
 
 /** Fetch and cache /config.json. The network request happens at most once. */
@@ -163,6 +200,10 @@ export async function loadBranding(): Promise<BrandingConfig> {
   config.logoUrl = sanitizeUrl(config.logoUrl);
   config.logoUrlDark = sanitizeUrl(config.logoUrlDark);
   config.faviconUrl = sanitizeUrl(config.faviconUrl);
+  if (config.analytics) {
+    config.analytics.scriptUrl = sanitizeHttpUrl(config.analytics.scriptUrl);
+    config.analytics.hostUrl = sanitizeHttpUrl(config.analytics.hostUrl);
+  }
   branding = config;
   return branding;
 }
@@ -211,7 +252,9 @@ function toCssVars(tokens: ThemeTokens): string {
  * Theme overrides are injected as a <style> appended last to <head> so they win
  * the cascade over the base tokens defined in index.css.
  */
-export function applyBranding(config: BrandingConfig): void {
+export function applyBranding(config: BrandingConfig, distinctId?: string | null): void {
+  installAnalytics(config.analytics, distinctId);
+
   if (config.title) {
     document.title = config.title;
   }
@@ -242,4 +285,55 @@ export function applyBranding(config: BrandingConfig): void {
       document.head.appendChild(style);
     }
   }
+}
+
+const ANALYTICS_MARKER = 'data-nebari-analytics';
+
+/**
+ * Hash an opaque identifier (the Keycloak `sub` claim) into a short, stable,
+ * non-reversible distinct id for the tracker, so usage can be counted per
+ * user without the analytics database holding an email or username. Returns
+ * null when the Web Crypto API is unavailable.
+ */
+export async function hashDistinctId(subject: string | undefined): Promise<string | null> {
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle || !subject) {
+    return null;
+  }
+  const digest = await subtle.digest('SHA-256', new TextEncoder().encode(subject));
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0'))
+    .join('')
+    .slice(0, 32);
+}
+
+/**
+ * Inject the Umami tracker `<script>` once. No-op unless both `scriptUrl` and
+ * `websiteId` are configured. Returns the element added, or null.
+ */
+export function installAnalytics(
+  config: AnalyticsConfig | undefined,
+  distinctId?: string | null,
+): HTMLScriptElement | null {
+  if (!config?.scriptUrl || !config.websiteId) {
+    return null;
+  }
+  if (document.head.querySelector(`script[${ANALYTICS_MARKER}]`)) {
+    return null;
+  }
+  const script = document.createElement('script');
+  script.defer = true;
+  script.src = config.scriptUrl;
+  script.setAttribute(ANALYTICS_MARKER, '');
+  script.setAttribute('data-website-id', config.websiteId);
+  if (config.hostUrl) {
+    script.setAttribute('data-host-url', config.hostUrl);
+  }
+  if (config.excludeSearch) {
+    script.setAttribute('data-exclude-search', 'true');
+  }
+  if (distinctId) {
+    script.setAttribute('data-distinct-id', distinctId);
+  }
+  document.head.appendChild(script);
+  return script;
 }

@@ -24,6 +24,13 @@ data:
       "logoUrlDark": {{ .Values.ui.branding.logoUrlDark | quote }},
       "faviconUrl":  {{ .Values.ui.branding.faviconUrl | quote }},
       "theme":       {{ .Values.ui.branding.theme | toJson }},
-      "banners":     {{ .Values.ui.branding.banners | toJson }}
+      "banners":     {{ .Values.ui.branding.banners | toJson }},
+      "analytics": {
+        "scriptUrl":     {{ .Values.ui.analytics.scriptUrl     | quote }},
+        "websiteId":     {{ .Values.ui.analytics.websiteId     | quote }},
+        "hostUrl":       {{ .Values.ui.analytics.hostUrl       | quote }},
+        "identify":      {{ .Values.ui.analytics.identify      | default false }},
+        "excludeSearch": {{ .Values.ui.analytics.excludeSearch | default false }}
+      }
     }
 {{- end }}
