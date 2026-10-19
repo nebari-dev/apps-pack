@@ -67,8 +67,12 @@ wrong type fails the install.
 | operator.resources | object | `{"limits":{"cpu":"500m","memory":"256Mi"},"requests":{"cpu":"500m","memory":"256Mi"}}` | Container resources. Requests equal limits, so the pod is Guaranteed. |
 | pythonImage | string | `"ghcr.io/prefix-dev/pixi:0.68.1-noble"` | Image running Python/pixi apps (`runtime.pixiTask`). Must provide the `pixi` binary and run as a non-root user. |
 | staticImage | string | `"nginxinc/nginx-unprivileged:1.27-alpine"` | Image serving static app content. Must listen on 8080 as a non-root user; the operator mounts its nginx server config over /etc/nginx/conf.d. |
-| telemetry.enabled | bool | `false` | Render a ServiceMonitor (needs the Prometheus Operator CRDs) and the `prometheus.io/*` scrape annotations on the metrics Service. |
+| telemetry.enabled | bool | `false` | Render ServiceMonitors for the operator and apps-api (needs the Prometheus Operator CRDs) and the `prometheus.io/*` scrape annotations on the operator's metrics Service. |
 | telemetry.metricsReaders | list | `[]` | ServiceAccounts allowed to scrape, bound to the metrics-reader ClusterRole, e.g. `[{ name: prometheus-k8s, namespace: monitoring }]`. |
+| telemetry.prometheusRule.apiErrorRatio | float | `0.05` | Fraction of API requests that may fail with a 5xx before NebariAppsAPIErrorRate fires. |
+| telemetry.prometheusRule.enabled | bool | `false` | Render a PrometheusRule (needs the Prometheus Operator CRDs) with alerts for the operator and API being down, reconcile errors and backlog, the API's 5xx ratio, and pack pods that are unavailable or restarting. The pod alerts need kube-state-metrics. Each alert links its runbook section. |
+| telemetry.prometheusRule.labels | object | `{}` | Extra PrometheusRule labels, e.g. the label your Prometheus selects rules on. |
+| telemetry.prometheusRule.runbookUrl | string | `"https://packs.nebari.dev/apps-pack/runbook/"` | Base URL of the runbook the alerts link to. |
 | telemetry.serviceMonitor.interval | string | `"30s"` | Scrape interval. |
 | telemetry.serviceMonitor.labels | object | `{}` | Extra ServiceMonitor labels, e.g. the release label your Prometheus selects on. |
 | tls.enabled | bool | `true` | TLS for everything this pack exposes (the UI and every launched app). Disable to serve plain HTTP: no certificates, no HTTPS listeners (local development only; keep enabled on real clusters). |

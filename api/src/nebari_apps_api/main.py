@@ -13,7 +13,7 @@ from typing import Annotated, Any
 import httpx
 import structlog
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from . import __version__
 from . import cr as crmod
@@ -22,6 +22,7 @@ from .config import settings
 from .k8s import READY_TIMEOUT, AppStore, ConflictError, KubernetesAppStore, NotFoundError
 from .limits import BodySizeLimitMiddleware
 from .logs import RequestIdMiddleware, configure_logging
+from .metrics import METRICS_PATH, MetricsMiddleware, metrics_response
 from .models import (
     SOURCE_TYPES,
     AnalyticsSummary,
@@ -54,7 +55,8 @@ def create_app(store: AppStore | None = None) -> FastAPI:
         )
     app.add_middleware(BodySizeLimitMiddleware, max_bytes=lambda: settings.max_request_bytes)
     # Added last, so it is outermost: the id is bound before anything else logs.
-    app.add_middleware(RequestIdMiddleware, quiet_paths=[PREFIX + "/healthz", PREFIX + "/readyz"])
+    app.add_middleware(MetricsMiddleware)
+    app.add_middleware(RequestIdMiddleware, quiet_paths=[PREFIX + "/healthz", PREFIX + "/readyz", METRICS_PATH])
     app.state.store = store
 
     def get_store() -> AppStore:
@@ -153,6 +155,10 @@ def create_app(store: AppStore | None = None) -> FastAPI:
         ]
 
     # ------------------------------------------------------------------ meta
+    @app.get(METRICS_PATH, include_in_schema=False)
+    def prometheus_metrics() -> Response:
+        return metrics_response()
+
     @app.get(PREFIX + "/healthz", include_in_schema=False)
     def healthz() -> dict[str, str]:
         return {"status": "ok"}

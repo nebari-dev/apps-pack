@@ -56,3 +56,6 @@ kubeconfig
 tilt_modules/
 .tilt/
 dev/.cache/
+
+# Rendered by the lint workflow for promtool.
+.github/prometheus/rules.yaml

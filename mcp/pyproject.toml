@@ -23,6 +23,7 @@ dev = [
     "kubernetes>=31.0",
     "pydantic>=2.9",
     "pytest-cov>=7.0",
+    "prometheus-client>=0.22",
 ]
 
 [build-system]

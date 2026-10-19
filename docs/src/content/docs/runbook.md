@@ -1,0 +1,182 @@
+---
+title: Runbook
+description: Respond to Apps Pack incidents - the operator stops reconciling, routing never comes up, Keycloak is unreachable, metrics are missing - and roll back.
+---
+
+This page is for operating the pack itself. For one App that will not launch, start with
+[Troubleshooting](/troubleshooting/). Commands assume the release `nebari-apps` in the
+namespace `nebari-apps`; substitute yours.
+
+A quick health check of the whole pack:
+
+```bash
+kubectl -n nebari-apps get deploy,pods -l app.kubernetes.io/instance=nebari-apps
+kubectl get apps -A -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name,PHASE:.status.phase,MESSAGE:.status.message
+curl -s https://apps.<cluster-domain>/api/v1/version
+```
+
+## Alerts
+
+With `telemetry.prometheusRule.enabled` the chart renders these alerts (see
+[Metrics](/configuration/#metrics)). Each one links to the section below that handles it.
+
+| Alert | Severity | Fires when | Section |
+|---|---|---|---|
+| `NebariAppsOperatorDown` | critical | No healthy scrape of the operator for 10m | [The operator is not reconciling](#the-operator-is-not-reconciling) |
+| `NebariAppsReconcileErrors` | warning | App reconciles keep failing for 15m | [The operator is not reconciling](#the-operator-is-not-reconciling) |
+| `NebariAppsReconcileBacklog` | warning | More than 25 Apps queued for 15m | [The operator is not reconciling](#the-operator-is-not-reconciling) |
+| `NebariAppsAPIDown` | critical | No healthy scrape of apps-api for 5m | [The API is down or returns errors](#the-api-is-down-or-returns-errors) |
+| `NebariAppsAPIErrorRate` | warning | Over 5% of API requests are 5xx for 10m (`apiErrorRatio`) | [The API is down or returns errors](#the-api-is-down-or-returns-errors) |
+| `NebariAppsPodsUnavailable` | warning | A pack Deployment has unavailable replicas for 10m (kube-state-metrics) | [A pack pod is not ready](#a-pack-pod-is-not-ready) |
+| `NebariAppsPodRestarting` | warning | A pack pod restarted more than 3 times in 30m (kube-state-metrics) | [A pack pod is not ready](#a-pack-pod-is-not-ready) |
+
+## The operator is not reconciling
+
+Symptoms: new Apps stay without a phase, edits do not roll pods, `Stopped` Apps keep
+running.
+
+```bash
+kubectl -n nebari-apps get deploy nebari-apps-operator
+kubectl -n nebari-apps logs deploy/nebari-apps-operator --since=30m | grep -E '"level":"(error|warn)"'
+kubectl -n nebari-apps get lease apps-operator.apps.nebari.dev -o jsonpath='{.spec.holderIdentity}{"\n"}'
+```
+
+- **The pod is not running.** See [A pack pod is not ready](#a-pack-pod-is-not-ready).
+- **Running, but the logs repeat `forbidden`.** The operator's RBAC does not match its image:
+  the chart and the images are from different releases. Upgrade them together (see
+  [Upgrading](/upgrading/)).
+- **Running, but no replica holds the lease.** With `operator.replicaCount` above 1, only the
+  leader reconciles. A holder that no longer exists is replaced within about a minute; if not,
+  restart the Deployment.
+- **`reconcile failed` for some Apps.** The message names the child that failed. A webhook
+  or quota refusing the Deployment shows up here first. The App's `status.message` and
+  `kubectl -n <ns> get events --field-selector involvedObject.name=app-<name>` usually say
+  more.
+- **A backlog after a restart or a mass change.** The work queue drains on its own; it stays
+  high only if each reconcile is slow (look at `controller_runtime_reconcile_time_seconds`)
+  or failing.
+
+Restarting the operator is safe: it holds no state, and every App is reconciled again from
+its spec.
+
+```bash
+kubectl -n nebari-apps rollout restart deploy/nebari-apps-operator
+```
+
+## A NebariApp never becomes Ready
+
+`RoutingReady=False` on an App (or on the UI itself) is the nebari-operator's domain:
+routing, TLS and the Keycloak client are created from the `NebariApp` this pack writes.
+
+```bash
+kubectl -n <ns> get nebariapp app-<name> -o jsonpath='{range .status.conditions[*]}{.type}={.status} {.reason}: {.message}{"\n"}{end}'
+kubectl -n nebari-operator-system logs deploy/nebari-operator-controller-manager --since=30m
+```
+
+- **`NebariAppMissing` that does not clear.** The NebariApp CRD is not installed, or is older
+  than the pinned contract (nebari-operator `%NEBARI_OPERATOR_VERSION%`).
+- **TLS not ready.** cert-manager could not issue the certificate:
+  `kubectl -n <ns> get certificate,certificaterequest,challenge`. A rate-limited or failed
+  ACME order clears when the challenge succeeds; local clusters without public DNS should
+  run with `tls.enabled=false`.
+- **Auth not ready.** The nebari-operator could not create the Keycloak client. Check that
+  Keycloak is up and that the nebari-operator's admin credentials are valid.
+- **Every App at once.** The shared Gateway (`gateway`) or the nebari-operator itself is
+  down; fix that, and the NebariApps recover without touching the Apps.
+
+## The API is down or returns errors
+
+apps-api backs the UI and the MCP server; launched apps keep serving while it is down.
+
+```bash
+kubectl -n nebari-apps get pods -l app.kubernetes.io/component=api
+kubectl -n nebari-apps exec deploy/nebari-apps-api -- python -c \
+  "import urllib.request as u; print(u.urlopen('http://127.0.0.1:8080/api/v1/readyz').read().decode())" \
+  || true
+kubectl -n nebari-apps logs deploy/nebari-apps-api --since=15m | grep -E '"status": 5|"level": "(error|warning)"'
+```
+
+`readyz` names the failing check; the log line `readiness check failed` gives the reason.
+
+- **`kubernetes` failed.** The API server is unreachable from the pod, or the API's
+  ServiceAccount lost its RBAC (chart and images from different releases).
+- **`jwks` failed.** See [Keycloak or JWKS is unreachable](#keycloak-or-jwks-is-unreachable).
+- **5xx on `/api/v1/apps…` while ready.** Usually the Kubernetes API server timing out or
+  refusing a write (admission webhooks, quotas). Every response carries an `X-Request-ID`
+  header, and the API's log line for that request has the same `request_id`, so a failing
+  call in the browser's network tab leads straight to its log line.
+
+## Keycloak or JWKS is unreachable
+
+With auth on, apps-api and the MCP server verify every token against the realm's JWKS. If
+the pods cannot fetch it, `readyz` fails on `jwks`, the pods drop out of the Service, and
+users see `503`s or a login loop.
+
+```bash
+kubectl -n nebari-apps exec deploy/nebari-apps-api -- python -c \
+  "import os, urllib.request as u; print(u.urlopen(os.environ.get('OIDC_ISSUER_INTERNAL') or os.environ['OIDC_ISSUER']).status)"
+```
+
+- **The browser URL does not resolve inside the cluster** (split-horizon DNS, a hairpin the
+  load balancer does not allow). Set `keycloak.internalUrl` to the in-cluster Keycloak
+  Service; tokens keep their public issuer.
+- **Keycloak is down.** Nothing in the pack can fix that; users cannot sign in to anything.
+  `readyz` trusts a successful JWKS fetch for a minute, so a brief blip does not take the API
+  out of the Service; a longer outage does.
+- **Every token is rejected with `401` but JWKS loads.** The pack's Keycloak clients are
+  missing from `<release>-ui-oidc-client`, so the allowed-client list is empty and the API
+  fails closed. Check the UI's NebariApp (`RoutingReady`) and that the secret exists.
+
+## metrics-server is missing
+
+The UI's Metrics page and the per-app CPU and memory read `metrics.k8s.io`. Without
+metrics-server the page says so, and restart counts still work; nothing else depends on it.
+
+```bash
+kubectl get apiservice v1beta1.metrics.k8s.io
+kubectl top pods -n apps
+```
+
+Install metrics-server (most distributions ship it; on kind, add `--kubelet-insecure-tls`).
+If the APIService exists but reports `Available=False`, metrics-server is running but the API
+server cannot reach it; check its pod and any NetworkPolicy in `kube-system`.
+
+## A pack pod is not ready
+
+```bash
+kubectl -n nebari-apps get pods -l app.kubernetes.io/instance=nebari-apps
+kubectl -n nebari-apps describe pod <pod>        # probe failures, OOMKilled, image pulls
+kubectl -n nebari-apps logs <pod> --previous     # why the last container exited
+```
+
+| Pod | Probes | Common causes |
+|---|---|---|
+| operator | `/healthz`, `/readyz` on 8081 | RBAC mismatch, no leader lease, OOMKilled at `operator.resources` |
+| api | `/api/v1/healthz`, `/api/v1/readyz` | JWKS or the Kubernetes API unreachable (see above) |
+| ui | `/healthz` | nginx cannot resolve the API or MCP Service at startup; check the Services exist |
+| mcp | `/healthz` | API_URL wrong or the API down |
+
+Every pack pod runs with a read-only root filesystem. A crash with `Read-only file system`
+means something wrote outside its `emptyDir` (`/tmp`, or `/tmp/nginx` for the UI): an image
+built for a different chart version. Upgrade chart and images together.
+
+## Roll back a bad upgrade
+
+Back up the Apps, roll the release back, and confirm (details in
+[Upgrading → Roll back](/upgrading/#roll-back)):
+
+```bash
+kubectl get apps -A -o yaml > apps-backup-$(date +%F).yaml
+helm history nebari-apps -n nebari-apps
+helm rollback nebari-apps <REVISION> -n nebari-apps --wait
+kubectl -n nebari-apps rollout status deploy/nebari-apps-operator deploy/nebari-apps-api
+kubectl get apps -A
+```
+
+With Argo CD, set `targetRevision` back to the previous version and sync; disable
+auto-sync first if a newer revision would be re-applied.
+
+`helm rollback` does not touch the CRD. Under the [CRD versioning
+policy](/app-crd-reference/#versioning-and-deprecation), CRD changes within a version are
+additive, so the newer CRD keeps working with the older operator. If Apps were deleted, apply
+the backup; the operator recreates every child and recomputes status.

@@ -153,8 +153,49 @@ For each `App` the operator creates (and owns, via `ownerReferences`):
 | Child | Name | Purpose |
 |---|---|---|
 | ConfigMap | `app-<name>-content` | Inline source files (inline apps only). |
+| ConfigMap | `app-<name>-server` | The nginx server config with security headers (static apps only). |
 | Deployment | `app-<name>` | The app workload (hardened: non-root, no privilege escalation, seccomp `RuntimeDefault`). |
 | Service | `app-<name>` | ClusterIP on port 8080. |
 | NebariApp | `app-<name>` | Routing + TLS + auth + (opt-in) landing-page tile, reconciled by the nebari-operator (contract pinned to `%NEBARI_OPERATOR_VERSION%`). |
 
 Deleting the `App` cascades through all of them.
+
+## Versioning and deprecation
+
+`apps.nebari.dev/v1alpha1` is the only version, served and stored. Apps are the pack's only
+state, so a CRD change must never force anyone to delete and re-create them.
+
+**Within a version, changes are additive only.** A release may add optional fields, add enum
+values, and loosen validation. It never removes, renames or retypes a field, makes an
+existing field required, removes an enum value, or changes what an existing value means. The
+"CRD stays compatible with stored Apps" check in CI compares every PR's CRD with the base
+branch and fails on any of those.
+
+**Tightening validation** (a new bound, pattern or CEL rule, such as the 10-replica cap or the
+immutable subdomain) is allowed but called out: Kubernetes
+[validation ratcheting](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#validation-ratcheting)
+lets an App that was valid before keep accepting updates that leave the offending field
+alone, and the CI check prints a warning so the change lands in the CHANGELOG and
+[Upgrading](/upgrading/#version-notes).
+
+**Deprecating a field.** Its description in the CRD and this page say so and name the
+replacement; it keeps working for at least two minor releases after the release that
+deprecates it, and the CHANGELOG lists the removal ahead of time.
+
+**A breaking change gets a new version.** The plan, when one is needed:
+
+1. Release N adds the new version (`v1beta1`, then `v1`) alongside `v1alpha1`. Both are
+   served; `v1alpha1` stays the storage version. apps-operator serves a conversion webhook
+   (controller-runtime's hub-and-spoke conversion, with the newest version as the hub), and
+   the chart wires it into the CRD's `spec.conversion`. Clients can move to the new version
+   at their own pace; GitOps manifests in either version keep applying.
+2. Release N+1 makes the new version the storage version. The operator re-writes every App
+   once so etcd holds only the new version, then `status.storedVersions` is trimmed to it.
+   `v1alpha1` is marked `deprecated: true` with a `deprecationWarning` that `kubectl`
+   prints on every use.
+3. `v1alpha1` stays served for at least two minor releases after N+1, then is set to
+   `served: false`, and is removed in a later release.
+
+Before this policy (up to 0.1.0) the schema changed shape in place twice; the
+[CHANGELOG](https://github.com/nebari-dev/apps-pack/blob/main/CHANGELOG.md) and
+[Upgrading](/upgrading/#version-notes) cover what that means for existing Apps.
