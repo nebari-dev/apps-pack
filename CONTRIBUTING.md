@@ -63,7 +63,6 @@ source of truth. Change a dependency in `pyproject.toml`, then run `uv lock` and
 - **Title:** a [Conventional Commit](https://www.conventionalcommits.org/) subject, such as
   `fix(api): reject empty subdomains` or `feat(operator): add a pvc source`. Pull requests
   are squash-merged, so the title becomes the commit on `main`.
-  A check enforces the format.
 - **Link the issue** with `Closes #<number>` in the description. That closes the issue
   on merge and moves it on the project board.
 - **Keep the docs in step.** User-visible behavior is documented in `docs/` (the site),
