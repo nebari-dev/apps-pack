@@ -153,6 +153,6 @@ For each `App` the operator creates (and owns, via `ownerReferences`):
 | ConfigMap | `app-<name>-content` | Inline source files (inline apps only). |
 | Deployment | `app-<name>` | The app workload (hardened: non-root, no privilege escalation, seccomp `RuntimeDefault`). |
 | Service | `app-<name>` | ClusterIP on port 8080. |
-| NebariApp | `app-<name>` | Routing + TLS + auth + (opt-in) landing-page tile, reconciled by the nebari-operator (contract pinned to `v0.1.0-alpha.20`). |
+| NebariApp | `app-<name>` | Routing + TLS + auth + (opt-in) landing-page tile, reconciled by the nebari-operator (contract pinned to `%NEBARI_OPERATOR_VERSION%`). |
 
 Deleting the `App` cascades through all of them.

@@ -5,7 +5,7 @@ title: Getting started
 ## Prerequisites
 
 - A Nebari cluster running the Nebari Infrastructure Core stack:
-  [nebari-operator](https://github.com/nebari-dev/nebari-operator) `v0.1.0-alpha.20` or
+  [nebari-operator](https://github.com/nebari-dev/nebari-operator) `%NEBARI_OPERATOR_VERSION%` or
   later (provides the `NebariApp` CRD; the version this pack's contract test and dev loop
   pin), Envoy Gateway with the shared `public` (or `internal`) Gateway, and a Keycloak realm
   (`nebari` by default).

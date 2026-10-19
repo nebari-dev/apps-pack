@@ -53,6 +53,21 @@ jobs:
       - name: Test
         run: cd docs && bun test test
 
+      # External links only: internal ones are checked against the build by the
+      # tests above. Root-relative links resolve to a placeholder host that is
+      # excluded; example and local-cluster hostnames are illustrative.
+      - name: Check external links
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
+        with:
+          fail: true
+          output: ${{ runner.temp }}/lychee.md
+          args: >-
+            --no-progress --max-retries 3 --accept 200,206,429
+            --base-url https://internal.invalid/
+            --exclude '^https://internal\.invalid/' --exclude '^file:'
+            --exclude 'example\.(ai|com)' --exclude '\.nebari\.(local|test)' --exclude 'localhost|127\.0\.0\.1'
+            'docs/src/content/docs/*.md' README.md
+
       - name: Build
         # Dynamic base: subpath on main, root on PR previews (astro.config reads BASE_PATH).
         env:

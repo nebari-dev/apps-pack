@@ -1,12 +1,14 @@
 package controller
 
 // The NebariApp CR is consumed as a versioned contract with the
-// nebari-operator (pinned: v0.1.0-alpha.20). These tests pin the exact shape
+// nebari-operator (pinned: NebariOperatorContract). These tests pin the exact shape
 // this pack emits so contract drift shows up as a test failure, not a broken
 // cluster. Field reference:
 // https://github.com/nebari-dev/software-pack-template/blob/main/docs/nebariapp-crd-reference.md
 
 import (
+	"os"
+	"strings"
 	"testing"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -14,6 +16,17 @@ import (
 
 	appsv1alpha1 "github.com/nebari-dev/nebari-apps-pack/operator/api/v1alpha1"
 )
+
+func TestContractVersionIsTheRepoPin(t *testing.T) {
+	pin, err := os.ReadFile("../../../.nebari-operator-version")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(string(pin)); got != NebariOperatorContract {
+		t.Fatalf(".nebari-operator-version is %s but the NebariApp contract is %s: "+
+			"update the contract tests and NebariOperatorContract together with the pin", got, NebariOperatorContract)
+	}
+}
 
 func testReconciler() *AppReconciler {
 	return &AppReconciler{
