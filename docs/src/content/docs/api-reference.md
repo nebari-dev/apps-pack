@@ -10,7 +10,7 @@ both thin clients over this API.
 
 ## Authentication
 
-All endpoints except `/healthz` and `/config` require a Keycloak **JWT bearer token**:
+All endpoints except `/healthz`, `/readyz` and `/config` require a Keycloak **JWT bearer token**:
 
 ```
 Authorization: Bearer <access-token>
@@ -19,6 +19,13 @@ Authorization: Bearer <access-token>
 The API validates the signature against the realm JWKS, and stamps the caller's
 `preferred_username` as the app's `owner` on create. With `api.auth.enabled=false`
 (local development), requests are anonymous and treated as an admin.
+
+### Request ids
+
+Every response carries an `X-Request-ID` header. Send one (up to 128 characters from
+`A-Z a-z 0-9 . _ : -`) and it is kept; otherwise the API makes one. Behind the Nebari
+gateway, Envoy assigns the id at the edge; the UI's nginx and the MCP server pass it on,
+so the id on a response is the one in the API's logs for that call.
 
 ### Authorization
 
@@ -35,7 +42,8 @@ create.
 
 | Method & path | Description |
 |---|---|
-| `GET /healthz` | Liveness (public). |
+| `GET /healthz` | Liveness (public). Always `200` while the process serves. |
+| `GET /readyz` | Readiness (public): `200 {"status": "ok", "checks": {...}}` when the Kubernetes API answers a namespace list and, with auth on, the realm JWKS loads (each within 3s; a good JWKS fetch is reused for 60s). Otherwise `503`, with the failing check marked `"failed"` and the reason in the API's log. |
 | `GET /config` | UI bootstrap config (public): `authEnabled`, Keycloak url/realm/SPA client id, `appsDomain`, `appsScheme`. |
 | `GET /capabilities` | `{appsDomain, sourceTypes, namespaces}` — what this cluster supports and where the caller may launch. `sourceTypes` is `["git", "inline", "pvc"]`. |
 | `GET /auth/me` | The caller's username, email, groups, and `admin` (member of an admin group). |

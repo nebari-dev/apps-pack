@@ -129,8 +129,11 @@ def current_user(
     validator = get_validator(request)
     assert validator is not None
     try:
-        return validator.validate(credentials.credentials)
+        user = validator.validate(credentials.credentials)
     except HTTPException:
         raise
     except Exception as exc:  # any validation failure is a 401
         raise HTTPException(401, f"invalid token: {exc}") from exc
+    # Picked up by the access log line (RequestIdMiddleware).
+    request.state.user = user.username
+    return user

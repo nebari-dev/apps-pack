@@ -5,17 +5,21 @@ UI and (later) the MCP server are thin clients over this API.
 """
 
 import json
-import logging
+import time
 from collections import Counter
 from typing import Annotated, Any
 
+import httpx
+import structlog
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi.responses import JSONResponse
 
 from . import cr as crmod
 from .auth import User, can_access, current_user, is_admin
 from .config import settings
-from .k8s import AppStore, ConflictError, KubernetesAppStore, NotFoundError
+from .k8s import READY_TIMEOUT, AppStore, ConflictError, KubernetesAppStore, NotFoundError
 from .limits import BodySizeLimitMiddleware
+from .logs import RequestIdMiddleware, configure_logging
 from .models import (
     SOURCE_TYPES,
     AnalyticsSummary,
@@ -32,16 +36,23 @@ from .models import (
 from .upload import PIXI_MANIFESTS, files_from_upload, read_capped
 
 PREFIX = "/api/v1"
+# A JWKS fetch that succeeded is trusted this long before readyz fetches again,
+# so probes don't hammer Keycloak.
+JWKS_READY_TTL = 60.0
+
+log = structlog.get_logger("nebari_apps_api")
 
 
 def create_app(store: AppStore | None = None) -> FastAPI:
     app = FastAPI(title="nebari-apps-api", version="0.1.0")
     if not settings.auth_enabled:
-        logging.getLogger("nebari_apps_api").warning(
+        log.warning(
             "AUTHENTICATION IS DISABLED (AUTH_ENABLED=false): every request is anonymous and "
             "treated as an admin. Use this for local development only."
         )
     app.add_middleware(BodySizeLimitMiddleware, max_bytes=lambda: settings.max_request_bytes)
+    # Added last, so it is outermost: the id is bound before anything else logs.
+    app.add_middleware(RequestIdMiddleware, quiet_paths=[PREFIX + "/healthz", PREFIX + "/readyz"])
     app.state.store = store
 
     def get_store() -> AppStore:
@@ -120,6 +131,39 @@ def create_app(store: AppStore | None = None) -> FastAPI:
     @app.get(PREFIX + "/healthz", include_in_schema=False)
     def healthz() -> dict[str, str]:
         return {"status": "ok"}
+
+    jwks_ok_until = 0.0
+
+    def check_jwks() -> None:
+        nonlocal jwks_ok_until
+        if time.monotonic() < jwks_ok_until:
+            return
+        resp = httpx.get(settings.jwks_url, timeout=READY_TIMEOUT)
+        resp.raise_for_status()
+        if not resp.json().get("keys"):
+            raise ValueError("JWKS has no keys")
+        jwks_ok_until = time.monotonic() + JWKS_READY_TTL
+
+    @app.get(PREFIX + "/readyz", include_in_schema=False)
+    def readyz(store: Store) -> JSONResponse:
+        """Ready when the Kubernetes API answers and, with auth on, the realm JWKS loads.
+
+        The response names failing checks but not why: it is reachable without
+        a token. The reason is logged.
+        """
+        checks: dict[str, str] = {}
+        probes = [("kubernetes", store.check_ready)]
+        if settings.auth_enabled:
+            probes.append(("jwks", check_jwks))
+        for name, probe in probes:
+            try:
+                probe()
+                checks[name] = "ok"
+            except Exception as exc:
+                log.warning("readiness check failed", check=name, error=str(exc))
+                checks[name] = "failed"
+        ready = all(v == "ok" for v in checks.values())
+        return JSONResponse({"status": "ok" if ready else "unavailable", "checks": checks}, 200 if ready else 503)
 
     @app.get(PREFIX + "/config")
     def ui_config() -> dict[str, Any]:
@@ -364,4 +408,5 @@ def _validate_request(req: AppCreate) -> None:
             raise HTTPException(422, "pixi apps need a pixi.toml or pyproject.toml at the source root")
 
 
+configure_logging()
 app = create_app()

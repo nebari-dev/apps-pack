@@ -17,6 +17,8 @@ VERSION = "v1alpha1"
 PLURAL = "apps"
 MANAGED_LABEL = "nebari.dev/managed"
 APP_LABEL = "apps.nebari.dev/app"
+# Seconds a readiness check may wait on a dependency.
+READY_TIMEOUT = 3
 
 
 class NotFoundError(Exception):
@@ -41,6 +43,8 @@ class AppStore(Protocol):
     def delete_app(self, namespace: str, name: str) -> None: ...
 
     def list_managed_namespaces(self) -> list[str]: ...
+
+    def check_ready(self) -> None: ...
 
     def pod_logs(self, namespace: str, app_name: str, lines: int, container: str | None) -> str: ...
 
@@ -123,6 +127,10 @@ class KubernetesAppStore:
             self._custom.delete_namespaced_custom_object(GROUP, VERSION, namespace, PLURAL, name)
         except Exception as exc:
             raise self._wrap(exc) from exc
+
+    def check_ready(self) -> None:
+        """Raise unless the API server answers a namespace list within a few seconds."""
+        self._core.list_namespace(limit=1, _request_timeout=READY_TIMEOUT)
 
     def list_managed_namespaces(self) -> list[str]:
         namespaces = self._core.list_namespace(label_selector=f"{MANAGED_LABEL}=true")
