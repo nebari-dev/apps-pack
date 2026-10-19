@@ -10,7 +10,41 @@ metadata:
   labels:
     {{- include "nebari-apps.labels" . | nindent 4 }}
 ---
-# The API writes App CRs and reads their children for observability.
+# Cluster-scoped reads only: which namespaces are launchable, and pod usage
+# from metrics.k8s.io (read-only numbers).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "nebari-apps.fullname" . }}-api-cluster
+  labels:
+    {{- include "nebari-apps.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list"]
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "nebari-apps.fullname" . }}-api-cluster
+  labels:
+    {{- include "nebari-apps.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "nebari-apps.fullname" . }}-api-cluster
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "nebari-apps.fullname" . }}-api
+    namespace: {{ .Release.Namespace }}
+---
+# What the API may do inside an app namespace: write App CRs and read their
+# children for observability. Bound per namespace in api.allowedNamespaces
+# (RoleBindings); cluster-wide only when that list is empty, because then
+# app namespaces are discovered by label.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -22,9 +56,6 @@ rules:
     resources: ["apps"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: [""]
-    resources: ["namespaces"]
-    verbs: ["get", "list"]
-  - apiGroups: [""]
     resources: ["pods", "events"]
     verbs: ["get", "list"]
   - apiGroups: [""]
@@ -34,10 +65,25 @@ rules:
   - apiGroups: ["apps"]
     resources: ["deployments"]
     verbs: ["get", "patch"]
-  # Read instantaneous pod usage (GET /apps/{ns}/{name}/metrics).
-  - apiGroups: ["metrics.k8s.io"]
-    resources: ["pods"]
-    verbs: ["get", "list"]
+{{- $root := . }}
+{{- range .Values.api.allowedNamespaces }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "nebari-apps.fullname" $root }}-api
+  namespace: {{ . }}
+  labels:
+    {{- include "nebari-apps.labels" $root | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "nebari-apps.fullname" $root }}-api
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "nebari-apps.fullname" $root }}-api
+    namespace: {{ $root.Release.Namespace }}
+{{- else }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -53,6 +99,7 @@ subjects:
   - kind: ServiceAccount
     name: {{ include "nebari-apps.fullname" . }}-api
     namespace: {{ .Release.Namespace }}
+{{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment

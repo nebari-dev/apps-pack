@@ -97,7 +97,7 @@ current state of the ref.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `claimName` | string | Yes | Name of an existing PersistentVolumeClaim in the app's namespace. |
+| `claimName` | string | Yes | Name of an existing PersistentVolumeClaim in the app's namespace. The claim must be labeled `apps.nebari.dev/mountable=true` (its owner's opt-in); otherwise the App is `Failed` with `Validated=False`. Adding the label later re-validates the App. |
 | `subPath` | string | No | Sub-path within the volume to serve. |
 
 ## spec.runtime

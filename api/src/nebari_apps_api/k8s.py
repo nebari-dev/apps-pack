@@ -54,8 +54,13 @@ class AppStore(Protocol):
 class KubernetesAppStore:
     """AppStore backed by the real cluster (in-cluster or kubeconfig)."""
 
-    def __init__(self) -> None:
+    def __init__(self, namespaces: list[str] | None = None) -> None:
+        """`namespaces` scopes every multi-namespace read to those namespaces
+        (the chart grants the API RoleBindings only there). None means the API
+        has cluster-wide access (app namespaces discovered by label)."""
         from kubernetes import client, config
+
+        self._namespaces = list(namespaces) if namespaces else None
 
         try:
             config.load_incluster_config()
@@ -79,12 +84,15 @@ class KubernetesAppStore:
     def list_apps(self, namespace: str | None) -> list[dict[str, Any]]:
         try:
             if namespace:
-                res = self._custom.list_namespaced_custom_object(GROUP, VERSION, namespace, PLURAL)
-            else:
-                res = self._custom.list_cluster_custom_object(GROUP, VERSION, PLURAL)
+                return self._custom.list_namespaced_custom_object(GROUP, VERSION, namespace, PLURAL).get("items", [])
+            if self._namespaces is not None:
+                items: list[dict[str, Any]] = []
+                for ns in self._namespaces:
+                    items += self._custom.list_namespaced_custom_object(GROUP, VERSION, ns, PLURAL).get("items", [])
+                return items
+            return self._custom.list_cluster_custom_object(GROUP, VERSION, PLURAL).get("items", [])
         except Exception as exc:  # noqa: BLE001
             raise self._wrap(exc) from exc
-        return res.get("items", [])
 
     def get_app(self, namespace: str, name: str) -> dict[str, Any]:
         try:
@@ -231,11 +239,16 @@ class KubernetesAppStore:
     def app_restarts(self) -> list[dict[str, Any]]:
         """Total container restarts per app pod across the cluster (from pod status)."""
         try:
-            pods = self._core.list_pod_for_all_namespaces(label_selector=APP_LABEL)
+            if self._namespaces is not None:
+                items = []
+                for ns in self._namespaces:
+                    items += self._core.list_namespaced_pod(ns, label_selector=APP_LABEL).items
+            else:
+                items = self._core.list_pod_for_all_namespaces(label_selector=APP_LABEL).items
         except Exception as exc:  # noqa: BLE001
             raise self._wrap(exc) from exc
         out: list[dict[str, Any]] = []
-        for pod in pods.items:
+        for pod in items:
             app = (pod.metadata.labels or {}).get(APP_LABEL)
             if not app:
                 continue

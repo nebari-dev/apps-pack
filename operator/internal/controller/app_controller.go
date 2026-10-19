@@ -85,6 +85,7 @@ type AppReconciler struct {
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=services;configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch
 // +kubebuilder:rbac:groups=reconcilers.nebari.dev,resources=nebariapps,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile drives an App through the validate → workload → service →
@@ -218,6 +219,9 @@ func (r *AppReconciler) validate(ctx context.Context, app *appsv1alpha1.App) err
 		if app.Spec.Source.PVC == nil || app.Spec.Source.PVC.ClaimName == "" {
 			return fmt.Errorf("source.pvc.claimName is required for source type pvc")
 		}
+		if err := r.checkMountable(ctx, app); err != nil {
+			return err
+		}
 	default:
 		return fmt.Errorf("unknown source type %q", app.Spec.Source.Type)
 	}
@@ -270,6 +274,8 @@ func (r *AppReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// A losing App is re-validated when the holder of its subdomain
 		// changes or is deleted.
 		Watches(&appsv1alpha1.App{}, handler.EnqueueRequestsFromMapFunc(r.appsSharingSubdomain)).
+		// Labeling (or unlabeling) a claim re-validates the Apps that mount it.
+		Watches(&corev1.PersistentVolumeClaim{}, handler.EnqueueRequestsFromMapFunc(r.appsMountingClaim)).
 		Named("app").
 		Complete(r)
 }

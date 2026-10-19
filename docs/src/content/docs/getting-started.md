@@ -20,10 +20,21 @@ title: Getting started
 - Optional: metrics-server for per-app CPU/memory in the UI.
 
 Read the [Known limitations](https://github.com/nebari-dev/apps-pack#known-limitations) before a
-demo: group restrictions are not enforced by the gateway yet, and every authenticated user
-can manage every app.
+demo: group restrictions are not enforced by the gateway yet, and users manage only their
+own apps (admins manage all of them).
 
 ## Install
+
+Create the namespaces apps will run in first. The chart gives the API a `RoleBinding` in
+each namespace in `api.allowedNamespaces` (default `apps`), so they must exist, and the
+nebari-operator only processes namespaces that opt in:
+
+```bash
+kubectl create namespace apps
+kubectl label namespace apps nebari.dev/managed=true
+```
+
+Then install:
 
 ```bash
 helm install nebari-apps charts/nebari-apps \
@@ -81,16 +92,10 @@ emits, is on the [Configuration](/configuration/) page.
 
 ## Launch your first app
 
-Namespaces that host apps must also opt in:
-
-```bash
-kubectl create namespace apps
-kubectl label namespace apps nebari.dev/managed=true
-```
-
 > `apps` is the default entry in `api.allowedNamespaces` — to launch into other namespaces
 > from the UI/API/MCP, add them to that list (or set it empty to allow every managed
-> namespace). `kubectl apply` is only gated by the namespace label.
+> namespace). A namespace added to the list must exist before `helm upgrade`. `kubectl apply`
+> is only gated by the namespace label.
 
 Then either open the UI at `https://apps.example.ai` and use the launch form, or apply a
 sample `App`:

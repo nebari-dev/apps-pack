@@ -27,6 +27,26 @@ jobs:
       - name: helm template (examples/nebari-values.yaml)
         run: helm template test charts/nebari-apps -f examples/nebari-values.yaml > /dev/null
 
+      - name: API RBAC is namespaced when allowedNamespaces is set
+        run: |
+          pip install pyyaml
+          helm template test charts/nebari-apps \
+            --set clusterDomain=nebari.example.com \
+            --set keycloak.url=https://keycloak.nebari.example.com/auth \
+            --set 'api.allowedNamespaces={apps,team-a}' > /tmp/scoped.yaml
+          python3 - <<'PY'
+          import yaml
+          docs = [d for d in yaml.safe_load_all(open("/tmp/scoped.yaml")) if d]
+          crbs = [d for d in docs if d["kind"] == "ClusterRoleBinding" and d["roleRef"]["name"] == "test-nebari-apps-api"]
+          assert not crbs, "API App/pod access must not be bound cluster-wide when allowedNamespaces is set"
+          rbs = sorted(d["metadata"]["namespace"] for d in docs if d["kind"] == "RoleBinding" and d["roleRef"]["name"] == "test-nebari-apps-api")
+          assert rbs == ["apps", "team-a"], rbs
+          cluster = next(d for d in docs if d["kind"] == "ClusterRole" and d["metadata"]["name"] == "test-nebari-apps-api-cluster")
+          assert {r["resources"][0] for r in cluster["rules"]} == {"namespaces", "pods"}, cluster["rules"]
+          assert all(set(r["verbs"]) <= {"get", "list"} for r in cluster["rules"]), cluster["rules"]
+          print("API RBAC scoped to", rbs)
+          PY
+
       - name: helm template refuses anonymous auth on a TLS install
         run: |
           set -u

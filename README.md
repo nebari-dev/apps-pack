@@ -223,12 +223,14 @@ Alpha means the happy path works; these are the gaps to know about before a demo
 **On a Nebari cluster** (nebari-operator installed):
 
 ```bash
+# App namespaces first: the chart grants the API a RoleBinding in each one
+# listed in api.allowedNamespaces (default: apps).
+kubectl create namespace apps && kubectl label namespace apps nebari.dev/managed=true
 helm install nebari-apps charts/nebari-apps \
   --namespace nebari-apps --create-namespace \
   --set clusterDomain=<your-cluster-domain> \
   --set keycloak.url=https://keycloak.<your-cluster-domain>/auth
 kubectl label namespace nebari-apps nebari.dev/managed=true
-kubectl create namespace apps && kubectl label namespace apps nebari.dev/managed=true
 ```
 
 Or install from the published chart with the ready-made values file

@@ -45,7 +45,7 @@ def create_app(store: AppStore | None = None) -> FastAPI:
 
     def get_store() -> AppStore:
         if app.state.store is None:
-            app.state.store = KubernetesAppStore()
+            app.state.store = KubernetesAppStore(settings.allowed_namespaces or None)
         return app.state.store
 
     Store = Annotated[AppStore, Depends(get_store)]
