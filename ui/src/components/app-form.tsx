@@ -82,6 +82,10 @@ export function AppForm({
   const [isPublic, setIsPublic] = useState(initial?.access?.public ?? false);
   const [groups, setGroups] = useState((initial?.access?.groups ?? []).join(', '));
   const [subdomain, setSubdomain] = useState(initial?.access?.subdomain ?? '');
+  // Landing-page tile is opt-in: unset on the App means "cluster default"
+  // (off unless the chart enables it), so a new app only sends the field when
+  // the switch is on; edits always send it so an opt-out is explicit.
+  const [onLandingPage, setOnLandingPage] = useState(initial?.landingPage?.enabled ?? false);
 
   if (!isEdit && !namespace && namespaces.length > 0) setNamespace(namespaces[0]);
 
@@ -148,6 +152,7 @@ export function AppForm({
           groups: splitGroups(groups),
           subdomain: initial?.access?.subdomain ?? subdomain,
         },
+        landingPage: { enabled: onLandingPage },
       };
       const source = buildSource();
       if (source) body.source = source;
@@ -163,6 +168,7 @@ export function AppForm({
       thumbnail: thumbnail || undefined,
       runtime,
       access: { public: isPublic, groups: splitGroups(groups), subdomain },
+      ...(onLandingPage ? { landingPage: { enabled: true } } : {}),
     };
 
     if (sourceTab === 'upload') {
@@ -428,6 +434,16 @@ export function AppForm({
               <span className="text-muted-foreground text-sm">.{appsDomain}</span>
             </div>
             {isEdit ? <p className="text-muted-foreground text-xs">Subdomain is fixed after launch.</p> : null}
+          </div>
+          <div className="flex items-center justify-between rounded-md border border-border p-3">
+            <div>
+              <p className="font-medium text-sm">Show on the landing page</p>
+              <p className="text-muted-foreground text-xs">
+                Add a tile for this app to the Nebari landing page. Off by default - the app is reachable at its
+                URL and listed here either way.
+              </p>
+            </div>
+            <Switch checked={onLandingPage} onCheckedChange={setOnLandingPage} aria-label="Show on the landing page" />
           </div>
         </CardContent>
       </Card>

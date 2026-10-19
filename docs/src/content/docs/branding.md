@@ -104,7 +104,8 @@ with a checksum of the rendered ConfigMap.
 ### The landing-page tile
 
 The UI's tile on the Nebari landing page is configurable separately, since it is rendered by
-the nebari-operator rather than by the UI:
+the nebari-operator rather than by the UI (launched apps get their own tiles only when they
+opt in — see `apps.landingPage.enabled` on the [Configuration](/configuration/) page):
 
 ```yaml
 ui:

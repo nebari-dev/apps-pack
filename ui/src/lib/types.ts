@@ -36,6 +36,11 @@ export interface AppAccess {
   subdomain: string;
 }
 
+/** Landing-page tile. `enabled` unset = follow the cluster default. */
+export interface AppLandingPage {
+  enabled?: boolean;
+}
+
 export interface AppCondition {
   type: string;
   status: string;
@@ -63,6 +68,7 @@ export interface App {
   source?: AppSource;
   runtime?: AppRuntime;
   access?: AppAccess;
+  landingPage?: AppLandingPage | null;
   status: AppStatus;
 }
 
@@ -74,6 +80,7 @@ export interface AppCreate {
   source: AppSource;
   runtime?: AppRuntime;
   access: AppAccess;
+  landingPage?: AppLandingPage;
 }
 
 export interface AppPatch {
@@ -83,6 +90,7 @@ export interface AppPatch {
   source?: AppSource;
   runtime?: AppRuntime;
   access?: AppAccess;
+  landingPage?: AppLandingPage;
 }
 
 export interface PodMetric {

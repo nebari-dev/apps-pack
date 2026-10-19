@@ -46,6 +46,8 @@ func main() {
 		"Image running Python/pixi apps (runtime.pixiTask); must provide pixi and run as non-root.")
 	flag.BoolVar(&cfg.TLSDisabled, "tls-disabled", envOr("TLS_DISABLED", "") == "true",
 		"Serve apps over plain HTTP (no certificates, no HTTPS listeners).")
+	flag.BoolVar(&cfg.LandingPage, "landing-page", envOr("LANDING_PAGE", "") == "true",
+		"Cluster default for showing apps as tiles on the Nebari landing page (spec.landingPage.enabled overrides per app).")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)

@@ -43,8 +43,11 @@ runtime:                       # optional
 
 access:
   public: false                # true = anonymous; false = Keycloak SSO at the gateway
-  groups: ["analytics"]        # empty = any signed-in user
+  groups: ["analytics"]        # intended audience; NOTE: not enforced by the gateway yet
   subdomain: docs-site         # URL: http(s)://<subdomain>.<appsDomain>
+
+landingPage:                   # optional
+  enabled: true                # tile on the Nebari landing page; omit = cluster default (off)
 ```
 
 ## Manifest → MCP `launch_app` mapping
@@ -61,6 +64,7 @@ access:
 | `runtime.pixiTask` | `pixi_task` |
 | `access.public` / `access.groups` | `public` / `groups` |
 | `access.subdomain` | `subdomain` |
+| `landingPage.enabled` | `landing_page` (omit when the manifest omits it) |
 
 The manifest covers everything `launch_app` accepts. The `App` resource has a few extra
 fields with no manifest/tool equivalent (`spec.owner`, `spec.thumbnail`, `access.users`,

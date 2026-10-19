@@ -11,7 +11,7 @@ Everything converges on one declarative resource: the **`App`** custom resource
 (`apps.nebari.dev/v1alpha1`). Whether an app is launched from the web UI, the REST API, or
 `kubectl apply`, the **apps-operator** reconciles the same contract into a Deployment, a
 Service, and a `NebariApp` — and the [nebari-operator](https://github.com/nebari-dev/nebari-operator)
-turns that into routing, TLS, authentication, and a landing-page tile.
+turns that into routing, TLS, authentication, and (when the app opts in) a landing-page tile.
 
 Each app gets its own URL under the cluster's apps domain:
 

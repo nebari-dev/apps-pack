@@ -35,6 +35,9 @@ spec:
             {{- if not .Values.tls.enabled }}
             - --tls-disabled
             {{- end }}
+            {{- if .Values.apps.landingPage.enabled }}
+            - --landing-page
+            {{- end }}
             {{- if .Values.operator.leaderElection }}
             - --leader-elect
             {{- end }}

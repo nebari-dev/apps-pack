@@ -156,3 +156,12 @@ async def test_logs_and_missing_app():
 async def test_authenticate_reports_disabled():
     result = await call("authenticate")
     assert result["status"] == "not_required"
+
+
+async def test_launch_landing_page_opt_in(store):
+    app = await call("launch_app", LAUNCH_ARGS)
+    assert app["landingPage"] is None  # cluster default
+
+    app = await call("launch_app", {**LAUNCH_ARGS, "landing_page": True})
+    assert app["landingPage"] == {"enabled": True}
+    assert store.apps[("apps", "docs-site")]["spec"]["landingPage"] == {"enabled": True}

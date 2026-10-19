@@ -356,3 +356,30 @@ def test_upload_rejects_binary(client):
         files={"file": ("site.zip", buf.getvalue(), "application/zip")},
     )
     assert resp.status_code == 400
+
+
+def test_landing_page_defaults_to_cluster_setting(client, store):
+    resp = client.post("/api/v1/apps", json=make_app_body())
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["landingPage"] is None
+    assert "landingPage" not in store.apps[("apps", "docs-site")]["spec"]
+
+
+def test_landing_page_opt_in_and_out(client, store):
+    body = make_app_body() | {"landingPage": {"enabled": True}}
+    resp = client.post("/api/v1/apps", json=body)
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["landingPage"] == {"enabled": True}
+    assert store.apps[("apps", "docs-site")]["spec"]["landingPage"] == {"enabled": True}
+
+    # An explicit false must survive the CR tidy-up (it is not "empty").
+    resp = client.patch("/api/v1/apps/apps/docs-site", json={"landingPage": {"enabled": False}})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["landingPage"] == {"enabled": False}
+    assert store.apps[("apps", "docs-site")]["spec"]["landingPage"] == {"enabled": False}
+
+    # {} clears the override so the cluster default applies again.
+    resp = client.patch("/api/v1/apps/apps/docs-site", json={"landingPage": {}})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["landingPage"] is None
+    assert "landingPage" not in store.apps[("apps", "docs-site")]["spec"]

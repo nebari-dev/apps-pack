@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/utils/ptr"
 
 	appsv1alpha1 "github.com/nebari-dev/nebari-apps-pack/operator/api/v1alpha1"
 )
@@ -30,6 +31,7 @@ func TestNebariAppContractPrivateApp(t *testing.T) {
 		Groups:    []string{"analytics"},
 		Subdomain: "sales-dashboard",
 	}
+	app.Spec.LandingPage = &appsv1alpha1.AppLandingPage{Enabled: ptr.To(true)}
 
 	na := testReconciler().buildNebariApp(app)
 
@@ -132,5 +134,44 @@ func TestNebariAppContractPublicApp(t *testing.T) {
 	}
 	if _, has := auth["groups"]; has {
 		t.Error("public apps should not carry auth groups")
+	}
+}
+
+func TestNebariAppContractLandingPageOffByDefault(t *testing.T) {
+	app := inlineApp("team-a")
+	na := testReconciler().buildNebariApp(app)
+
+	landing, _, _ := unstructured.NestedMap(na.Object, "spec", "landingPage")
+	if landing["enabled"] != false {
+		t.Errorf("landingPage.enabled = %v, want false by default", landing["enabled"])
+	}
+	for _, k := range []string{"displayName", "description", "icon", "category"} {
+		if _, has := landing[k]; has {
+			t.Errorf("disabled landing page should not carry %s", k)
+		}
+	}
+}
+
+func TestNebariAppContractLandingPageClusterDefault(t *testing.T) {
+	r := testReconciler()
+	r.Config.LandingPage = true
+
+	app := inlineApp("team-a")
+	na := r.buildNebariApp(app)
+	enabled, _, _ := unstructured.NestedBool(na.Object, "spec", "landingPage", "enabled")
+	if !enabled {
+		t.Error("landingPage.enabled should follow the cluster default (true)")
+	}
+	name, _, _ := unstructured.NestedString(na.Object, "spec", "landingPage", "displayName")
+	if name != app.Spec.DisplayName {
+		t.Errorf("landingPage.displayName = %q, want %q", name, app.Spec.DisplayName)
+	}
+
+	// A per-app opt-out wins over the cluster default.
+	app.Spec.LandingPage = &appsv1alpha1.AppLandingPage{Enabled: ptr.To(false)}
+	na = r.buildNebariApp(app)
+	enabled, _, _ = unstructured.NestedBool(na.Object, "spec", "landingPage", "enabled")
+	if enabled {
+		t.Error("spec.landingPage.enabled=false should override the cluster default")
 	}
 }

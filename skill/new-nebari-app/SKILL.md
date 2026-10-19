@@ -42,7 +42,8 @@ The manifest maps 1:1 onto the pack's `App` resource — see
    content.
 
 3. **Write `nebari-app.yaml`** with real values, not placeholders. Ask about access
-   (public vs group-restricted) if the user hasn't said.
+   (public vs group-restricted) if the user hasn't said. Only set `landingPage.enabled: true`
+   if the user wants the app on the Nebari landing page; apps are hidden from it by default.
 
 4. **Tell the user how to launch**, verbatim:
    > Say **"launch it"** and I'll deploy it to the cluster via the nebari-apps MCP server
