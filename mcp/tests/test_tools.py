@@ -165,3 +165,35 @@ async def test_launch_landing_page_opt_in(store):
     app = await call("launch_app", {**LAUNCH_ARGS, "landing_page": True})
     assert app["landingPage"] == {"enabled": True}
     assert store.apps[("apps", "docs-site")]["spec"]["landingPage"] == {"enabled": True}
+
+
+async def test_launch_refuses_to_overwrite_another_users_app(store, monkeypatch):
+    """With API authorization on, the 409 -> PATCH upsert must not take over
+    an app someone else owns."""
+    import httpx
+
+    from nebari_apps_api.auth import User, current_user
+    from nebari_apps_api.config import settings as api_settings
+    from nebari_apps_api.main import create_app
+
+    from nebari_apps_mcp import client as mcp_client
+
+    who = {"user": User(username="alice")}
+    api = create_app(store)
+    api.dependency_overrides[current_user] = lambda: who["user"]
+    monkeypatch.setattr(api_settings, "auth_enabled", True)
+    monkeypatch.setattr(mcp_client, "transport", httpx.ASGITransport(app=api))
+
+    await call("launch_app", LAUNCH_ARGS)
+    assert store.apps[("apps", "docs-site")]["spec"]["owner"] == "alice"
+
+    who["user"] = User(username="bob")
+    result = await call("launch_app", {**LAUNCH_ARGS, "display_name": "Hijacked"})
+    assert result["status"] == 403
+    assert "another user" in result["error"]
+    assert store.apps[("apps", "docs-site")]["spec"]["displayName"] == "Docs Site"
+
+    # The owner can still re-launch idempotently.
+    who["user"] = User(username="alice")
+    updated = await call("launch_app", {**LAUNCH_ARGS, "display_name": "Docs Site v2"})
+    assert updated["displayName"] == "Docs Site v2"

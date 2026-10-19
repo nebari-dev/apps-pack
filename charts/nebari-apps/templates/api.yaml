@@ -86,6 +86,8 @@ spec:
             - name: APPS_NAMESPACES
               value: {{ join "," . | quote }}
             {{- end }}
+            - name: APPS_ADMIN_GROUPS
+              value: {{ join "," .Values.api.adminGroups | quote }}
             - name: AUTH_ENABLED
               value: {{ .Values.api.auth.enabled | quote }}
             - name: TLS_DISABLED

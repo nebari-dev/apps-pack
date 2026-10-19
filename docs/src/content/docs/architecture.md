@@ -56,7 +56,9 @@ logins. The UI boots
 served by the API (`GET /api/v1/config`), runs the PKCE login flow, and attaches the access
 token to every request. The API validates tokens against the realm **JWKS** (with an
 optional in-cluster JWKS URL for split-horizon clusters) and derives the caller's identity
-and groups from the claims.
+and groups from the claims. It then authorizes every request: the caller must own the
+app (`spec.owner`, stamped from `preferred_username` on create) or belong to one of
+`api.adminGroups`. Lists and analytics are filtered the same way.
 
 ### The MCP endpoint — verified twice
 
@@ -106,7 +108,7 @@ The zone is configurable via the `appsDomain` value (default `apps.<clusterDomai
   observability (pods, logs, events, and `metrics.k8s.io`), and a single narrow write —
   patching child Deployments to roll pods for restart. That grant is a `ClusterRole`
   (apps may live in any managed namespace), so `api.allowedNamespaces` is the tenancy
-  boundary; the API itself has no per-user authorization yet — any authenticated user can
-  manage any app. The operator's RBAC covers only the resources it reconciles.
+  boundary between users and the cluster, and the API's owner-or-admin check is the
+  boundary between users. The operator's RBAC covers only the resources it reconciles.
 - Treat every app as untrusted user code: tenancy is per-namespace, and only opted-in
   namespaces (`nebari.dev/managed=true`) can host apps.

@@ -46,7 +46,8 @@ Enforcement is layered:
   (the login bootstrap) is rejected for anonymous or forged callers with an error telling
   the agent to call `authenticate`.
 - **At the API layer** — apps-api independently validates the JWT on every request, so the
-  MCP can never act with more privilege than the calling user.
+  MCP can never act with more privilege than the calling user: an agent sees and manages
+  only the apps its user owns (or every app, for members of an admin group).
 
 On clusters with auth disabled, `authenticate` reports `not_required` and every tool works
 anonymously.
@@ -57,7 +58,7 @@ anonymously.
 |---|---|
 | `authenticate` | Start/complete the device-flow login, or confirm the cached token. |
 | `describe_cluster` | Source types, launchable namespaces, apps domain — call first to pick valid options. |
-| `launch_app` | Create + launch (static, or Python/pixi via `pixi_task`). **Idempotent on (namespace, name)** — re-launching updates instead of failing, so retries are safe. |
+| `launch_app` | Create + launch (static, or Python/pixi via `pixi_task`). **Idempotent on (namespace, name)** — re-launching your own app updates it instead of failing, so retries are safe; an app owned by someone else is refused, never overwritten. |
 | `list_apps` | Apps with phase, URL, owner; optional namespace filter. |
 | `get_app` | Full spec + status for one app. |
 | `get_app_status` | Lightweight poll: phase, URL, replicas, conditions. |

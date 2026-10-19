@@ -11,7 +11,7 @@ from typing import Annotated, Any
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 
 from . import cr as crmod
-from .auth import User, current_user
+from .auth import User, can_access, current_user, is_admin
 from .config import settings
 from .k8s import AppStore, ConflictError, KubernetesAppStore, NotFoundError
 from .models import (
@@ -64,6 +64,28 @@ def create_app(store: AppStore | None = None) -> FastAPI:
         except NotFoundError:
             raise HTTPException(404, f"app {namespace}/{name} not found") from None
 
+    def authorized_app(store: AppStore, user: User, namespace: str, name: str) -> dict[str, Any]:
+        """Fetch an App the caller may act on: the path namespace must be a
+        launchable namespace and the caller must own the App or be an admin.
+        Every route that addresses one App goes through here."""
+        check_namespace(store, namespace)
+        cr = must_get(store, namespace, name)
+        if not can_access(user, cr):
+            raise HTTPException(403, f"you do not have access to app {namespace}/{name}")
+        return cr
+
+    def visible_apps(store: AppStore, user: User, namespace: str | None) -> list[dict[str, Any]]:
+        """Apps the caller may see: launchable namespaces only, filtered by
+        owner unless the caller is an admin."""
+        if namespace is not None:
+            check_namespace(store, namespace)
+        allowed = launchable_namespaces(store)
+        return [
+            cr
+            for cr in store.list_apps(namespace)
+            if (cr.get("metadata") or {}).get("namespace") in allowed and can_access(user, cr)
+        ]
+
     # ------------------------------------------------------------------ meta
     @app.get(PREFIX + "/healthz", include_in_schema=False)
     def healthz() -> dict[str, str]:
@@ -93,12 +115,17 @@ def create_app(store: AppStore | None = None) -> FastAPI:
 
     @app.get(PREFIX + "/auth/me")
     def me(user: Me) -> dict[str, Any]:
-        return {"username": user.username, "email": user.email, "groups": user.groups}
+        return {
+            "username": user.username,
+            "email": user.email,
+            "groups": user.groups,
+            "admin": is_admin(user),
+        }
 
     # ------------------------------------------------------------------ apps
     @app.get(PREFIX + "/apps", response_model=list[AppOut])
     def list_apps(store: Store, user: Me, namespace: str | None = None) -> list[AppOut]:
-        return [crmod.from_cr(item) for item in store.list_apps(namespace)]
+        return [crmod.from_cr(item) for item in visible_apps(store, user, namespace)]
 
     @app.post(PREFIX + "/apps", response_model=AppOut, status_code=201)
     def create(req: AppCreate, store: Store, user: Me) -> AppOut:
@@ -142,36 +169,36 @@ def create_app(store: AppStore | None = None) -> FastAPI:
 
     @app.get(PREFIX + "/apps/{namespace}/{name}", response_model=AppOut)
     def get_app(namespace: str, name: str, store: Store, user: Me) -> AppOut:
-        return crmod.from_cr(must_get(store, namespace, name))
+        return crmod.from_cr(authorized_app(store, user, namespace, name))
 
     @app.patch(PREFIX + "/apps/{namespace}/{name}", response_model=AppOut)
     def patch_app(namespace: str, name: str, patch: AppPatch, store: Store, user: Me) -> AppOut:
-        existing = must_get(store, namespace, name)
+        existing = authorized_app(store, user, namespace, name)
         updated = store.replace_app(namespace, name, crmod.apply_patch(existing, patch))
         return crmod.from_cr(updated)
 
     @app.delete(PREFIX + "/apps/{namespace}/{name}", status_code=204)
     def delete_app(namespace: str, name: str, store: Store, user: Me) -> None:
-        must_get(store, namespace, name)
+        authorized_app(store, user, namespace, name)
         store.delete_app(namespace, name)
 
-    def _scale(store: AppStore, namespace: str, name: str, replicas: int) -> AppOut:
-        existing = must_get(store, namespace, name)
+    def _scale(store: AppStore, user: User, namespace: str, name: str, replicas: int) -> AppOut:
+        existing = authorized_app(store, user, namespace, name)
         runtime = existing.setdefault("spec", {}).setdefault("runtime", {})
         runtime["replicas"] = replicas
         return crmod.from_cr(store.replace_app(namespace, name, existing))
 
     @app.post(PREFIX + "/apps/{namespace}/{name}/stop", response_model=AppOut)
     def stop_app(namespace: str, name: str, store: Store, user: Me) -> AppOut:
-        return _scale(store, namespace, name, 0)
+        return _scale(store, user, namespace, name, 0)
 
     @app.post(PREFIX + "/apps/{namespace}/{name}/start", response_model=AppOut)
     def start_app(namespace: str, name: str, store: Store, user: Me) -> AppOut:
-        return _scale(store, namespace, name, 1)
+        return _scale(store, user, namespace, name, 1)
 
     @app.post(PREFIX + "/apps/{namespace}/{name}/restart", response_model=AppOut)
     def restart_app(namespace: str, name: str, store: Store, user: Me) -> AppOut:
-        must_get(store, namespace, name)
+        authorized_app(store, user, namespace, name)
         try:
             store.restart_app(namespace, name)
         except NotFoundError as exc:
@@ -181,7 +208,7 @@ def create_app(store: AppStore | None = None) -> FastAPI:
     # --------------------------------------------------------- observability
     @app.get(PREFIX + "/apps/{namespace}/{name}/status")
     def app_status(namespace: str, name: str, store: Store, user: Me) -> dict[str, Any]:
-        return crmod.from_cr(must_get(store, namespace, name)).status.model_dump()
+        return crmod.from_cr(authorized_app(store, user, namespace, name)).status.model_dump()
 
     @app.get(PREFIX + "/apps/{namespace}/{name}/logs")
     def app_logs(
@@ -192,7 +219,7 @@ def create_app(store: AppStore | None = None) -> FastAPI:
         lines: Annotated[int, Query(ge=1, le=5000)] = 200,
         container: str | None = None,
     ) -> dict[str, str]:
-        must_get(store, namespace, name)
+        authorized_app(store, user, namespace, name)
         try:
             return {"logs": store.pod_logs(namespace, name, lines, container)}
         except NotFoundError as exc:
@@ -200,12 +227,12 @@ def create_app(store: AppStore | None = None) -> FastAPI:
 
     @app.get(PREFIX + "/apps/{namespace}/{name}/events")
     def app_events(namespace: str, name: str, store: Store, user: Me) -> list[dict[str, Any]]:
-        must_get(store, namespace, name)
+        authorized_app(store, user, namespace, name)
         return store.app_events(namespace, name)
 
     @app.get(PREFIX + "/apps/{namespace}/{name}/metrics", response_model=AppMetrics)
     def app_metrics(namespace: str, name: str, store: Store, user: Me) -> AppMetrics:
-        must_get(store, namespace, name)
+        authorized_app(store, user, namespace, name)
         try:
             pods = store.pod_metrics(namespace, name)
         except NotFoundError:
@@ -215,7 +242,7 @@ def create_app(store: AppStore | None = None) -> FastAPI:
     # -------------------------------------------------------------- analytics
     @app.get(PREFIX + "/analytics/summary", response_model=AnalyticsSummary)
     def analytics_summary(store: Store, user: Me, namespace: str | None = None) -> AnalyticsSummary:
-        apps = [crmod.from_cr(item) for item in store.list_apps(namespace)]
+        apps = [crmod.from_cr(item) for item in visible_apps(store, user, namespace)]
         by_phase = Counter(a.status.phase or "Pending" for a in apps)
         by_source_type = Counter(a.source.type if a.source else "unknown" for a in apps)
         by_namespace = Counter(a.namespace for a in apps)
@@ -237,6 +264,11 @@ def create_app(store: AppStore | None = None) -> FastAPI:
         Restart counts always populate (pod status); CPU/memory populate only when
         the cluster has a metrics server (usageAvailable=false otherwise).
         """
+        # Only pods of Apps the caller may see contribute.
+        visible = {
+            ((cr.get("metadata") or {}).get("namespace", ""), (cr.get("metadata") or {}).get("name", ""))
+            for cr in visible_apps(store, user, None)
+        }
         # (namespace, app) -> aggregated usage across its pods
         agg: dict[tuple[str, str], dict[str, int]] = {}
 
@@ -246,6 +278,8 @@ def create_app(store: AppStore | None = None) -> FastAPI:
         usage_available = True
         try:
             for pod in store.cluster_pod_metrics():
+                if (pod["namespace"], pod["app"]) not in visible:
+                    continue
                 e = entry(pod["namespace"], pod["app"])
                 e["cpu"] += int(pod.get("cpu", 0))
                 e["memory"] += round(pod.get("memory", 0))
@@ -253,6 +287,8 @@ def create_app(store: AppStore | None = None) -> FastAPI:
             usage_available = False
 
         for pod in store.app_restarts():
+            if (pod["namespace"], pod["app"]) not in visible:
+                continue
             entry(pod["namespace"], pod["app"])["restarts"] += int(pod.get("restarts", 0))
 
         apps = [

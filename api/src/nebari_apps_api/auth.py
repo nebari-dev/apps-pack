@@ -28,6 +28,34 @@ class User:
 _ANONYMOUS = User(username="anonymous")
 
 
+def is_admin(user: User) -> bool:
+    """Admins see and manage every App. With auth disabled (local development
+    only) the anonymous caller is treated as an admin, since there is no
+    identity to scope by."""
+    if not settings.auth_enabled:
+        return True
+    return any(g.lstrip("/") in settings.admin_groups for g in user.groups)
+
+
+def app_owner(cr: dict) -> str:
+    """The App's owner: spec.owner, falling back to the owner label."""
+    owner = (cr.get("spec") or {}).get("owner")
+    if owner:
+        return str(owner)
+    return str(((cr.get("metadata") or {}).get("labels") or {}).get("apps.nebari.dev/owner", ""))
+
+
+def can_access(user: User, cr: dict) -> bool:
+    """Owner-or-admin: the single authorization rule for every App route.
+
+    Apps without an owner (created with kubectl) are admin-only.
+    """
+    if is_admin(user):
+        return True
+    owner = app_owner(cr)
+    return bool(owner) and owner == user.username
+
+
 class JWTValidator:
     def __init__(self, jwks_url: str, issuer: str, audience: str) -> None:
         import jwt

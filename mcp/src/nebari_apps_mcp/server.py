@@ -159,8 +159,8 @@ async def launch_app(
 ) -> dict[str, Any]:
     """Create and launch an app: static (HTML/CSS/JS served by nginx) or, with pixi_task set,
     a Python/pixi service whose source includes a pixi manifest. Idempotent on
-    (namespace, name): if the app already exists its spec is updated instead of failing, so
-    retrying is safe. Returns the app with its (pending) URL; poll get_app_status until
+    (namespace, name): if the app already exists and you own it, its spec is updated instead
+    of failing, so retrying is safe; an app owned by someone else is never touched. Returns the app with its (pending) URL; poll get_app_status until
     phase=Running."""
     source: dict[str, Any] = {"type": source_type}
     if source_type == "inline":
@@ -192,9 +192,22 @@ async def launch_app(
             except ApiError as exc:
                 if exc.status != 409:
                     raise
-                # Already exists: update in place (idempotent launch).
+                # Already exists: update in place (idempotent launch). The API
+                # refuses with 403 when the existing app belongs to someone else,
+                # so a retry never overwrites another user's app.
                 patch = {k: body[k] for k in ("displayName", "description", "source", "runtime", "access", "landingPage") if k in body}
-                return await api.patch(f"/apps/{namespace}/{name}", json=patch)
+                try:
+                    return await api.patch(f"/apps/{namespace}/{name}", json=patch)
+                except ApiError as patch_exc:
+                    if patch_exc.status != 403:
+                        raise
+                    out = _error(patch_exc)
+                    out["error"] = (
+                        f"an app named {name!r} already exists in namespace {namespace!r} "
+                        "and belongs to another user"
+                    )
+                    out["nextAction"] = "choose a different name (and subdomain) and call launch_app again"
+                    return out
     except ApiError as exc:
         return _error(exc)
 

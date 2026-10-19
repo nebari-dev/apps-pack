@@ -53,6 +53,7 @@ environment variable (`APPS_DOMAIN`, `GATEWAY`, `STATIC_IMAGE`, `GIT_IMAGE`, `PY
 | `api.image.repository` / `tag` / `pullPolicy` | `ghcr.io/nebari-dev/apps-pack/apps-api` / `""` / `IfNotPresent` | API image. |
 | `api.replicaCount` | `1` | The API is stateless; more replicas are safe. |
 | `api.auth.enabled` | `true` | Keycloak JWT bearer auth for the API and keycloak-js login in the UI. **Disable only for local development**; off, every caller is anonymous with full access. |
+| `api.adminGroups` | `["admin"]` | Keycloak groups whose members see and manage every App. Everyone else sees and manages only the Apps they launched. |
 | `api.allowedNamespaces` | `["apps"]` | Namespaces users may launch into. Empty list = every namespace labeled `nebari.dev/managed=true`. `default` and `kube-*` are never offered. |
 | `api.resources` | `100m/128Mi` requests, `500m/256Mi` limits | Pod resources. |
 
