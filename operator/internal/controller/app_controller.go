@@ -135,12 +135,20 @@ func (r *AppReconciler) reconcileApp(ctx context.Context, app *appsv1alpha1.App)
 	}
 	setCondition(app, appsv1alpha1.ConditionValidated, metav1.ConditionTrue, "ValidationSucceeded", "spec is valid")
 
-	// 2. Workload content (inline sources materialize as a ConfigMap).
+	// 2. Workload content (inline sources materialize as a ConfigMap) and,
+	// for static apps, the nginx server config.
 	if cm := buildContentConfigMap(app); cm != nil {
 		if err := r.apply(ctx, app, cm, func(existing, desired client.Object) {
 			existing.(*corev1.ConfigMap).Data = desired.(*corev1.ConfigMap).Data
 		}); err != nil {
 			return fmt.Errorf("reconciling content ConfigMap: %w", err)
+		}
+	}
+	if cm := buildServerConfigMap(app); cm != nil {
+		if err := r.apply(ctx, app, cm, func(existing, desired client.Object) {
+			existing.(*corev1.ConfigMap).Data = desired.(*corev1.ConfigMap).Data
+		}); err != nil {
+			return fmt.Errorf("reconciling server ConfigMap: %w", err)
 		}
 	}
 

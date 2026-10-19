@@ -190,13 +190,13 @@ func (r *AppReconciler) buildStaticPodSpec(app *appsv1alpha1.App, annotations ma
 				AllowPrivilegeEscalation: ptr.To(false),
 				Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
 			},
-			VolumeMounts: []corev1.VolumeMount{{
-				Name:      contentVolume,
-				MountPath: webRoot,
-				ReadOnly:  true,
-			}},
+			VolumeMounts: []corev1.VolumeMount{
+				{Name: contentVolume, MountPath: webRoot, ReadOnly: true},
+				{Name: serverConfVolume, MountPath: serverConfDir, ReadOnly: true},
+			},
 		}},
 	}
+	annotations["apps.nebari.dev/server-config-checksum"] = serverConfChecksum()
 
 	switch app.Spec.Source.Type {
 	case appsv1alpha1.SourceTypeInline:
@@ -255,6 +255,14 @@ func (r *AppReconciler) buildStaticPodSpec(app *appsv1alpha1.App, annotations ma
 		return corev1.PodSpec{}, fmt.Errorf("source type %q is not supported for static apps", app.Spec.Source.Type)
 	}
 
+	podSpec.Volumes = append(podSpec.Volumes, corev1.Volume{
+		Name: serverConfVolume,
+		VolumeSource: corev1.VolumeSource{
+			ConfigMap: &corev1.ConfigMapVolumeSource{
+				LocalObjectReference: corev1.LocalObjectReference{Name: childName(app) + "-server"},
+			},
+		},
+	})
 	return podSpec, nil
 }
 

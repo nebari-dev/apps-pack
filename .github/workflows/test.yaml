@@ -110,3 +110,18 @@ jobs:
       - name: Unit tests
         working-directory: ui
         run: npm test
+
+  ui-headers:
+    name: UI image headers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Boots the real image so the assertion covers nginx's header
+      # inheritance, not just the config text.
+      - name: Build and check security headers
+        run: |
+          docker build -t apps-ui:headers ui
+          ui/scripts/check-headers.sh apps-ui:headers
