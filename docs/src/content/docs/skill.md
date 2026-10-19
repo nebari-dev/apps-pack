@@ -58,7 +58,7 @@ a directory path next to the manifest — on launch, the agent reads those files
 them as the app's `inline` source (same
 rules as [uploads](/launching-apps/#uploading-files)). The full schema and the
 manifest → `launch_app` mapping live in the skill's
-[`references/manifest.md`](https://github.com/nebari-dev/nebari-apps-pack/blob/main/skill/new-nebari-app/references/manifest.md).
+[`references/manifest.md`](https://github.com/nebari-dev/apps-pack/blob/main/skill/new-nebari-app/references/manifest.md).
 
 ## "Launch it"
 

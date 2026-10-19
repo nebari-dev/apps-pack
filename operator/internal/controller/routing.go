@@ -11,7 +11,7 @@ import (
 
 // NebariAppGVK is the nebari-operator CRD this pack emits for routing, TLS,
 // SSO, and landing-page registration. Contract pinned to nebari-operator
-// v0.1.0-alpha.19 (see docs and the contract test).
+// v0.1.0-alpha.20 (see docs and the contract test).
 var NebariAppGVK = schema.GroupVersionKind{
 	Group:   "reconcilers.nebari.dev",
 	Version: "v1",

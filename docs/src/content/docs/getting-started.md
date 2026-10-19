@@ -4,10 +4,24 @@ title: Getting started
 
 ## Prerequisites
 
-- A Nebari cluster with the [nebari-operator](https://github.com/nebari-dev/nebari-operator)
-  installed (it provides the `NebariApp` CRD), Envoy Gateway, and a Keycloak realm.
+- A Nebari cluster running the Nebari Infrastructure Core stack:
+  [nebari-operator](https://github.com/nebari-dev/nebari-operator) `v0.1.0-alpha.20` or
+  later (provides the `NebariApp` CRD; the version this pack's contract test and dev loop
+  pin), Envoy Gateway with the shared `public` (or `internal`) Gateway, and a Keycloak realm
+  (`nebari` by default).
 - cert-manager with a cluster issuer — only when TLS is enabled (the default).
-- Helm 3.8+.
+- Helm 3.8+ and `kubectl` with cluster-admin for the install (the chart creates a CRD and
+  ClusterRoles).
+- Namespace opt-in: the nebari-operator only reconciles namespaces labeled
+  `nebari.dev/managed=true` — label the release namespace and every namespace apps may be
+  launched into.
+- Sizing: the pack requests 300m CPU / 448Mi memory (limits 1.5 CPU / 896Mi) for its four
+  pods, plus one pod per launched app sized by the App's `runtime.resources` (no default).
+- Optional: metrics-server for per-app CPU/memory in the UI.
+
+Read the [Known limitations](https://github.com/nebari-dev/apps-pack#known-limitations) before a
+demo: group restrictions are not enforced by the gateway yet, and every authenticated user
+can manage every app.
 
 ## Install
 
@@ -19,6 +33,15 @@ helm install nebari-apps charts/nebari-apps \
 
 # The nebari-operator only processes namespaces that opt in:
 kubectl label namespace nebari-apps nebari.dev/managed=true
+```
+
+Or from the published chart with the ready-made values file
+([`examples/nebari-values.yaml`](https://github.com/nebari-dev/apps-pack/blob/main/examples/nebari-values.yaml);
+edit the two hostnames):
+
+```bash
+helm install nebari-apps oci://ghcr.io/nebari-dev/apps-pack/charts/nebari-apps \
+  --namespace nebari-apps --create-namespace -f examples/nebari-values.yaml
 ```
 
 This deploys four components:
@@ -33,6 +56,9 @@ This deploys four components:
 Every app launched afterwards gets `https://<subdomain>.apps.example.ai`.
 
 ## Key values
+
+The full reference, including every component's values and the `NebariApp` fields the chart
+emits, is on the [Configuration](/configuration/) page.
 
 | Value | Default | Purpose |
 |---|---|---|

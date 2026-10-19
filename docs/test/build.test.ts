@@ -7,7 +7,7 @@ setDefaultTimeout(180_000);
 
 const SITE = join(import.meta.dir, '..');
 const DIST = join(SITE, 'dist');
-const BASE = '/nebari-apps-pack'; // production base (URL prefix), no trailing slash
+const BASE = '/apps-pack'; // production base (URL prefix), no trailing slash
 
 const TITLES: Record<string, string> = {
   '': 'Nebari Apps Pack',
@@ -17,6 +17,7 @@ const TITLES: Record<string, string> = {
   skill: 'Scaffolding skill',
   branding: 'Branding',
   'local-development': 'Local development',
+  configuration: 'Configuration',
   'app-crd-reference': 'App CRD Reference',
   'api-reference': 'REST API',
   architecture: 'Architecture &amp; auth',
@@ -34,7 +35,7 @@ beforeAll(async () => {
   await $`bun run build`.cwd(SITE);
 });
 
-test('all 10 pages render at dist root with their titles', () => {
+test('all 11 pages render at dist root with their titles', () => {
   for (const [slug, title] of Object.entries(TITLES)) {
     expect(existsSync(pagePath(slug))).toBe(true);
     expect(readPage(slug)).toContain(title);
@@ -67,7 +68,7 @@ test('markdown body links are base-prefixed and internal links resolve', () => {
     });
   for (const file of walk(DIST)) {
     const content = readFileSync(file, 'utf8');
-    for (const m of content.matchAll(/href="(\/nebari-apps-pack\/[^"#?]*)"/g)) {
+    for (const m of content.matchAll(/href="(\/apps-pack\/[^"#?]*)"/g)) {
       const path = m[1].slice(BASE.length).replace(/\/$/, '');
       if (path.includes('.')) continue; // assets
       expect(existsSync(pagePath(path.replace(/^\//, '')))).toBe(true);
