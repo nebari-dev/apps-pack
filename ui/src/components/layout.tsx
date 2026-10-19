@@ -18,6 +18,12 @@ export function Layout() {
       {/* The banner offsets are no-ops (0px) unless a classification banner is
           configured - see components/banner.tsx. */}
       <div className="flex min-h-screen flex-col pt-(--top-banner-height,0px) pb-(--bottom-banner-height,0px)">
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:text-foreground focus:ring-2 focus:ring-ring"
+        >
+          Skip to content
+        </a>
         <Banner position="top" config={banners?.top} />
 
         <Header
@@ -28,7 +34,7 @@ export function Layout() {
           onSignOut={() => void logout()}
         />
 
-        <main className="min-w-0 flex-1 bg-canvas px-10 py-8">
+        <main id="main" tabIndex={-1} className="min-w-0 flex-1 bg-canvas px-10 py-8 outline-none">
           {/* Keyed by route: a page that threw is retried when the user navigates. */}
           <ErrorBoundary key={pathname}>
             <Outlet />

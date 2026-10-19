@@ -13,10 +13,12 @@ import { Link } from "react-router-dom";
 import { QueryError } from "@/components/query-error";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
+import { usePageTitle } from "@/hooks/use-page-title";
 import { api } from "@/lib/api";
 import type { App } from "@/lib/types";
 
 export function MetricsPage() {
+  const heading = usePageTitle("Metrics");
   const metrics = useQuery({
     queryKey: ["cluster-metrics"],
     queryFn: api.clusterMetrics,
@@ -60,7 +62,9 @@ export function MetricsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-semibold text-2xl">Metrics</h1>
+        <h1 ref={heading} tabIndex={-1} className="font-semibold text-2xl outline-none">
+          Metrics
+        </h1>
         <p className="text-muted-foreground text-sm">
           Right-now resource usage and health across every app on the cluster.
         </p>
@@ -239,7 +243,7 @@ function Placeholder({ icon, title, body }: { icon: ReactNode; title: string; bo
       <CardContent className="flex items-start gap-3 p-5">
         <span className="mt-0.5 rounded-md bg-muted p-2 text-muted-foreground">{icon}</span>
         <div>
-          <h3 className="font-medium text-sm">{title}</h3>
+          <h2 className="font-medium text-sm">{title}</h2>
           <p className="mt-1 text-muted-foreground text-sm">{body}</p>
         </div>
       </CardContent>

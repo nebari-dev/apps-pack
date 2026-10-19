@@ -2,11 +2,13 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { AppForm, type SubmitPayload } from "@/components/app-form";
 import { toast } from "@/components/ui/toast";
+import { usePageTitle } from "@/hooks/use-page-title";
 import { api } from "@/lib/api";
 import { getConfig } from "@/lib/auth";
 import type { AppCreate } from "@/lib/types";
 
 export function LaunchPage() {
+  const heading = usePageTitle("Launch an app");
   const navigate = useNavigate();
   const capabilities = useQuery({ queryKey: ["capabilities"], queryFn: api.capabilities });
 
@@ -39,7 +41,9 @@ export function LaunchPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-semibold text-2xl">Launch an app</h1>
+        <h1 ref={heading} tabIndex={-1} className="font-semibold text-2xl outline-none">
+          Launch an app
+        </h1>
         <p className="text-muted-foreground text-sm">
           Deploy a static site or Python app behind the cluster gateway.
         </p>
