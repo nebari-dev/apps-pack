@@ -120,6 +120,13 @@ func (r *AppReconciler) buildDeployment(app *appsv1alpha1.App) (*appsv1.Deployme
 	if err != nil {
 		return nil, err
 	}
+	// Init containers (git clone, source copy) get the same bounds as the
+	// app, so a namespace ResourceQuota that requires limits admits the pod.
+	for i := range podSpec.InitContainers {
+		if len(podSpec.InitContainers[i].Resources.Limits) == 0 {
+			podSpec.InitContainers[i].Resources = r.Config.appResources(app)
+		}
+	}
 
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -145,6 +152,8 @@ func (r *AppReconciler) buildDeployment(app *appsv1alpha1.App) (*appsv1.Deployme
 // populated according to the source type.
 func (r *AppReconciler) buildStaticPodSpec(app *appsv1alpha1.App, annotations map[string]string) (corev1.PodSpec, error) {
 	podSpec := corev1.PodSpec{
+		// App pods run user code and never talk to the Kubernetes API.
+		AutomountServiceAccountToken: ptr.To(false),
 		SecurityContext: &corev1.PodSecurityContext{
 			RunAsNonRoot: ptr.To(true),
 			// Shared content volumes must be writable by init containers
@@ -162,7 +171,7 @@ func (r *AppReconciler) buildStaticPodSpec(app *appsv1alpha1.App, annotations ma
 				Protocol:      corev1.ProtocolTCP,
 			}},
 			Env:       app.Spec.Runtime.Env,
-			Resources: app.Spec.Runtime.Resources,
+			Resources: r.Config.appResources(app),
 			ReadinessProbe: &corev1.Probe{
 				ProbeHandler: corev1.ProbeHandler{
 					HTTPGet: &corev1.HTTPGetAction{Path: "/", Port: intstrFromString("http")},
@@ -301,6 +310,8 @@ func (r *AppReconciler) buildPixiPodSpec(app *appsv1alpha1.App, annotations map[
 	}
 
 	podSpec := corev1.PodSpec{
+		// App pods run user code and never talk to the Kubernetes API.
+		AutomountServiceAccountToken: ptr.To(false),
 		SecurityContext: &corev1.PodSecurityContext{
 			RunAsNonRoot: ptr.To(true),
 			// The pixi image defaults to root; run everything as a fixed
@@ -324,7 +335,7 @@ func (r *AppReconciler) buildPixiPodSpec(app *appsv1alpha1.App, annotations map[
 				Protocol:      corev1.ProtocolTCP,
 			}},
 			Env:       env,
-			Resources: app.Spec.Runtime.Resources,
+			Resources: r.Config.appResources(app),
 			// Cold starts resolve and download the whole pixi environment;
 			// give the startup probe generous headroom before liveness kicks in.
 			StartupProbe: &corev1.Probe{

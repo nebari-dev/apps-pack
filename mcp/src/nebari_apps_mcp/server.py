@@ -146,6 +146,16 @@ async def launch_app(
     pvc_sub_path: Annotated[str, Field(description="source_type=pvc: sub-path within the volume")] = "",
     env: Annotated[dict[str, str] | None, Field(description="Environment variables for the app process")] = None,
     replicas: Annotated[int, Field(description="Desired replicas; 0 = stopped", ge=0, le=10)] = 1,
+    resources: Annotated[
+        dict[str, dict[str, str]] | None,
+        Field(
+            description=(
+                'CPU/memory requests and limits, e.g. {"requests": {"cpu": "250m", "memory": "512Mi"}, '
+                '"limits": {"memory": "1Gi"}}. Anything omitted gets the cluster default '
+                "(static apps are small; pixi apps get more memory for pixi install)"
+            )
+        ),
+    ] = None,
     public: Annotated[bool, Field(description="true = anonymous access; false = Keycloak SSO at the gateway")] = False,
     groups: Annotated[list[str] | None, Field(description="Keycloak groups allowed to use the app; empty = any signed-in user")] = None,
     description: Annotated[str, Field(description="Short description for catalogs")] = "",
@@ -181,6 +191,7 @@ async def launch_app(
             "replicas": replicas,
             "env": [{"name": k, "value": v} for k, v in (env or {}).items()],
             "pixiTask": pixi_task,
+            **({"resources": resources} if resources else {}),
         },
         "access": {"public": public, "groups": groups or [], "subdomain": subdomain},
     }

@@ -58,7 +58,7 @@ anonymously.
 |---|---|
 | `authenticate` | Start/complete the device-flow login, or confirm the cached token. |
 | `describe_cluster` | Source types, launchable namespaces, apps domain — call first to pick valid options. |
-| `launch_app` | Create + launch (static, or Python/pixi via `pixi_task`). **Idempotent on (namespace, name)** — re-launching your own app updates it instead of failing, so retries are safe; an app owned by someone else is refused, never overwritten. |
+| `launch_app` | Create + launch (static, or Python/pixi via `pixi_task`); optional `resources` (requests/limits, cluster defaults otherwise). **Idempotent on (namespace, name)** — re-launching your own app updates it instead of failing, so retries are safe; an app owned by someone else is refused, never overwritten. |
 | `list_apps` | Apps with phase, URL, owner; optional namespace filter. |
 | `get_app` | Full spec + status for one app. |
 | `get_app_status` | Lightweight poll: phase, URL, replicas, conditions. |

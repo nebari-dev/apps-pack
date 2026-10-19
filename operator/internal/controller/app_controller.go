@@ -49,6 +49,10 @@ type OperatorConfig struct {
 	// LandingPage is the cluster default for registering apps as tiles on
 	// the Nebari landing page. An App's spec.landingPage.enabled overrides it.
 	LandingPage bool
+	// StaticResources and PythonResources fill any cpu/memory request or
+	// limit an App leaves unset (static apps vs runtime.pixiTask apps).
+	StaticResources corev1.ResourceRequirements
+	PythonResources corev1.ResourceRequirements
 }
 
 // LandingPageEnabled reports whether an App should appear on the landing page:

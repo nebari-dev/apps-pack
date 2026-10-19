@@ -431,3 +431,12 @@ def test_cr_with_users_still_readable(client, store):
     store.apps[("apps", "docs-site")]["spec"]["access"]["users"] = ["alice"]
     assert client.get("/api/v1/apps/apps/docs-site").status_code == 200
     assert client.get("/api/v1/apps").status_code == 200
+
+
+def test_replicas_capped(client):
+    body = make_app_body()
+    body["runtime"] = {"replicas": 11}
+    assert client.post("/api/v1/apps", json=body).status_code == 422
+    body["runtime"] = {"replicas": 10}
+    assert client.post("/api/v1/apps", json=body).status_code == 201
+    assert client.patch("/api/v1/apps/apps/docs-site", json={"runtime": {"replicas": 50}}).status_code == 422

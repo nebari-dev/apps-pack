@@ -50,10 +50,25 @@ func main() {
 		"Cluster default for showing apps as tiles on the Nebari landing page (spec.landingPage.enabled overrides per app).")
 
 	opts := zap.Options{Development: false}
+	var staticResources, pythonResources string
+	flag.StringVar(&staticResources, "default-static-resources", envOr("DEFAULT_STATIC_RESOURCES", ""),
+		`Requests/limits (JSON, e.g. {"requests":{"cpu":"50m"},"limits":{"memory":"256Mi"}}) for static app pods that leave them unset.`)
+	flag.StringVar(&pythonResources, "default-python-resources", envOr("DEFAULT_PYTHON_RESOURCES", ""),
+		"Requests/limits (JSON) for Python/pixi app pods that leave them unset.")
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+
+	var err error
+	if cfg.StaticResources, err = controller.ParseResources(staticResources, controller.DefaultStaticResources); err != nil {
+		setupLog.Error(err, "invalid --default-static-resources")
+		os.Exit(1)
+	}
+	if cfg.PythonResources, err = controller.ParseResources(pythonResources, controller.DefaultPythonResources); err != nil {
+		setupLog.Error(err, "invalid --default-python-resources")
+		os.Exit(1)
+	}
 
 	if cfg.AppsDomain == "" {
 		setupLog.Error(nil, "--apps-domain (or APPS_DOMAIN) is required")

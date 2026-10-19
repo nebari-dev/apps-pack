@@ -179,9 +179,10 @@ form, the API, or GitOps.
   `nebari.dev/managed=true`. Label the release namespace and every namespace in
   `api.allowedNamespaces` (default `apps`).
 - **Sizing:** the pack itself requests 300m CPU / 448Mi memory (limits 1.5 CPU / 896Mi)
-  across its four pods. Each launched app adds a pod with whatever `runtime.resources` the
-  App sets (there is no default; see Known limitations) — budget roughly 100m / 128Mi for a
-  static site and 500m / 1Gi for a Python app with a cold `pixi install`.
+  across its four pods. Each launched app adds a pod; an App that sets no `runtime.resources`
+  gets the chart defaults (`apps.defaultResources`: 50m / 64Mi requested, up to 500m / 256Mi,
+  for a static site; 250m / 512Mi requested, up to 2 CPU / 2Gi, for a Python app, whose cold
+  `pixi install` needs the memory).
 - **Optional:** metrics-server (per-app CPU/memory in the UI; the UI degrades gracefully
   without it) and the LGTM observability pack for logs.
 
@@ -202,9 +203,10 @@ Alpha means the happy path works; these are the gaps to know about before a demo
   or delegation yet, and anyone with `kubectl` access to an app namespace bypasses the API.
 - **Inline sources are capped at ~900 KB of UTF-8 text** (a ConfigMap). Binary assets or
   larger sites need a `git` or `pvc` source.
-- **No resource defaults or quotas for launched apps.** An App that omits `runtime.resources`
-  runs unbounded; `replicas` has no upper bound via the API or kubectl (the MCP tool caps it
-  at 10). Apply a `LimitRange`/`ResourceQuota` to app namespaces.
+- **No per-user quota.** Launched pods get default requests/limits and at most 10 replicas
+  each, but nothing caps how many Apps one user launches. Add a `ResourceQuota` to app
+  namespaces if that matters (the chart can render a `LimitRange` and a `NetworkPolicy`,
+  `apps.limitRange` / `apps.networkPolicy`).
 - **One API version (`v1alpha1`) and no conversion webhook** — a future schema change will
   require re-creating Apps. `helm upgrade` does not update CRDs; re-apply
   `charts/nebari-apps/crds/` by hand on upgrades.

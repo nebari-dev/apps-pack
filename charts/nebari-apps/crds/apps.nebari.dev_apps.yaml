@@ -288,6 +288,7 @@ spec:
                   replicas:
                     default: 1
                     format: int32
+                    maximum: 10
                     minimum: 0
                     type: integer
                   resources:

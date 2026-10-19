@@ -71,11 +71,13 @@ func newReconciler(t *testing.T, objs ...client.Object) (*AppReconciler, client.
 		Client: c,
 		Scheme: s,
 		Config: OperatorConfig{
-			AppsDomain:  testDomain,
-			Gateway:     "public",
-			StaticImage: "nginxinc/nginx-unprivileged:1.27-alpine",
-			GitImage:    "alpine/git:v2.47.2",
-			PythonImage: "ghcr.io/prefix-dev/pixi:0.68.1-noble",
+			AppsDomain:      testDomain,
+			Gateway:         "public",
+			StaticImage:     "nginxinc/nginx-unprivileged:1.27-alpine",
+			GitImage:        "alpine/git:v2.47.2",
+			PythonImage:     "ghcr.io/prefix-dev/pixi:0.68.1-noble",
+			StaticResources: DefaultStaticResources,
+			PythonResources: DefaultPythonResources,
 		},
 	}
 	return r, c

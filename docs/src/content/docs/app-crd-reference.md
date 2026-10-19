@@ -105,8 +105,8 @@ current state of the ref.
 | Field | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `env` | [][EnvVar](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#environment-variables) | No | — | Environment variables. |
-| `resources` | [ResourceRequirements](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) | No | — | CPU/memory requests and limits. |
-| `replicas` | int | No | `1` | Desired replicas. `0` stops the app (phase `Stopped`). |
+| `resources` | [ResourceRequirements](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) | No | chart `apps.defaultResources` | CPU/memory requests and limits. Any cpu/memory request or limit left unset is filled from the cluster default for the app kind (static or Python); a filled limit never drops below the App's own request. Init containers get the same bounds. |
+| `replicas` | int | No | `1` | Desired replicas, `0`–`10`. `0` stops the app (phase `Stopped`). |
 | `keepAlive` | bool | No | `false` | Reserved for scale-to-zero idle reaping (not yet implemented). |
 | `pixiTask` | string | No | — | When set, the app runs as a **Python/pixi service**: the operator copies the source into a writable workspace, runs `pixi install` (`--locked` when a `pixi.lock` is present), then `pixi run <pixiTask>`. The task must start a server on `0.0.0.0:8080` (`PORT=8080` and `HOME=/app` are injected). Max 64 chars. |
 
