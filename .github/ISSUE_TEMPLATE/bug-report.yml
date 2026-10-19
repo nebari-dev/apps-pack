@@ -1,0 +1,69 @@
+name: Bug report
+description: Something in the pack doesn't work as documented.
+labels: ["type: bug 🐛", "needs: triage 🚦"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Please search existing issues first. Security problems go to a
+        [private advisory](https://github.com/nebari-dev/apps-pack/security/advisories/new), not here.
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      multiple: true
+      options:
+        - apps-operator / App CRD
+        - apps-api
+        - apps-ui
+        - apps-mcp / agent skill
+        - Helm chart
+        - Docs
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, including error messages.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps, and the App manifest or request involved if there is one.
+      placeholder: |
+        1. Apply this App ...
+        2. Open ...
+        3. See ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and status
+      description: |
+        Output of `kubectl get app <name> -n <ns> -o yaml` (status section) and the relevant
+        operator or API logs. Remove tokens and other secrets.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: Pack version
+      description: The chart version or image tag you are running.
+      placeholder: e.g. 0.3.0, or sha-92a564e
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Kubernetes distribution and version, nebari-operator version, and anything unusual about the install.
