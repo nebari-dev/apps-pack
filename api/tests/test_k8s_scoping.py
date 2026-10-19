@@ -10,19 +10,23 @@ from unittest.mock import MagicMock
 from nebari_apps_api.k8s import KubernetesAppStore
 
 
+def page(items):
+    return SimpleNamespace(items=items, metadata=SimpleNamespace(_continue=None))
+
+
 def scoped_store(namespaces):
     store = KubernetesAppStore.__new__(KubernetesAppStore)
     store._namespaces = namespaces
     store._custom = MagicMock()
     store._core = MagicMock()
-    store._custom.list_namespaced_custom_object.side_effect = lambda g, v, ns, p: {
+    store._custom.list_namespaced_custom_object.side_effect = lambda g, v, ns, p, **kw: {
         "items": [{"metadata": {"name": f"a-{ns}", "namespace": ns}}]
     }
     pod = lambda ns: SimpleNamespace(  # noqa: E731
         metadata=SimpleNamespace(namespace=ns, labels={"apps.nebari.dev/app": "x"}),
         status=SimpleNamespace(container_statuses=[SimpleNamespace(restart_count=2)]),
     )
-    store._core.list_namespaced_pod.side_effect = lambda ns, label_selector: SimpleNamespace(items=[pod(ns)])
+    store._core.list_namespaced_pod.side_effect = lambda ns, **kw: page([pod(ns)])
     return store
 
 
@@ -42,7 +46,7 @@ def test_scoped_restarts_iterate_namespaces():
 def test_unscoped_uses_cluster_wide_calls():
     store = scoped_store(None)
     store._custom.list_cluster_custom_object.return_value = {"items": []}
-    store._core.list_pod_for_all_namespaces.return_value = SimpleNamespace(items=[])
+    store._core.list_pod_for_all_namespaces.return_value = page([])
     store.list_apps(None)
     store.app_restarts()
     store._custom.list_cluster_custom_object.assert_called_once()
