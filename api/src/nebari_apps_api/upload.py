@@ -11,6 +11,7 @@ from __future__ import annotations
 import io
 import posixpath
 import zipfile
+from typing import BinaryIO
 
 from fastapi import HTTPException
 
@@ -23,6 +24,8 @@ TEXT_EXTENSIONS = {
     # Python/pixi source trees.
     ".py", ".toml", ".lock", ".cfg", ".ini", ".yaml", ".yml", ".in", ".sh",
 }
+
+_CHUNK = 64 * 1024
 
 # Files that mark the root of a pixi project.
 PIXI_MANIFESTS = ("pixi.toml", "pyproject.toml")
@@ -41,6 +44,28 @@ def _safe_name(name: str) -> str | None:
     if any(p.startswith(".") or p == "__MACOSX" for p in parts):
         return None
     return norm
+
+
+def _too_large(detail: str) -> HTTPException:
+    return HTTPException(413, f"{detail} - use a git or pvc source for larger apps")
+
+
+def read_capped(stream: BinaryIO, limit: int, what: str = "upload") -> bytes:
+    """Read at most `limit` bytes from a file-like object, in chunks.
+
+    Raises 413 as soon as the stream yields more than `limit` bytes, so the
+    caller never holds more than limit + one chunk in memory.
+    """
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = stream.read(min(_CHUNK, limit + 1 - total))
+        if not chunk:
+            return b"".join(chunks)
+        total += len(chunk)
+        if total > limit:
+            raise _too_large(f"{what} exceeds the {settings.max_upload_bytes}-byte inline cap")
+        chunks.append(chunk)
 
 
 def files_from_upload(filename: str, data: bytes, pixi: bool = False) -> dict[str, str]:
@@ -89,14 +114,21 @@ def files_from_upload(filename: str, data: bytes, pixi: bool = False) -> dict[st
                 f"{name!r}: only text assets ({', '.join(sorted(TEXT_EXTENSIONS))}) can be "
                 "inlined - use a git or pvc source for sites with binary assets",
             )
-        content = archive.read(info)
-        total += len(content)
-        if total > settings.max_upload_bytes:
-            raise HTTPException(
-                413,
-                f"extracted archive exceeds {settings.max_upload_bytes} bytes - "
-                "use a git or pvc source for larger sites",
+        # Check the declared size before decompressing anything, then read
+        # with a hard cap in case the header lies: a zip bomb never gets
+        # inflated past the remaining budget.
+        remaining = settings.max_upload_bytes - total
+        if info.file_size > remaining:
+            raise _too_large(
+                f"{name!r} is {info.file_size} bytes uncompressed; the extracted archive "
+                f"is capped at {settings.max_upload_bytes} bytes"
             )
+        try:
+            with archive.open(info) as member:
+                content = read_capped(member, remaining, what="extracted archive")
+        except zipfile.BadZipFile as exc:
+            raise HTTPException(400, f"{name!r}: corrupt archive member") from exc
+        total += len(content)
         try:
             files[name] = content.decode("utf-8")
         except UnicodeDecodeError as exc:

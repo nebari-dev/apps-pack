@@ -57,11 +57,13 @@ environment variable (`APPS_DOMAIN`, `GATEWAY`, `STATIC_IMAGE`, `GIT_IMAGE`, `PY
 | `api.allowedNamespaces` | `["apps"]` | Namespaces users may launch into. Empty list = every namespace labeled `nebari.dev/managed=true`. `default` and `kube-*` are never offered. |
 | `api.resources` | `100m/128Mi` requests, `500m/256Mi` limits | Pod resources. |
 
-Environment the API container receives: `APPS_DOMAIN`, `APPS_NAMESPACES`, `AUTH_ENABLED`,
+Environment the API container receives: `APPS_DOMAIN`, `APPS_NAMESPACES`, `APPS_ADMIN_GROUPS`, `AUTH_ENABLED`,
 `TLS_DISABLED`, `OIDC_ISSUER`, `OIDC_ISSUER_INTERNAL`, `UI_KEYCLOAK_URL`, `UI_KEYCLOAK_REALM`,
 `UI_KEYCLOAK_CLIENT_ID` (from the Secret the UI's `NebariApp` provisions). Not rendered by the
 chart but honoured when set on the container: `OIDC_JWKS_URL`, `OIDC_AUDIENCE`,
-`MAX_UPLOAD_BYTES` (default 921600).
+`MAX_UPLOAD_BYTES` (default 921600, the cap on an upload and on its extracted contents) and
+`MAX_REQUEST_BYTES` (default 2097152, the cap on any request body, enforced while it streams
+in).
 
 ## apps-ui
 

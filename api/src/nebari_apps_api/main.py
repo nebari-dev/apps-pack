@@ -26,13 +26,15 @@ from .models import (
     ClusterMetrics,
     NamespaceUsage,
 )
-from .upload import PIXI_MANIFESTS, files_from_upload
+from .limits import BodySizeLimitMiddleware
+from .upload import PIXI_MANIFESTS, files_from_upload, read_capped
 
 PREFIX = "/api/v1"
 
 
 def create_app(store: AppStore | None = None) -> FastAPI:
     app = FastAPI(title="nebari-apps-api", version="0.1.0")
+    app.add_middleware(BodySizeLimitMiddleware, max_bytes=lambda: settings.max_request_bytes)
     app.state.store = store
 
     def get_store() -> AppStore:
@@ -155,7 +157,8 @@ def create_app(store: AppStore | None = None) -> FastAPI:
             raise HTTPException(400, f"manifest is not valid JSON: {exc}") from exc
 
         pixi = bool((data.get("runtime") or {}).get("pixiTask"))
-        files = files_from_upload(file.filename or "upload", file.file.read(), pixi=pixi)
+        data_bytes = read_capped(file.file, settings.max_upload_bytes)
+        files = files_from_upload(file.filename or "upload", data_bytes, pixi=pixi)
         data["source"] = {"type": "inline", "inline": {"files": files}}
         req = AppCreate.model_validate(data)
 
