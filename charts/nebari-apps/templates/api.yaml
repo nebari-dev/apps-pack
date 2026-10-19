@@ -142,6 +142,8 @@ spec:
               value: {{ .Values.api.auth.enabled | quote }}
             - name: TLS_DISABLED
               value: {{ not .Values.tls.enabled | quote }}
+            - name: APPS_BUILD
+              value: {{ .Values.api.image.tag | default .Chart.AppVersion | quote }}
             {{- if .Values.api.auth.enabled }}
             - name: OIDC_ISSUER
               value: {{ printf "%s/realms/%s" (required "keycloak.url is required when api.auth.enabled" .Values.keycloak.url | trimSuffix "/") .Values.keycloak.realm }}

@@ -144,6 +144,9 @@ export interface UiConfig {
   keycloak: { url: string; realm: string; clientId: string };
   appsDomain: string;
   appsScheme?: string;
+  /** Release (e.g. 0.2.0) and image build (e.g. sha-abc1234) of the API. */
+  version?: string;
+  build?: string;
 }
 
 export interface AppEvent {

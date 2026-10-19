@@ -1,6 +1,6 @@
 [project]
 name = "nebari-apps-mcp"
-version = "0.1.0"
+dynamic = ["version"]
 description = "MCP server for the Nebari Apps Pack - launch and manage web apps from coding agents"
 requires-python = ">=3.12"
 dependencies = [
@@ -27,6 +27,11 @@ dev = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+# The version lives in __init__.py (release-please bumps it), so uv.lock
+# does not record it and a release needs no relock.
+[tool.hatch.version]
+path = "src/nebari_apps_mcp/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/nebari_apps_mcp"]

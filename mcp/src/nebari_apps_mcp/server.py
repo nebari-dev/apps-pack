@@ -20,6 +20,7 @@ from starlette.middleware import Middleware as ASGIMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
+from . import __version__
 from .auth import MissingSessionError, TokenVerificationError, auth, get_validator
 from .client import ApiClient, ApiError
 from .config import settings
@@ -33,6 +34,7 @@ if TYPE_CHECKING:
 
 mcp = FastMCP(
     name="nebari-apps",
+    version=__version__,
     instructions=(
         "Launch and manage web apps on this Nebari cluster: static sites (HTML/CSS/JS) "
         "and Python apps launched by a pixi task (pixi_task; the task must serve on "
