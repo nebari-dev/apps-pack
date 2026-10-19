@@ -108,6 +108,10 @@ type AppAccess struct {
 	Users []string `json:"users,omitempty"`
 
 	// Subdomain under the cluster domain: https://<subdomain>.<clusterDomain>.
+	// Unique across all Apps (the oldest App keeps a contested subdomain) and
+	// immutable after creation.
+	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="access.subdomain is immutable"
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
 	Subdomain string `json:"subdomain"`
 }

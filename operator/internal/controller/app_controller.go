@@ -16,6 +16,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	appsv1alpha1 "github.com/nebari-dev/nebari-apps-pack/operator/api/v1alpha1"
@@ -93,6 +94,10 @@ func (r *AppReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	if err := r.ensureSubdomainLabel(ctx, app); err != nil {
+		return ctrl.Result{}, fmt.Errorf("labeling app with its subdomain: %w", err)
+	}
+
 	orig := app.DeepCopy()
 	app.Status.ObservedGeneration = app.Generation
 
@@ -110,7 +115,14 @@ func (r *AppReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 func (r *AppReconciler) reconcileApp(ctx context.Context, app *appsv1alpha1.App) error {
 	// 1. Validate.
 	if err := r.validate(ctx, app); err != nil {
-		setCondition(app, appsv1alpha1.ConditionValidated, metav1.ConditionFalse, "ValidationFailed", err.Error())
+		reason := "ValidationFailed"
+		if isSubdomainTaken(err) {
+			reason = "SubdomainTaken"
+			if rerr := r.releaseHostname(ctx, app); rerr != nil {
+				return fmt.Errorf("releasing hostname: %w", rerr)
+			}
+		}
+		setCondition(app, appsv1alpha1.ConditionValidated, metav1.ConditionFalse, reason, err.Error())
 		app.Status.Phase = appsv1alpha1.AppPhaseFailed
 		app.Status.Message = err.Error()
 		// Invalid specs are terminal until the spec changes; don't requeue-error.
@@ -209,7 +221,7 @@ func (r *AppReconciler) validate(ctx context.Context, app *appsv1alpha1.App) err
 	if app.Spec.Access.Subdomain == "" {
 		return fmt.Errorf("access.subdomain is required")
 	}
-	return nil
+	return r.checkSubdomain(ctx, app)
 }
 
 // apply creates obj or updates the existing object via the mutate callback,
@@ -251,6 +263,9 @@ func (r *AppReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.Service{}).
 		Owns(&corev1.ConfigMap{}).
 		Owns(nebariApp).
+		// A losing App is re-validated when the holder of its subdomain
+		// changes or is deleted.
+		Watches(&appsv1alpha1.App{}, handler.EnqueueRequestsFromMapFunc(r.appsSharingSubdomain)).
 		Named("app").
 		Complete(r)
 }

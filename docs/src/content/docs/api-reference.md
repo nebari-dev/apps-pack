@@ -45,10 +45,10 @@ create.
 | Method & path | Description |
 |---|---|
 | `GET /apps?namespace=` | List the apps the caller may see (all launchable namespaces, or one). |
-| `POST /apps` | Create + launch. Body mirrors `App.spec` plus `name`/`namespace` (see below). `409` if the name exists. |
+| `POST /apps` | Create + launch. Body mirrors `App.spec` plus `name`/`namespace` (see below). `409` if the name exists in the namespace or the subdomain is used by any other app. |
 | `POST /apps/upload` | Create + launch an app from an upload. Multipart: `manifest` (JSON, source omitted) + `file` (`.zip` or `.html`). A manifest with `runtime.pixiTask` launches the zip as a Python/pixi app. |
 | `GET /apps/{ns}/{name}` | Full spec + status. |
-| `PATCH /apps/{ns}/{name}` | Update any of `displayName`, `description`, `thumbnail`, `source`, `runtime`, `access`. |
+| `PATCH /apps/{ns}/{name}` | Update any of `displayName`, `description`, `thumbnail`, `source`, `runtime`, `access`. `access.subdomain` cannot change (`422`). |
 | `DELETE /apps/{ns}/{name}` | Delete (cascades to all children). |
 | `POST /apps/{ns}/{name}/stop` | Scale to zero. |
 | `POST /apps/{ns}/{name}/start` | Scale back to one. |
@@ -125,7 +125,7 @@ curl -X POST https://apps.example.ai/api/v1/apps/upload \
 | `401` | Missing or invalid bearer token. |
 | `403` | Namespace not available (not a launchable namespace), or the caller is neither the app's owner nor an admin. |
 | `404` | App (or its pods, for logs) not found. |
-| `409` | An app with that name already exists in the namespace. |
+| `409` | An app with that name already exists in the namespace, or the subdomain is already used by another app. |
 | `413` | Request body over 2 MiB, or an upload (or its extracted contents) over the ~900 KB inline cap. Zip members are checked against the cap before they are decompressed. |
 | `422` | Invalid request: unsupported source type, missing required fields, or a non-empty `access.users` (reserved, not enforced). |
 

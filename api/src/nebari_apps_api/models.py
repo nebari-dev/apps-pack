@@ -98,7 +98,7 @@ class AppAccess(BaseModel):
     public: bool = False
     groups: list[str] = Field(default_factory=list)
     users: list[str] = Field(default_factory=list)
-    subdomain: str
+    subdomain: str = Field(max_length=63, pattern=r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$")
 
 
 class AppLandingPage(BaseModel):

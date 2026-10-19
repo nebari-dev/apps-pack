@@ -205,8 +205,6 @@ Alpha means the happy path works; these are the gaps to know about before a demo
 - **No resource defaults or quotas for launched apps.** An App that omits `runtime.resources`
   runs unbounded; `replicas` has no upper bound via the API or kubectl (the MCP tool caps it
   at 10). Apply a `LimitRange`/`ResourceQuota` to app namespaces.
-- **Subdomains are not checked for uniqueness** across Apps; two Apps claiming the same
-  `access.subdomain` both emit a `NebariApp` for one hostname.
 - **One API version (`v1alpha1`) and no conversion webhook** — a future schema change will
   require re-creating Apps. `helm upgrade` does not update CRDs; re-apply
   `charts/nebari-apps/crds/` by hand on upgrades.

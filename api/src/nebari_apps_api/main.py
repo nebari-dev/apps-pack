@@ -72,6 +72,24 @@ def create_app(store: AppStore | None = None) -> FastAPI:
         except NotFoundError:
             raise HTTPException(404, f"app {namespace}/{name} not found") from None
 
+    def create_checked(store: AppStore, user: User, req: AppCreate) -> AppOut:
+        _validate_request(req)
+        check_namespace(store, req.namespace)
+        # Subdomains are unique across every App in the cluster; the operator
+        # enforces the same rule, this just refuses before the CR exists.
+        sub = req.access.subdomain
+        for cr in store.list_apps(None):
+            meta = cr.get("metadata") or {}
+            if ((cr.get("spec") or {}).get("access") or {}).get("subdomain") == sub and not (
+                meta.get("namespace") == req.namespace and meta.get("name") == req.name
+            ):
+                raise HTTPException(409, f"subdomain {sub!r} is already used by another app")
+        try:
+            created = store.create_app(req.namespace, crmod.to_cr(req, user.username))
+        except ConflictError:
+            raise HTTPException(409, f"app {req.namespace}/{req.name} already exists") from None
+        return crmod.from_cr(created)
+
     def authorized_app(store: AppStore, user: User, namespace: str, name: str) -> dict[str, Any]:
         """Fetch an App the caller may act on: the path namespace must be a
         launchable namespace and the caller must own the App or be an admin.
@@ -137,13 +155,7 @@ def create_app(store: AppStore | None = None) -> FastAPI:
 
     @app.post(PREFIX + "/apps", response_model=AppOut, status_code=201)
     def create(req: AppCreate, store: Store, user: Me) -> AppOut:
-        _validate_request(req)
-        check_namespace(store, req.namespace)
-        try:
-            created = store.create_app(req.namespace, crmod.to_cr(req, user.username))
-        except ConflictError:
-            raise HTTPException(409, f"app {req.namespace}/{req.name} already exists") from None
-        return crmod.from_cr(created)
+        return create_checked(store, user, req)
 
     @app.post(PREFIX + "/apps/upload", response_model=AppOut, status_code=201)
     def create_from_upload(
@@ -168,13 +180,7 @@ def create_app(store: AppStore | None = None) -> FastAPI:
         data["source"] = {"type": "inline", "inline": {"files": files}}
         req = AppCreate.model_validate(data)
 
-        _validate_request(req)
-        check_namespace(store, req.namespace)
-        try:
-            created = store.create_app(req.namespace, crmod.to_cr(req, user.username))
-        except ConflictError:
-            raise HTTPException(409, f"app {req.namespace}/{req.name} already exists") from None
-        return crmod.from_cr(created)
+        return create_checked(store, user, req)
 
     @app.get(PREFIX + "/apps/{namespace}/{name}", response_model=AppOut)
     def get_app(namespace: str, name: str, store: Store, user: Me) -> AppOut:
@@ -185,6 +191,9 @@ def create_app(store: AppStore | None = None) -> FastAPI:
         _reject_users(patch.access)
         _check_source(patch.source)
         existing = authorized_app(store, user, namespace, name)
+        current = ((existing.get("spec") or {}).get("access") or {}).get("subdomain")
+        if patch.access is not None and current and patch.access.subdomain != current:
+            raise HTTPException(422, "access.subdomain cannot be changed after launch")
         updated = store.replace_app(namespace, name, crmod.apply_patch(existing, patch))
         return crmod.from_cr(updated)
 

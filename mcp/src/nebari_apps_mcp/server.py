@@ -191,7 +191,9 @@ async def launch_app(
             try:
                 return await api.post("/apps", json=body)
             except ApiError as exc:
-                if exc.status != 409:
+                # 409 is either "name exists" (upsert below) or "subdomain
+                # taken by another app" (report it as is).
+                if exc.status != 409 or "subdomain" in str(exc.detail):
                     raise
                 # Already exists: update in place (idempotent launch). The API
                 # refuses with 403 when the existing app belongs to someone else,

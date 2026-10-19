@@ -197,3 +197,11 @@ async def test_launch_refuses_to_overwrite_another_users_app(store, monkeypatch)
     who["user"] = User(username="alice")
     updated = await call("launch_app", {**LAUNCH_ARGS, "display_name": "Docs Site v2"})
     assert updated["displayName"] == "Docs Site v2"
+
+
+async def test_launch_reports_taken_subdomain(store):
+    await call("launch_app", LAUNCH_ARGS)
+    result = await call("launch_app", {**LAUNCH_ARGS, "name": "other-site"})
+    assert result["status"] == 409
+    assert "subdomain" in result["error"]
+    assert ("apps", "other-site") not in store.apps
