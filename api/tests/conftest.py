@@ -18,6 +18,8 @@ class FakeStore:
         self.apps: dict[tuple[str, str], dict[str, Any]] = {}
         self.namespaces = ["apps", "team-a"]
         self.ready = True
+        # replace_app raises ConflictError this many times (a concurrent writer).
+        self.conflicts = 0
         self.logs = "hello from pod\n"
         self.restarted: list[tuple[str, str]] = []
         self.metrics_available = True
@@ -40,6 +42,9 @@ class FakeStore:
         return copy.deepcopy(body)
 
     def replace_app(self, namespace: str, name: str, body: dict[str, Any]) -> dict[str, Any]:
+        if self.conflicts:
+            self.conflicts -= 1
+            raise ConflictError(f"{namespace}/{name} was modified")
         if (namespace, name) not in self.apps:
             raise NotFoundError(f"{namespace}/{name}")
         self.apps[(namespace, name)] = copy.deepcopy(body)

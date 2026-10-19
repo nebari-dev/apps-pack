@@ -6,6 +6,7 @@ an in-memory fake.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC
 from typing import TYPE_CHECKING, Any, Protocol, cast
 
@@ -19,6 +20,11 @@ MANAGED_LABEL = "nebari.dev/managed"
 APP_LABEL = "apps.nebari.dev/app"
 # Seconds a readiness check may wait on a dependency.
 READY_TIMEOUT = 3
+# (connect, read) seconds for every other apiserver call, so a slow apiserver
+# cannot pin the API's worker threads.
+REQUEST_TIMEOUT = (5, 30)
+# Page size for list calls; results are followed through `continue` tokens.
+PAGE_SIZE = 500
 
 
 class NotFoundError(Exception):
@@ -94,37 +100,51 @@ class KubernetesAppStore:
     def list_apps(self, namespace: str | None) -> list[dict[str, Any]]:
         try:
             if namespace:
-                return _items(self._custom.list_namespaced_custom_object(GROUP, VERSION, namespace, PLURAL))
+                return _list_custom(self._custom.list_namespaced_custom_object, GROUP, VERSION, namespace, PLURAL)
             if self._namespaces is not None:
                 items: list[dict[str, Any]] = []
                 for ns in self._namespaces:
-                    items += _items(self._custom.list_namespaced_custom_object(GROUP, VERSION, ns, PLURAL))
+                    items += _list_custom(self._custom.list_namespaced_custom_object, GROUP, VERSION, ns, PLURAL)
                 return items
-            return _items(self._custom.list_cluster_custom_object(GROUP, VERSION, PLURAL))
+            return _list_custom(self._custom.list_cluster_custom_object, GROUP, VERSION, PLURAL)
         except Exception as exc:
             raise self._wrap(exc) from exc
 
     def get_app(self, namespace: str, name: str) -> dict[str, Any]:
         try:
-            return _obj(self._custom.get_namespaced_custom_object(GROUP, VERSION, namespace, PLURAL, name))
+            return _obj(
+                self._custom.get_namespaced_custom_object(
+                    GROUP, VERSION, namespace, PLURAL, name, _request_timeout=REQUEST_TIMEOUT
+                )
+            )
         except Exception as exc:
             raise self._wrap(exc) from exc
 
     def create_app(self, namespace: str, body: dict[str, Any]) -> dict[str, Any]:
         try:
-            return _obj(self._custom.create_namespaced_custom_object(GROUP, VERSION, namespace, PLURAL, body))
+            return _obj(
+                self._custom.create_namespaced_custom_object(
+                    GROUP, VERSION, namespace, PLURAL, body, _request_timeout=REQUEST_TIMEOUT
+                )
+            )
         except Exception as exc:
             raise self._wrap(exc) from exc
 
     def replace_app(self, namespace: str, name: str, body: dict[str, Any]) -> dict[str, Any]:
         try:
-            return _obj(self._custom.replace_namespaced_custom_object(GROUP, VERSION, namespace, PLURAL, name, body))
+            return _obj(
+                self._custom.replace_namespaced_custom_object(
+                    GROUP, VERSION, namespace, PLURAL, name, body, _request_timeout=REQUEST_TIMEOUT
+                )
+            )
         except Exception as exc:
             raise self._wrap(exc) from exc
 
     def delete_app(self, namespace: str, name: str) -> None:
         try:
-            self._custom.delete_namespaced_custom_object(GROUP, VERSION, namespace, PLURAL, name)
+            self._custom.delete_namespaced_custom_object(
+                GROUP, VERSION, namespace, PLURAL, name, _request_timeout=REQUEST_TIMEOUT
+            )
         except Exception as exc:
             raise self._wrap(exc) from exc
 
@@ -133,11 +153,13 @@ class KubernetesAppStore:
         self._core.list_namespace(limit=1, _request_timeout=READY_TIMEOUT)
 
     def list_managed_namespaces(self) -> list[str]:
-        namespaces = self._core.list_namespace(label_selector=f"{MANAGED_LABEL}=true")
-        return sorted(ns.metadata.name for ns in namespaces.items if ns.metadata and ns.metadata.name)
+        namespaces = _list_typed(self._core.list_namespace, label_selector=f"{MANAGED_LABEL}=true")
+        return sorted(ns.metadata.name for ns in namespaces if ns.metadata and ns.metadata.name)
 
     def pod_logs(self, namespace: str, app_name: str, lines: int, container: str | None) -> str:
-        pods = self._core.list_namespaced_pod(namespace, label_selector=f"apps.nebari.dev/app={app_name}")
+        pods = self._core.list_namespaced_pod(
+            namespace, label_selector=f"{APP_LABEL}={app_name}", limit=1, _request_timeout=REQUEST_TIMEOUT
+        )
         if not pods.items:
             raise NotFoundError(f"no pods found for app {app_name}")
         pod_name = pods.items[0].metadata.name if pods.items[0].metadata else None
@@ -154,6 +176,7 @@ class KubernetesAppStore:
                 container=container,
                 tail_lines=lines,
                 _preload_content=False,
+                _request_timeout=REQUEST_TIMEOUT,
             )
         except Exception as exc:
             raise self._wrap(exc) from exc
@@ -161,20 +184,31 @@ class KubernetesAppStore:
         return data.decode("utf-8", errors="replace") if isinstance(data, bytes) else str(data)
 
     def app_events(self, namespace: str, app_name: str) -> list[dict[str, Any]]:
-        events = self._core.list_namespaced_event(namespace)
+        """Events for the App and its children, fetched by field selector.
+
+        A field selector cannot match a name prefix, so the children are named
+        explicitly: `app-<name>` (Deployment, Service, ConfigMap, NebariApp),
+        and each current pod and the ReplicaSet that owns it.
+        """
+        selectors = [f"involvedObject.kind=App,involvedObject.name={app_name}"]
+        names = {f"app-{app_name}"}
+        pods = _list_typed(self._core.list_namespaced_pod, namespace, label_selector=f"{APP_LABEL}={app_name}")
+        for pod in pods:
+            if pod.metadata and pod.metadata.name:
+                names.add(pod.metadata.name)
+                names.update(ref.name for ref in pod.metadata.owner_references or [] if ref.kind == "ReplicaSet")
+        selectors += [f"involvedObject.name={n}" for n in sorted(names)]
         related: list[dict[str, Any]] = []
-        prefix = f"app-{app_name}"
-        for ev in events.items:
-            involved = ev.involved_object
-            name = involved.name or ""
-            if (involved.kind == "App" and name == app_name) or name.startswith(prefix):
+        for selector in selectors:
+            for ev in _list_typed(self._core.list_namespaced_event, namespace, field_selector=selector):
+                involved = ev.involved_object
                 related.append(
                     {
                         "type": ev.type or "",
                         "reason": ev.reason or "",
                         "message": ev.message or "",
                         "kind": involved.kind or "",
-                        "object": name,
+                        "object": involved.name or "",
                         "count": ev.count or 1,
                         "lastTimestamp": str(ev.last_timestamp or ev.event_time or ""),
                     }
@@ -189,7 +223,9 @@ class KubernetesAppStore:
         stamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
         patch = {"spec": {"template": {"metadata": {"annotations": {"kubectl.kubernetes.io/restartedAt": stamp}}}}}
         try:
-            self._apps.patch_namespaced_deployment(f"app-{app_name}", namespace, patch)
+            self._apps.patch_namespaced_deployment(
+                f"app-{app_name}", namespace, patch, _request_timeout=REQUEST_TIMEOUT
+            )
         except Exception as exc:
             raise self._wrap(exc) from exc
 
@@ -200,7 +236,8 @@ class KubernetesAppStore:
                 "v1beta1",
                 namespace,
                 "pods",
-                label_selector=f"apps.nebari.dev/app={app_name}",
+                label_selector=f"{APP_LABEL}={app_name}",
+                _request_timeout=REQUEST_TIMEOUT,
             )
         except Exception as exc:
             raise self._wrap(exc) from exc
@@ -228,11 +265,13 @@ class KubernetesAppStore:
         report usage as unavailable rather than failing.
         """
         try:
-            res = self._custom.list_cluster_custom_object("metrics.k8s.io", "v1beta1", "pods", label_selector=APP_LABEL)
+            items = _list_custom(
+                self._custom.list_cluster_custom_object, "metrics.k8s.io", "v1beta1", "pods", label_selector=APP_LABEL
+            )
         except Exception as exc:
             raise self._wrap(exc) from exc
         out: list[dict[str, Any]] = []
-        for item in _items(res):
+        for item in items:
             meta = item.get("metadata", {})
             app = meta.get("labels", {}).get(APP_LABEL)
             if not app:
@@ -248,9 +287,9 @@ class KubernetesAppStore:
             if self._namespaces is not None:
                 items: list[V1Pod] = []
                 for ns in self._namespaces:
-                    items += self._core.list_namespaced_pod(ns, label_selector=APP_LABEL).items
+                    items += _list_typed(self._core.list_namespaced_pod, ns, label_selector=APP_LABEL)
             else:
-                items = self._core.list_pod_for_all_namespaces(label_selector=APP_LABEL).items
+                items = _list_typed(self._core.list_pod_for_all_namespaces, label_selector=APP_LABEL)
         except Exception as exc:
             raise self._wrap(exc) from exc
         out: list[dict[str, Any]] = []
@@ -272,6 +311,30 @@ def _obj(res: object) -> dict[str, Any]:
 
 def _items(res: object) -> list[dict[str, Any]]:
     return cast("list[dict[str, Any]]", _obj(res).get("items", []))
+
+
+def _list_custom(call: Callable[..., object], *args: Any, **kwargs: Any) -> list[dict[str, Any]]:
+    """Every item of a custom-object list, a page at a time."""
+    items: list[dict[str, Any]] = []
+    token = ""
+    while True:
+        res = _obj(call(*args, limit=PAGE_SIZE, _continue=token or None, _request_timeout=REQUEST_TIMEOUT, **kwargs))
+        items += _items(res)
+        token = (res.get("metadata") or {}).get("continue") or ""
+        if not token:
+            return items
+
+
+def _list_typed(call: Callable[..., Any], *args: Any, **kwargs: Any) -> list[Any]:
+    """Every item of a typed (core/apps) list, a page at a time."""
+    items: list[Any] = []
+    token = ""
+    while True:
+        res = call(*args, limit=PAGE_SIZE, _continue=token or None, _request_timeout=REQUEST_TIMEOUT, **kwargs)
+        items += res.items
+        token = (res.metadata and res.metadata._continue) or ""
+        if not token:
+            return items
 
 
 def _cpu_to_milli(value: str) -> int:

@@ -7,6 +7,7 @@ UI and (later) the MCP server are thin clients over this API.
 import json
 import time
 from collections import Counter
+from collections.abc import Callable
 from typing import Annotated, Any
 
 import httpx
@@ -113,6 +114,29 @@ def create_app(store: AppStore | None = None) -> FastAPI:
         if not can_access(user, cr):
             raise HTTPException(403, f"you do not have access to app {namespace}/{name}")
         return cr
+
+    def update_app(
+        store: AppStore,
+        user: User,
+        namespace: str,
+        name: str,
+        change: Callable[[dict[str, Any]], dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Read-modify-write an App. The write carries the read's resourceVersion,
+        so a concurrent edit (UI, MCP, kubectl) makes it conflict: re-read, which
+        also re-checks access, and apply the change once more. A second conflict
+        is the caller's to retry (409).
+        """
+        for attempt in range(2):
+            existing = authorized_app(store, user, namespace, name)
+            try:
+                return store.replace_app(namespace, name, change(existing))
+            except ConflictError:
+                if attempt:
+                    raise HTTPException(
+                        409, f"app {namespace}/{name} was changed by someone else; reload and try again"
+                    ) from None
+        raise AssertionError("unreachable")
 
     def visible_apps(store: AppStore, user: User, namespace: str | None) -> list[dict[str, Any]]:
         """Apps the caller may see: launchable namespaces only, filtered by
@@ -238,12 +262,14 @@ def create_app(store: AppStore | None = None) -> FastAPI:
     def patch_app(namespace: str, name: str, patch: AppPatch, store: Store, user: Me) -> AppOut:
         _reject_users(patch.access)
         _check_source(patch.source)
-        existing = authorized_app(store, user, namespace, name)
-        current = ((existing.get("spec") or {}).get("access") or {}).get("subdomain")
-        if patch.access is not None and current and patch.access.subdomain != current:
-            raise HTTPException(422, "access.subdomain cannot be changed after launch")
-        updated = store.replace_app(namespace, name, crmod.apply_patch(existing, patch))
-        return crmod.from_cr(updated)
+
+        def change(existing: dict[str, Any]) -> dict[str, Any]:
+            current = ((existing.get("spec") or {}).get("access") or {}).get("subdomain")
+            if patch.access is not None and current and patch.access.subdomain != current:
+                raise HTTPException(422, "access.subdomain cannot be changed after launch")
+            return crmod.apply_patch(existing, patch)
+
+        return crmod.from_cr(update_app(store, user, namespace, name, change))
 
     @app.delete(PREFIX + "/apps/{namespace}/{name}", status_code=204)
     def delete_app(namespace: str, name: str, store: Store, user: Me) -> None:
@@ -251,10 +277,11 @@ def create_app(store: AppStore | None = None) -> FastAPI:
         store.delete_app(namespace, name)
 
     def _scale(store: AppStore, user: User, namespace: str, name: str, replicas: int) -> AppOut:
-        existing = authorized_app(store, user, namespace, name)
-        runtime = existing.setdefault("spec", {}).setdefault("runtime", {})
-        runtime["replicas"] = replicas
-        return crmod.from_cr(store.replace_app(namespace, name, existing))
+        def change(existing: dict[str, Any]) -> dict[str, Any]:
+            existing.setdefault("spec", {}).setdefault("runtime", {})["replicas"] = replicas
+            return existing
+
+        return crmod.from_cr(update_app(store, user, namespace, name, change))
 
     @app.post(PREFIX + "/apps/{namespace}/{name}/stop", response_model=AppOut)
     def stop_app(namespace: str, name: str, store: Store, user: Me) -> AppOut:
