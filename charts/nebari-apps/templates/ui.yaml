@@ -43,6 +43,19 @@ spec:
               # upstream at startup; /mcp then 404s cleanly.
               value: http://{{ include "nebari-apps.fullname" . }}-api.{{ .Release.Namespace }}.svc.cluster.local:8080
               {{- end }}
+            # Security headers (ui/nginx.conf): the Keycloak origin keycloak-js
+            # talks to goes into the CSP connect-src; HSTS only over TLS.
+            - name: KEYCLOAK_ORIGIN
+            {{- if and .Values.api.auth.enabled .Values.keycloak.url }}
+            {{- $kc := urlParse .Values.keycloak.url }}
+              value: {{ printf "%s://%s" $kc.scheme $kc.host | quote }}
+            {{- else }}
+              value: ""
+            {{- end }}
+            {{- if .Values.tls.enabled }}
+            - name: HSTS
+              value: "max-age=31536000"
+            {{- end }}
           ports:
             - name: http
               containerPort: 8080

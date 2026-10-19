@@ -31,7 +31,8 @@ For each `App`, the operator runs an ordered, idempotent pipeline:
    rolls the pods whenever the files change.
 3. **Workload** — a hardened Deployment (non-root, dropped capabilities, seccomp
    `RuntimeDefault`): nginx serving the app's content, with git sources cloned by a
-   non-root init container.
+   non-root init container. Static apps run an operator-written nginx config (a
+   `<app>-server` ConfigMap mounted over `/etc/nginx/conf.d`) that adds security headers.
 4. **Service** — ClusterIP on port 8080.
 5. **Routing** — a `NebariApp` (contract pinned to nebari-operator `%NEBARI_OPERATOR_VERSION%`,
    guarded by a contract test) carrying the hostname, auth policy, TLS setting, and
@@ -110,6 +111,15 @@ The zone is configurable via the `appsDomain` value (default `apps.<clusterDomai
 - Git init containers receive user input via environment variables — never interpolated
   into shell — and subdirectories are validated against path traversal.
 - Uploads are size-capped, text-only, and rejected on unsafe archive paths.
+- The UI sends a Content-Security-Policy on every response: scripts only from its own
+  origin plus the pre-paint theme script by hash, network requests only to itself and the
+  Keycloak origin, no plugins, no framing (`frame-ancestors 'none'`, `X-Frame-Options: DENY`).
+  It also sends `nosniff`, `Referrer-Policy`, `Permissions-Policy`, COOP and, when
+  `tls.enabled`, HSTS. CI boots the image and checks the set (`ui/scripts/check-headers.sh`).
+- Static apps are served with `nosniff`, `Referrer-Policy`, and framing limited to their own
+  origin. Their scripts are not restricted: a CSP sandbox would break same-origin requests
+  and storage for ordinary sites, so isolation between apps rests on each app having its own
+  hostname.
 - The API acts with a dedicated ServiceAccount. Inside each namespace in
   `api.allowedNamespaces` it gets a `RoleBinding` for `App` CRUD, read-only observability
   (pods, logs, events), and one narrow write: patching child Deployments to roll pods for

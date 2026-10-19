@@ -31,9 +31,14 @@ COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/apply-branding.sh
 
 ENV API_URL=http://localhost:8000
 ENV MCP_URL=http://localhost:8001
+# CSP connect-src beyond 'self': the chart narrows this to the Keycloak origin
+# keycloak-js talks to. The default keeps login working under a chart that
+# predates the variable. HSTS is empty (no header) unless the chart serves TLS.
+ENV KEYCLOAK_ORIGIN="https:"
+ENV HSTS=""
 
 EXPOSE 8080
 USER 1000
 
 CMD ["/bin/sh", "-c", \
-  "/usr/local/bin/apply-branding.sh; envsubst '${API_URL} ${MCP_URL}' < /tmp/nginx/nginx.conf.template > /tmp/nginx/nginx.conf && nginx -c /tmp/nginx/nginx.conf -g 'daemon off;'"]
+  "/usr/local/bin/apply-branding.sh; envsubst '${API_URL} ${MCP_URL} ${KEYCLOAK_ORIGIN} ${HSTS}' < /tmp/nginx/nginx.conf.template > /tmp/nginx/nginx.conf && nginx -c /tmp/nginx/nginx.conf -g 'daemon off;'"]
