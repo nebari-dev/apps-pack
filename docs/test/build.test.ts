@@ -17,6 +17,9 @@ const TITLES: Record<string, string> = {
   skill: 'Scaffolding skill',
   branding: 'Branding',
   'local-development': 'Local development',
+  troubleshooting: 'Troubleshooting',
+  upgrading: 'Upgrading',
+  'ci-cd': 'CI/CD &amp; releasing',
   configuration: 'Configuration',
   'app-crd-reference': 'App CRD Reference',
   'api-reference': 'REST API',
@@ -35,7 +38,7 @@ beforeAll(async () => {
   await $`bun run build`.cwd(SITE);
 });
 
-test('all 11 pages render at dist root with their titles', () => {
+test('all 14 pages render at dist root with their titles', () => {
   for (const [slug, title] of Object.entries(TITLES)) {
     expect(existsSync(pagePath(slug))).toBe(true);
     expect(readPage(slug)).toContain(title);
@@ -47,6 +50,7 @@ test('all 11 pages render at dist root with their titles', () => {
 test('sidebar links all resolve to built pages', () => {
   const html = readPage('getting-started');
   expect(html).toContain('Getting Started');
+  expect(html).toContain('Documentation');
   expect(html).toContain('Reference');
   for (const slug of Object.keys(TITLES)) {
     const href = slug === '' ? `${BASE}/` : `${BASE}/${slug}/`;
@@ -73,5 +77,32 @@ test('markdown body links are base-prefixed and internal links resolve', () => {
       if (path.includes('.')) continue; // assets
       expect(existsSync(pagePath(path.replace(/^\//, '')))).toBe(true);
     }
+  }
+});
+
+const REPO = join(SITE, '..');
+const PIN = readFileSync(join(REPO, '.nebari-operator-version'), 'utf8').trim();
+
+test('pin placeholders are filled from the repo pin files', () => {
+  for (const slug of Object.keys(TITLES)) {
+    expect(readPage(slug)).not.toMatch(/%[A-Z_]+%/);
+  }
+  expect(readPage('getting-started')).toContain(PIN);
+});
+
+test('every nebari-operator version written outside the docs matches .nebari-operator-version', () => {
+  // README and agent docs are rendered by GitHub, so they carry the literal version.
+  for (const file of ['README.md', 'AGENTS.md', 'docs/PLAN.md']) {
+    const text = readFileSync(join(REPO, file), 'utf8');
+    for (const [found] of text.matchAll(/v0\.\d+\.\d+-alpha\.\d+/g)) {
+      expect(`${file}: ${found}`).toBe(`${file}: ${PIN}`);
+    }
+  }
+  // Docs pages use the %NEBARI_OPERATOR_VERSION% placeholder instead.
+  const docs = join(SITE, 'src', 'content', 'docs');
+  for (const name of readdirSync(docs)) {
+    expect(`${name}: ${readFileSync(join(docs, name), 'utf8').match(/v0\.\d+\.\d+-alpha\.\d+/)?.[0] ?? ''}`).toBe(
+      `${name}: `,
+    );
   }
 });

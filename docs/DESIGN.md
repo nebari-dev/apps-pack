@@ -1,6 +1,14 @@
 # Nebari Apps Pack — Design Document
 
-**Status:** Draft for review
+> **Historical (2026-06 design draft).** This is the design the pack started from, kept for
+> its rationale. Several parts were never built or changed shape: there is no database
+> (SQLAlchemy), the MCP is served at `apps.<cluster-domain>/mcp` rather than as its own
+> NebariApp, and the tool and endpoint tables below are out of date. For what the pack does
+> today, use the docs site: [REST API](src/content/docs/api-reference.md),
+> [MCP server](src/content/docs/mcp.md), [App CRD](src/content/docs/app-crd-reference.md) and
+> [Architecture & auth](src/content/docs/architecture.md).
+
+**Status:** Historical — superseded by the docs site (see above)
 **Author:** (you) + Claude
 **Date:** 2026-06-15
 **Related:** `nebari-operator`, `nebari-llm-serving-pack`, `jhub-apps`
@@ -305,6 +313,10 @@ A **FastMCP** (Python) server running in-cluster as part of the pack, exposed as
 business logic of its own, so behavior stays consistent across UI/API/MCP.
 
 ### Tools
+
+> Superseded: the current tool list, arguments and annotations are in
+> [MCP server](src/content/docs/mcp.md).
+
 | Tool | Purpose | Maps to |
 |---|---|---|
 | `authenticate` | Start/refresh Keycloak device flow; return verification URL+code or confirm cached token. | Keycloak device endpoint |
@@ -334,6 +346,9 @@ FastAPI, async SQLAlchemy (for app metadata/audit/observability cache), pydantic
 structlog, OIDC bearer auth (validates Keycloak tokens; in-cluster + external issuer URLs).
 
 ### Endpoints (v1)
+
+> Superseded: the endpoints that exist are in [REST API](src/content/docs/api-reference.md).
+
 ```
 # Capabilities
 GET    /capabilities                 # { appsDomain, sourceTypes, namespaces }

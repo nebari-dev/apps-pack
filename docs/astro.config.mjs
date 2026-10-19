@@ -3,6 +3,7 @@ import { unified } from '@astrojs/markdown-remark';
 import starlight from '@astrojs/starlight';
 import { nebari } from '@nebari/starlight';
 import { rehypeBaseLinks } from './src/rehype-base-links.mjs';
+import { rehypePins } from './src/rehype-pins.mjs';
 
 // Dynamic base. Production (main) uses the subpath: the portal Worker strips
 // /apps-pack/ before proxying to this Pages project, so files are served
@@ -16,8 +17,11 @@ export default defineConfig({
   site: 'https://packs.nebari.dev',
   base,
   // Astro does not prefix `base` onto root-absolute links written in Markdown body
-  // content, so this rehype pass does it for internal links and images.
-  markdown: { processor: unified({ rehypePlugins: [[rehypeBaseLinks, { base }]] }) },
+  // content, so this rehype pass does it for internal links and images. rehypePins
+  // fills %NEBARI_OPERATOR_VERSION% (and other pins) from the repo's pin files.
+  markdown: {
+    processor: unified({ rehypePlugins: [rehypePins, [rehypeBaseLinks, { base }]] }),
+  },
   integrations: [
     starlight({
       title: 'Nebari Apps Pack',
@@ -46,6 +50,14 @@ export default defineConfig({
             { label: 'Scaffolding skill', link: '/skill/' },
             { label: 'Branding', link: '/branding/' },
             { label: 'Local development', link: '/local-development/' },
+          ],
+        },
+        {
+          label: 'Documentation',
+          items: [
+            { label: 'Troubleshooting', link: '/troubleshooting/' },
+            { label: 'Upgrading', link: '/upgrading/' },
+            { label: 'CI/CD & releasing', link: '/ci-cd/' },
           ],
         },
         {

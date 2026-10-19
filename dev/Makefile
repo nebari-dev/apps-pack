@@ -44,7 +44,8 @@ UI_DIR         := ../ui
 EXAMPLES_DIR   := ../examples
 CACHE_DIR      := .cache
 OPERATOR_REPO  := $(CACHE_DIR)/nebari-operator
-OPERATOR_REF   := v0.1.0-alpha.20
+# nebari-operator release the pack is built against (one pin, repo root).
+OPERATOR_REF   := $(shell cat ../.nebari-operator-version)
 
 IMG            := apps-operator:dev
 API_IMG        := apps-api:dev

@@ -6,7 +6,7 @@ The `dev/` directory provides a Makefile for local development with
 [kind](https://kind.sigs.k8s.io/), mirroring the
 [software-pack-template](https://github.com/nebari-dev/software-pack-template) dev flow. It
 creates a kind cluster with the full Nebari infrastructure stack — Envoy Gateway,
-cert-manager, Keycloak, and the nebari-operator (pinned to `v0.1.0-alpha.20`) — then builds
+cert-manager, Keycloak, and the nebari-operator (pinned to `%NEBARI_OPERATOR_VERSION%`) — then builds
 and deploys every pack component: the **apps-operator**, the **apps-api**, the
 **apps-ui**, and the **apps-mcp** server.
 

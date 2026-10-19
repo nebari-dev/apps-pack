@@ -360,13 +360,17 @@ with `cd docs && bun install && bun run dev`):
 - Getting started, launching apps (UI / upload / API / kubectl), the **MCP server**
   (connecting agents, device-flow auth, tool list), the scaffolding skill, and local
   development
+- Operating it: [troubleshooting](https://packs.nebari.dev/apps-pack/troubleshooting/),
+  [upgrading](https://packs.nebari.dev/apps-pack/upgrading/) (CRD re-apply, backups,
+  rollback) and [CI/CD & releasing](https://packs.nebari.dev/apps-pack/ci-cd/)
 - Reference: chart configuration (every value and the `NebariApp` fields the chart
   emits), the App CRD, the REST API, and architecture & auth
 
-Design documents stay in the repository:
+Historical design documents stay in the repository; they are not maintained, and the docs
+site is authoritative where they differ:
 
-- [`docs/DESIGN.md`](docs/DESIGN.md) — the comprehensive design document.
-- [`docs/PLAN.md`](docs/PLAN.md) — phased implementation roadmap and risks.
+- [`docs/DESIGN.md`](docs/DESIGN.md) — the original design document.
+- [`docs/PLAN.md`](docs/PLAN.md) — the phased implementation plan and its risks.
 - [software-pack-template](https://github.com/nebari-dev/software-pack-template) — pack
   conventions and the `NebariApp` CRD reference this pack builds on.
 

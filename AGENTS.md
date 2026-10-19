@@ -59,7 +59,8 @@ helm lint charts/nebari-apps --set clusterDomain=nebari.example.com
   also has to be added by hand to `api/src/nebari_apps_api/models.py`, `cr.py`,
   `ui/src/lib/types.ts`, the MCP `launch_app` arguments, `skill/new-nebari-app/references/manifest.md`
   and `docs/src/content/docs/app-crd-reference.md`.
-- **The NebariApp shape is a pinned contract** (nebari-operator `v0.1.0-alpha.20`), guarded by
+- **The NebariApp shape is a pinned contract** (nebari-operator `v0.1.0-alpha.20`, pinned once in
+  `.nebari-operator-version` and mirrored by `NebariOperatorContract` in `routing.go`), guarded by
   `operator/internal/controller/nebariapp_contract_test.go`. Do not change emitted fields
   without updating that test and the "NebariApp fields the chart emits" table in
   `docs/src/content/docs/configuration.md`.

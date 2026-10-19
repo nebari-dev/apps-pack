@@ -33,7 +33,7 @@ For each `App`, the operator runs an ordered, idempotent pipeline:
    `RuntimeDefault`): nginx serving the app's content, with git sources cloned by a
    non-root init container.
 4. **Service** — ClusterIP on port 8080.
-5. **Routing** — a `NebariApp` (contract pinned to nebari-operator `v0.1.0-alpha.20`,
+5. **Routing** — a `NebariApp` (contract pinned to nebari-operator `%NEBARI_OPERATOR_VERSION%`,
    guarded by a contract test) carrying the hostname, auth policy, TLS setting, and
    landing-page entry.
 6. **Status** — children's state folds back into phase, conditions, replica counts, and

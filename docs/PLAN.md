@@ -2,6 +2,16 @@
 
 Companion to [`DESIGN.md`](./DESIGN.md). Phased, each phase ends with a usable increment.
 
+> **Historical.** This plan is complete and no longer maintained; open work is tracked in
+> [GitHub issues](https://github.com/nebari-dev/apps-pack/issues) and shipped changes in the
+> [CHANGELOG](../CHANGELOG.md). Between the status below (2026-07-16) and 2026-10-19, the Phase 6 hardening and
+> the cross-cutting CI and release work shipped: default resource limits and no ServiceAccount
+> token on app pods, an optional app NetworkPolicy and LimitRange, authenticated operator
+> metrics with an optional ServiceMonitor, an Argo CD Application example, signed images and
+> charts released through the org workflows with release-please, lint and type-check gates,
+> and dependency and image vulnerability scans. Not built: a CI e2e job, audit surfacing, and
+> UI confirmation for public apps.
+
 > **Status (2026-07-16):** Phases **0, 1, 3, 4, 5** are ✅ complete (each exit criterion
 > verified end-to-end on the kind dev stack). Remaining: **Phase 6** (hardening beyond what
 > shipped). Per-phase notes below record deviations.
@@ -122,6 +132,8 @@ Companion to [`DESIGN.md`](./DESIGN.md). Phased, each phase ends with a usable i
 - Docs: README, install guide, examples (sample `App` CRs + ArgoCD Application).
 - **Exit:** install via Helm/ArgoCD on a clean cluster following the docs; security review passes.
 
+> *(Status as of 2026-07-16; see the note at the top for what shipped since.)*
+>
 > **Shipped along the way:** pod hardening (non-root, dropped capabilities, seccomp
 > `RuntimeDefault`, injection-safe git init containers, size/type-capped uploads), events
 > aggregation in API/UI, docs site (Astro Starlight, 9 pages) + README + examples, CI

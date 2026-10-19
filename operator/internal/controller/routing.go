@@ -9,9 +9,13 @@ import (
 	appsv1alpha1 "github.com/nebari-dev/nebari-apps-pack/operator/api/v1alpha1"
 )
 
+// NebariOperatorContract is the nebari-operator release whose NebariApp shape
+// this pack emits. It must equal the repo's .nebari-operator-version (the dev
+// cluster and docs read that file); TestContractVersionIsTheRepoPin checks.
+const NebariOperatorContract = "v0.1.0-alpha.20"
+
 // NebariAppGVK is the nebari-operator CRD this pack emits for routing, TLS,
-// SSO, and landing-page registration. Contract pinned to nebari-operator
-// v0.1.0-alpha.20 (see docs and the contract test).
+// SSO, and landing-page registration (see NebariOperatorContract).
 var NebariAppGVK = schema.GroupVersionKind{
 	Group:   "reconcilers.nebari.dev",
 	Version: "v1",
