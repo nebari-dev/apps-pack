@@ -383,3 +383,51 @@ def test_landing_page_opt_in_and_out(client, store):
     assert resp.status_code == 200, resp.text
     assert resp.json()["landingPage"] is None
     assert "landingPage" not in store.apps[("apps", "docs-site")]["spec"]
+
+
+def test_access_users_rejected_on_create(client, store):
+    body = make_app_body()
+    body["access"]["users"] = ["alice"]
+    resp = client.post("/api/v1/apps", json=body)
+    assert resp.status_code == 422
+    assert "access.users" in resp.json()["detail"]
+    assert store.apps == {}
+
+
+def test_access_users_rejected_on_upload(client, store):
+    import json
+
+    manifest = {k: v for k, v in make_app_body().items() if k != "source"}
+    manifest["access"]["users"] = ["alice"]
+    resp = client.post(
+        "/api/v1/apps/upload",
+        data={"manifest": json.dumps(manifest)},
+        files={"file": ("index.html", b"<h1>hi</h1>", "text/html")},
+    )
+    assert resp.status_code == 422
+    assert "access.users" in resp.json()["detail"]
+    assert store.apps == {}
+
+
+def test_access_users_rejected_on_patch(client, store):
+    assert client.post("/api/v1/apps", json=make_app_body()).status_code == 201
+    resp = client.patch(
+        "/api/v1/apps/apps/docs-site",
+        json={"access": {"public": False, "users": ["alice"], "subdomain": "docs-site"}},
+    )
+    assert resp.status_code == 422
+    assert "users" not in store.apps[("apps", "docs-site")]["spec"]["access"]
+    # An empty list is fine.
+    resp = client.patch(
+        "/api/v1/apps/apps/docs-site",
+        json={"access": {"public": False, "users": [], "groups": ["team"], "subdomain": "docs-site"}},
+    )
+    assert resp.status_code == 200
+
+
+def test_cr_with_users_still_readable(client, store):
+    """A kubectl-authored CR that sets users must not break reads."""
+    assert client.post("/api/v1/apps", json=make_app_body()).status_code == 201
+    store.apps[("apps", "docs-site")]["spec"]["access"]["users"] = ["alice"]
+    assert client.get("/api/v1/apps/apps/docs-site").status_code == 200
+    assert client.get("/api/v1/apps").status_code == 200

@@ -193,9 +193,10 @@ Alpha means the happy path works; these are the gaps to know about before a demo
 
 - **`access.groups` / `access.users` are not enforced at the gateway.** The nebari-operator
   `0.1.0` SecurityPolicy authenticates but does not authorize by group, so a private app
-  (`access.public: false`) is reachable by **any signed-in realm user**, and `access.users` is
-  not used at all; `groups` is only forwarded to the `NebariApp`. Treat `public: false` as
-  "authenticated", not "authorized".
+  (`access.public: false`) is reachable by **any signed-in realm user**; `groups` is only
+  forwarded to the `NebariApp`. `access.users` is not used at all, so the API rejects it with
+  `422`. Treat `public: false` as "authenticated", not "authorized". Upstream:
+  [nebari-operator#153](https://github.com/nebari-dev/nebari-operator/issues/153).
 - **Authorization is owner-or-admin only.** The API lets a user see and manage only the
   Apps they launched; members of `api.adminGroups` manage all of them. There is no sharing
   or delegation yet, and anyone with `kubectl` access to an app namespace bypasses the API.

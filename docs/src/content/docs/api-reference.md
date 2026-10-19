@@ -127,6 +127,6 @@ curl -X POST https://apps.example.ai/api/v1/apps/upload \
 | `404` | App (or its pods, for logs) not found. |
 | `409` | An app with that name already exists in the namespace. |
 | `413` | Upload exceeds the inline size cap. |
-| `422` | Invalid request: unsupported source type, missing required fields. |
+| `422` | Invalid request: unsupported source type, missing required fields, or a non-empty `access.users` (reserved, not enforced). |
 
 Error bodies are `{"detail": "..."}` with an actionable message.

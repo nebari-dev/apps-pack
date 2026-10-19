@@ -165,9 +165,10 @@ natural language through the **apps-mcp** server — `launch_app` is idempotent 
 :::caution[Groups are not enforced yet]
 `access.groups` is passed to the `NebariApp`, but the nebari-operator `0.1.0`
 `SecurityPolicy` has no group-authorization rule: **any signed-in realm user** can open a
-private app, whatever `groups` says, and `access.users` is not used at all. Treat
-`public: false` as "authenticated", not "authorized", until the platform ships group
-enforcement.
+private app, whatever `groups` says. `access.users` is not used at all, and the API
+rejects it with `422`. Treat `public: false` as "authenticated", not "authorized", until
+the platform ships group enforcement
+([nebari-operator#153](https://github.com/nebari-dev/nebari-operator/issues/153)).
 :::
 
 ## Landing page

@@ -57,8 +57,10 @@ spec:
                   subdomain.
                 properties:
                   groups:
-                    description: Groups are the Keycloak/OIDC groups allowed to use
-                      the app.
+                    description: |-
+                      Groups are the Keycloak/OIDC groups intended to use the app. Forwarded
+                      to the NebariApp; not yet enforced at the gateway (any signed-in realm
+                      user can reach a private app).
                     items:
                       type: string
                     type: array
@@ -71,8 +73,9 @@ spec:
                     pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                     type: string
                   users:
-                    description: Users are additional individual users allowed to
-                      use the app.
+                    description: |-
+                      Users is reserved and currently ignored: nothing enforces it, and the
+                      apps-api rejects a non-empty list.
                     items:
                       type: string
                     type: array
