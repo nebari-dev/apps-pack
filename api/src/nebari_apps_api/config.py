@@ -64,6 +64,13 @@ class Settings:
     max_upload_bytes: int = field(
         default_factory=lambda: int(os.environ.get("MAX_UPLOAD_BYTES", str(900 * 1024)))
     )
+    # Hard ceiling on any request body, enforced while it streams in (before
+    # parsing), so no request can make the API buffer more than this. Matches
+    # the UI nginx client_max_body_size (2m) and leaves room for multipart
+    # overhead around a max_upload_bytes file.
+    max_request_bytes: int = field(
+        default_factory=lambda: int(os.environ.get("MAX_REQUEST_BYTES", str(2 * 1024 * 1024)))
+    )
 
     @property
     def jwks_url(self) -> str:
