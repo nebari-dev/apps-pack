@@ -48,9 +48,11 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: azure/setup-helm@v5
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
 
       - name: Download the released chart
         env:
@@ -60,10 +62,13 @@ jobs:
           gh release download "nebari-apps-${version}" --pattern '*.tgz' --dir dist
 
       - name: Push to GHCR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
+          REPO: ${{ github.repository }}
         run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io \
-            --username "${{ github.actor }}" --password-stdin
-          helm push dist/*.tgz "oci://ghcr.io/${{ github.repository }}/charts"
+          echo "$GH_TOKEN" | helm registry login ghcr.io --username "$ACTOR" --password-stdin
+          helm push dist/*.tgz "oci://ghcr.io/${REPO}/charts"
 
   # The release above is created with GITHUB_TOKEN, which does not trigger
   # other workflows, so project-status's own `release: published` trigger
@@ -73,4 +78,6 @@ jobs:
     uses: ./.github/workflows/project-status.yaml
     with:
       release-sweep: true
-    secrets: inherit
+    secrets:
+      NEBARI_PROJECT_SYNC_APP_ID: ${{ secrets.NEBARI_PROJECT_SYNC_APP_ID }}
+      NEBARI_PROJECT_SYNC_APP_PRIVATE_KEY: ${{ secrets.NEBARI_PROJECT_SYNC_APP_PRIVATE_KEY }}

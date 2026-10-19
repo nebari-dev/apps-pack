@@ -5,14 +5,24 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # Supersede stale PR runs; every push to main still runs to completion.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   helm:
     name: Helm chart
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: azure/setup-helm@v5
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
 
       - name: helm lint
         run: helm lint charts/nebari-apps --set clusterDomain=nebari.example.com
@@ -29,7 +39,7 @@ jobs:
 
       - name: API RBAC is namespaced when allowedNamespaces is set
         run: |
-          pip install pyyaml
+          pip install pyyaml==6.0.3
           helm template test charts/nebari-apps \
             --set clusterDomain=nebari.example.com \
             --set keycloak.url=https://keycloak.nebari.example.com/auth \
@@ -50,21 +60,23 @@ jobs:
       - name: helm template refuses anonymous auth on a TLS install
         run: |
           set -u
-          base="--set clusterDomain=nebari.example.com --set keycloak.url=https://keycloak.nebari.example.com/auth"
-          if out=$(helm template test charts/nebari-apps $base --set api.auth.enabled=false 2>&1); then
+          base=(--set clusterDomain=nebari.example.com --set keycloak.url=https://keycloak.nebari.example.com/auth)
+          if out=$(helm template test charts/nebari-apps "${base[@]}" --set api.auth.enabled=false 2>&1); then
             echo "::error::render succeeded with api.auth.enabled=false and tls.enabled=true"; exit 1
           fi
           echo "$out" | grep -q "insecureAllowAnonymous" || { echo "$out"; exit 1; }
           # The local-dev combination and the explicit override still render.
-          helm template test charts/nebari-apps $base --set api.auth.enabled=false --set tls.enabled=false > /dev/null
-          helm template test charts/nebari-apps $base --set api.auth.enabled=false --set api.auth.insecureAllowAnonymous=true > /dev/null
+          helm template test charts/nebari-apps "${base[@]}" --set api.auth.enabled=false --set tls.enabled=false > /dev/null
+          helm template test charts/nebari-apps "${base[@]}" --set api.auth.enabled=false --set api.auth.insecureAllowAnonymous=true > /dev/null
 
       - name: Validate example App CRs against the CRD schema
         run: |
-          curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz \
-            | tar xz -C /usr/local/bin kubeconform
+          curl -sSLo "$RUNNER_TEMP/kubeconform.tar.gz" \
+            https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz
+          echo "95f14e87aa28c09d5941f11bd024c1d02fdc0303ccaa23f61cef67bc92619d73  $RUNNER_TEMP/kubeconform.tar.gz" | sha256sum -c -
+          tar xzf "$RUNNER_TEMP/kubeconform.tar.gz" -C /usr/local/bin kubeconform
           # Convert the CRD to a kubeconform-compatible JSON schema
-          pip install pyyaml
+          pip install pyyaml==6.0.3
           python3 - <<'EOF'
           import json, yaml
           crd = yaml.safe_load(open("charts/nebari-apps/crds/apps.nebari.dev_apps.yaml"))
@@ -79,9 +91,11 @@ jobs:
     name: Operator
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: operator/go.mod
 
@@ -118,7 +132,9 @@ jobs:
       run:
         working-directory: ${{ matrix.package }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
@@ -146,9 +162,11 @@ jobs:
       run:
         working-directory: ui
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: npm
