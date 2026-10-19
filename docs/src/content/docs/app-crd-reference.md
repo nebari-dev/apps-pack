@@ -86,8 +86,8 @@ served statically by nginx; with it, the content is a pixi project run as a Pyth
 
 | Field | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `url` | string | Yes | — | HTTPS git repository URL. |
-| `ref` | string | No | `main` | Branch, tag, or commit. |
+| `url` | string | Yes | — | Public `https://` git repository URL. Rejected (API `422`, operator `Failed`): any other scheme, embedded credentials (`user:token@`), a leading `-`, and cluster-internal or private hosts (IP literals in private/loopback/link-local ranges, `localhost`, single-label names, `*.svc`, `*.cluster.local`, `*.internal`, `*.local`). Private repositories are not supported yet. |
+| `ref` | string | No | `main` | Branch or tag (cloned with `git clone --branch`, so a commit SHA does not work). Must not start with `-`. |
 | `subdir` | string | No | repo root | Path within the repository containing the content root. Must not contain `..`. |
 
 The clone happens in a non-root init container at pod start; re-deploying picks up the

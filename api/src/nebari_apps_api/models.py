@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import ipaddress
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -10,10 +12,45 @@ SourceType = Literal["git", "inline", "pvc"]
 SOURCE_TYPES: tuple[str, ...] = ("git", "inline", "pvc")
 
 
+# Hosts a git source may never point at: the clone runs inside the cluster,
+# so these would reach cluster-internal services (SSRF). Mirrors
+# operator/internal/controller/gitsource.go.
+_INTERNAL_SUFFIXES = (".localhost", ".svc", ".cluster.local", ".internal", ".local")
+
+
+def _check_git_url(raw: str) -> str:
+    if raw.startswith("-"):
+        raise ValueError("must not start with '-'")
+    parts = urlsplit(raw)
+    if parts.scheme != "https":
+        raise ValueError("only https:// URLs are allowed")
+    if parts.username is not None or parts.password is not None or "@" in parts.netloc:
+        raise ValueError("must not contain credentials (user:token@); use a public repository")
+    host = (parts.hostname or "").lower()
+    if not host:
+        raise ValueError("missing host")
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        internal = host == "localhost" or "." not in host or host.endswith(_INTERNAL_SUFFIXES)
+    else:
+        internal = ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_unspecified
+    if internal:
+        raise ValueError(f"host {host!r} is not allowed: cluster-internal and private addresses are blocked")
+    return raw
+
+
 class GitSource(BaseModel):
     url: str
     ref: str = "main"
     subdir: str = ""
+
+    def check(self) -> None:
+        """Raise ValueError if this source is unsafe to clone. Applied to
+        requests only, so Apps created with kubectl stay readable."""
+        _check_git_url(self.url)
+        if self.ref.startswith("-"):
+            raise ValueError("ref must not start with '-'")
 
 
 class InlineSource(BaseModel):

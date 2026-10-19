@@ -353,15 +353,19 @@ spec:
                     properties:
                       ref:
                         default: main
-                        description: Ref is the branch, tag, or commit to check out.
+                        description: Ref is the branch or tag to check out (git clone
+                          --branch).
                         type: string
                       subdir:
                         description: Subdir is the path within the repository containing
                           the content root.
                         type: string
                       url:
-                        description: URL of the git repository (https).
+                        description: |-
+                          URL of the git repository. Only public https URLs are accepted: no
+                          embedded credentials and no cluster-internal or private hosts.
                         minLength: 1
+                        pattern: ^https://
                         type: string
                     required:
                     - url

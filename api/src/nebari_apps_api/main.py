@@ -177,6 +177,7 @@ def create_app(store: AppStore | None = None) -> FastAPI:
     @app.patch(PREFIX + "/apps/{namespace}/{name}", response_model=AppOut)
     def patch_app(namespace: str, name: str, patch: AppPatch, store: Store, user: Me) -> AppOut:
         _reject_users(patch.access)
+        _check_source(patch.source)
         existing = authorized_app(store, user, namespace, name)
         updated = store.replace_app(namespace, name, crmod.apply_patch(existing, patch))
         return crmod.from_cr(updated)
@@ -327,8 +328,17 @@ def _reject_users(access: Any) -> None:
         raise HTTPException(422, USERS_NOT_SUPPORTED)
 
 
+def _check_source(source: Any) -> None:
+    if source is not None and source.type == "git" and source.git is not None:
+        try:
+            source.git.check()
+        except ValueError as exc:
+            raise HTTPException(422, f"source.git: {exc}") from None
+
+
 def _validate_request(req: AppCreate) -> None:
     _reject_users(req.access)
+    _check_source(req.source)
     if getattr(req.source, req.source.type, None) is None:
         raise HTTPException(422, f"source.{req.source.type} is required for source type {req.source.type!r}")
     if req.runtime.pixiTask and req.source.type == "inline":

@@ -189,6 +189,12 @@ func (r *AppReconciler) validate(ctx context.Context, app *appsv1alpha1.App) err
 		if app.Spec.Source.Git == nil || app.Spec.Source.Git.URL == "" {
 			return fmt.Errorf("source.git.url is required for source type git")
 		}
+		if err := validateGitURL(app.Spec.Source.Git.URL); err != nil {
+			return fmt.Errorf("source.git.url: %w", err)
+		}
+		if strings.HasPrefix(app.Spec.Source.Git.Ref, "-") {
+			return fmt.Errorf("source.git.ref must not start with '-'")
+		}
 		if strings.Contains(app.Spec.Source.Git.Subdir, "..") {
 			return fmt.Errorf("source.git.subdir must not contain '..'")
 		}
