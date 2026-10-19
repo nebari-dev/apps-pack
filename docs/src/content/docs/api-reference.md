@@ -10,7 +10,7 @@ both thin clients over this API.
 
 ## Authentication
 
-All endpoints except `/healthz`, `/readyz` and `/config` require a Keycloak **JWT bearer token**:
+All endpoints except `/healthz`, `/readyz`, `/version` and `/config` require a Keycloak **JWT bearer token**:
 
 ```
 Authorization: Bearer <access-token>
@@ -44,7 +44,8 @@ create.
 |---|---|
 | `GET /healthz` | Liveness (public). Always `200` while the process serves. |
 | `GET /readyz` | Readiness (public): `200 {"status": "ok", "checks": {...}}` when the Kubernetes API answers a namespace list and, with auth on, the realm JWKS loads (each within 3s; a good JWKS fetch is reused for 60s). Otherwise `503`, with the failing check marked `"failed"` and the reason in the API's log. |
-| `GET /config` | UI bootstrap config (public): `authEnabled`, Keycloak url/realm/SPA client id, `appsDomain`, `appsScheme`. |
+| `GET /version` | Release and image build (public): `{"version": "0.2.0", "build": "sha-abc1234"}`. `build` is the chart's `api.image.tag` (`unknown` outside the chart). |
+| `GET /config` | UI bootstrap config (public): `authEnabled`, Keycloak url/realm/SPA client id, `appsDomain`, `appsScheme`, and the `version`/`build` above. |
 | `GET /capabilities` | `{appsDomain, sourceTypes, namespaces}` — what this cluster supports and where the caller may launch. `sourceTypes` is `["git", "inline", "pvc"]`. |
 | `GET /auth/me` | The caller's username, email, groups, and `admin` (member of an admin group). |
 

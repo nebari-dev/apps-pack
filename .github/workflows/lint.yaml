@@ -87,6 +87,42 @@ jobs:
           kubeconform -schema-location '/tmp/app-schema.json' \
             -summary examples/static-inline-app.yaml examples/static-git-app.yaml
 
+  versions:
+    name: Version strings
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # release-please bumps all of these together; a hand edit to one of them
+      # would ship mismatched versions.
+      - name: Every version string matches .release-please-manifest.json
+        run: |
+          python3 - <<'PY'
+          import json, re, sys
+          want = json.load(open(".release-please-manifest.json"))["."]
+          def grep(path, pattern):
+              m = re.search(pattern, open(path).read(), re.M)
+              return m.group(1) if m else None
+          lock = json.load(open("ui/package-lock.json"))
+          found = {
+              "Chart.yaml version": grep("charts/nebari-apps/Chart.yaml", r"^version:\s*\"?([^\"\s#]+)"),
+              "Chart.yaml appVersion": grep("charts/nebari-apps/Chart.yaml", r"^appVersion:\s*\"?([^\"\s#]+)"),
+              "api __version__": grep("api/src/nebari_apps_api/__init__.py", r"^__version__ = \"([^\"]+)\""),
+              "mcp __version__": grep("mcp/src/nebari_apps_mcp/__init__.py", r"^__version__ = \"([^\"]+)\""),
+              "ui/package.json": json.load(open("ui/package.json"))["version"],
+              "ui/package-lock.json": lock["version"],
+              "ui/package-lock.json packages['']": lock["packages"][""]["version"],
+          }
+          bad = {k: v for k, v in found.items() if v != want}
+          for k, v in found.items():
+              print(("ok   " if v == want else "FAIL ") + f"{k}: {v}")
+          if bad:
+              print(f"::error::version strings must all be {want} (the release-please manifest)")
+              sys.exit(1)
+          PY
+
   pins:
     name: Runtime pins
     runs-on: ubuntu-latest

@@ -68,6 +68,10 @@ class Settings:
     ui_keycloak_realm: str = field(default_factory=lambda: os.environ.get("UI_KEYCLOAK_REALM", "nebari"))
     ui_keycloak_client_id: str = field(default_factory=lambda: os.environ.get("UI_KEYCLOAK_CLIENT_ID", ""))
 
+    # The image this API runs from (the chart passes its image tag, sha-<commit>
+    # for released charts), reported next to the version by /api/v1/version.
+    build: str = field(default_factory=lambda: os.environ.get("APPS_BUILD", "unknown"))
+
     # Serve apps over plain HTTP (mirrors the operator's --tls-disabled).
     tls_disabled: bool = field(default_factory=lambda: _env_bool("TLS_DISABLED", False))
 

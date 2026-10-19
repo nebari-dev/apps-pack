@@ -37,10 +37,14 @@ kubectl label namespace apps nebari.dev/managed=true
 Then install:
 
 ```bash
+# From a checkout: the chart's default image tags are its appVersion, which
+# only matches images at a release commit. On main, use the images main builds.
 helm install nebari-apps charts/nebari-apps \
   --namespace nebari-apps --create-namespace \
   --set clusterDomain=example.ai \
-  --set keycloak.url=https://keycloak.example.ai/auth
+  --set keycloak.url=https://keycloak.example.ai/auth \
+  --set operator.image.tag=latest --set api.image.tag=latest \
+  --set ui.image.tag=latest --set mcp.image.tag=latest
 
 # The nebari-operator only processes namespaces that opt in:
 kubectl label namespace nebari-apps nebari.dev/managed=true

@@ -226,10 +226,14 @@ Alpha means the happy path works; these are the gaps to know about before a demo
 # App namespaces first: the chart grants the API a RoleBinding in each one
 # listed in api.allowedNamespaces (default: apps).
 kubectl create namespace apps && kubectl label namespace apps nebari.dev/managed=true
+# From a checkout: the chart's default image tags are its appVersion, which
+# only matches images at a release commit. On main, use the images main builds.
 helm install nebari-apps charts/nebari-apps \
   --namespace nebari-apps --create-namespace \
   --set clusterDomain=<your-cluster-domain> \
-  --set keycloak.url=https://keycloak.<your-cluster-domain>/auth
+  --set keycloak.url=https://keycloak.<your-cluster-domain>/auth \
+  --set operator.image.tag=latest --set api.image.tag=latest \
+  --set ui.image.tag=latest --set mcp.image.tag=latest
 kubectl label namespace nebari-apps nebari.dev/managed=true
 ```
 
@@ -286,9 +290,21 @@ with cosign, with a build-provenance attestation and an SBOM. The same push also
 pins exact `sha-` tags. Pull requests build the images without pushing, and every image is
 scanned with Trivy; a HIGH or CRITICAL vulnerability with an available fix fails the check.
 
-**Releasing is a chart version bump.** Merging a change to `version` in
-[`charts/nebari-apps/Chart.yaml`](charts/nebari-apps/Chart.yaml) runs
-[`release.yaml`](.github/workflows/release.yaml), which uses the org's `pack-release`
+**Releasing is merging the release PR.**
+[`release-please.yaml`](.github/workflows/release-please.yaml) keeps one open
+`chore: release X.Y.Z` pull request, opened by
+[release-please](https://github.com/googleapis/release-please). It bumps every version string
+together (Chart `version` and `appVersion`, the api and mcp `__version__`, `ui/package.json`
+and its lockfile) and adds the release's section to [`CHANGELOG.md`](CHANGELOG.md), written
+from the conventional-commit titles of the PRs merged since the last release (`feat:` → minor
+while we are below 1.0, `fix:` → patch). A CI check fails if those strings ever disagree with
+[`.release-please-manifest.json`](.release-please-manifest.json). Without a
+`RELEASE_PLEASE_TOKEN` secret, the release PR is opened with `GITHUB_TOKEN` and its checks do
+not start until a maintainer closes and reopens it.
+
+Merging it changes `version` in
+[`charts/nebari-apps/Chart.yaml`](charts/nebari-apps/Chart.yaml), which runs
+[`release.yaml`](.github/workflows/release.yaml). That uses the org's `pack-release`
 workflow to:
 
 - pin the chart's four image tags to `sha-<release commit>` (those images are built by the
@@ -307,6 +323,10 @@ helm install nebari-apps oci://ghcr.io/nebari-dev/apps-pack/charts/nebari-apps \
   --set clusterDomain=<your-cluster-domain> \
   --set keycloak.url=https://keycloak.<your-cluster-domain>/auth
 ```
+
+A running install reports its version and image build at `GET /api/v1/version`
+(`{"version": "0.2.0", "build": "sha-abc1234"}`), and the UI shows it at the bottom of the
+account menu. Include it in bug reports.
 
 To check an image's or chart's signature, see
 [Verifying Nebari pack artifacts](https://github.com/nebari-dev/.github/blob/main/verifying-nebari-artifacts.md).

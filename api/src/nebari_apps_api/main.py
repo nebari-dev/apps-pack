@@ -15,6 +15,7 @@ import structlog
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import JSONResponse
 
+from . import __version__
 from . import cr as crmod
 from .auth import User, can_access, current_user, is_admin
 from .config import settings
@@ -45,7 +46,7 @@ log = structlog.get_logger("nebari_apps_api")
 
 
 def create_app(store: AppStore | None = None) -> FastAPI:
-    app = FastAPI(title="nebari-apps-api", version="0.1.0")
+    app = FastAPI(title="nebari-apps-api", version=__version__)
     if not settings.auth_enabled:
         log.warning(
             "AUTHENTICATION IS DISABLED (AUTH_ENABLED=false): every request is anonymous and "
@@ -189,10 +190,17 @@ def create_app(store: AppStore | None = None) -> FastAPI:
         ready = all(v == "ok" for v in checks.values())
         return JSONResponse({"status": "ok" if ready else "unavailable", "checks": checks}, 200 if ready else 503)
 
+    @app.get(PREFIX + "/version")
+    def version() -> dict[str, str]:
+        """Public: which release and image this API is, for bug reports."""
+        return {"version": __version__, "build": settings.build}
+
     @app.get(PREFIX + "/config")
     def ui_config() -> dict[str, Any]:
         """Public bootstrap config for the UI (keycloak-js)."""
         return {
+            "version": __version__,
+            "build": settings.build,
             "authEnabled": settings.auth_enabled,
             "keycloak": {
                 "url": settings.ui_keycloak_url,

@@ -30,6 +30,7 @@ import {
   NavLink,
 } from "@/components/ui/navigation-menu";
 import { isThemeMode, type ThemeMode } from "@/hooks/use-theme-preference";
+import { getConfig } from "@/lib/auth";
 import { getBranding } from "@/lib/branding";
 import { cn } from "@/lib/utils";
 
@@ -76,6 +77,7 @@ export function Header({
   // the light one, then the built-in dark logo - mirroring nebari-landing.
   const { logoUrl, logoUrlDark, title } = getBranding();
   const brandedLogo = isDarkMode ? (logoUrlDark ?? logoUrl) : logoUrl;
+  const { version, build } = getConfig();
 
   return (
     <NavigationMenu className="h-14 justify-between border-header-border bg-header pl-4 text-header-foreground">
@@ -165,6 +167,13 @@ export function Header({
                     Sign out
                   </DropdownMenuItem>
                 </>
+              ) : null}
+
+              {version ? (
+                <p className="border-t px-1.5 pt-2 text-muted-foreground text-xs">
+                  Apps Pack v{version}
+                  {build && build !== version ? ` (${build})` : null}
+                </p>
               ) : null}
             </DropdownMenuContent>
           </DropdownMenuPortal>

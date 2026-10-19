@@ -172,6 +172,16 @@ def test_catalogs(client):
     assert config["authEnabled"] is False
 
 
+def test_version(client, monkeypatch):
+    from nebari_apps_api import __version__
+    from nebari_apps_api.config import settings
+
+    monkeypatch.setattr(settings, "build", "sha-abc1234")
+    assert client.get("/api/v1/version").json() == {"version": __version__, "build": "sha-abc1234"}
+    config = client.get("/api/v1/config").json()
+    assert (config["version"], config["build"]) == (__version__, "sha-abc1234")
+
+
 def test_analytics_summary(client):
     client.post("/api/v1/apps", json=make_app_body())
     body = make_app_body(name="two", namespace="team-a")
