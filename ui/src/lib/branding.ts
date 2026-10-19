@@ -45,27 +45,27 @@
  */
 export type ThemeTokens = Partial<
   Record<
-    | 'primary'
-    | 'primaryForeground'
-    | 'primaryHover'
-    | 'background'
-    | 'foreground'
-    | 'secondary'
-    | 'secondaryForeground'
-    | 'muted'
-    | 'mutedForeground'
-    | 'accent'
-    | 'accentForeground'
-    | 'border'
-    | 'ring'
-    | 'radius'
-    | 'sidebarPrimary'
-    | 'sidebarPrimaryForeground'
-    | 'sidebarRing'
-    | 'headerBackground'
-    | 'headerForeground'
-    | 'headerBorder'
-    | 'bodyBackground',
+    | "primary"
+    | "primaryForeground"
+    | "primaryHover"
+    | "background"
+    | "foreground"
+    | "secondary"
+    | "secondaryForeground"
+    | "muted"
+    | "mutedForeground"
+    | "accent"
+    | "accentForeground"
+    | "border"
+    | "ring"
+    | "radius"
+    | "sidebarPrimary"
+    | "sidebarPrimaryForeground"
+    | "sidebarRing"
+    | "headerBackground"
+    | "headerForeground"
+    | "headerBorder"
+    | "bodyBackground",
     string
   >
 >;
@@ -106,14 +106,14 @@ export function safeCssValue(value: string | undefined): string | undefined {
 
 // Image MIME types accepted as inline data: URIs (only when base64-encoded).
 const ALLOWED_DATA_MIME_TYPES = new Set([
-  'image/png',
-  'image/jpeg',
-  'image/jpg',
-  'image/svg+xml',
-  'image/webp',
-  'image/gif',
-  'image/x-icon',
-  'image/vnd.microsoft.icon',
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "image/svg+xml",
+  "image/webp",
+  "image/gif",
+  "image/x-icon",
+  "image/vnd.microsoft.icon",
 ]);
 
 // Accept only non-empty, well-formed http(s) URLs, root-relative paths, or
@@ -124,15 +124,15 @@ function sanitizeUrl(value: string | undefined): string | undefined {
   if (!value) {
     return undefined;
   }
-  if (value.startsWith('/')) {
+  if (value.startsWith("/")) {
     return value;
   }
   try {
     const { protocol } = new URL(value);
-    if (protocol === 'http:' || protocol === 'https:') {
+    if (protocol === "http:" || protocol === "https:") {
       return value;
     }
-    if (protocol === 'data:') {
+    if (protocol === "data:") {
       // Only accept base64-encoded images whose MIME type is on the allow-list;
       // reject data:text/html, non-base64 payloads, and anything else.
       const match = value.match(/^data:([^;,]+)(;base64)?,/);
@@ -153,7 +153,7 @@ let branding: BrandingConfig = {};
 
 /** Fetch and cache /config.json. The network request happens at most once. */
 export async function loadBranding(): Promise<BrandingConfig> {
-  const resp = await fetch('/config.json');
+  const resp = await fetch("/config.json");
   if (!resp.ok) {
     throw new Error(`Failed to load /config.json: ${resp.status}`);
   }
@@ -176,7 +176,7 @@ export function getBranding(): BrandingConfig {
   return branding;
 }
 
-const toKebab = (s: string) => s.replace(/([A-Z])/g, '-$1').toLowerCase();
+const toKebab = (s: string) => s.replace(/([A-Z])/g, "-$1").toLowerCase();
 
 /**
  * Branding keys whose CSS custom property is not the plain kebab-case of the
@@ -184,12 +184,11 @@ const toKebab = (s: string) => s.replace(/([A-Z])/g, '-$1').toLowerCase();
  * they keep working while mapping onto the registry's `--header` / `--canvas`.
  */
 const TOKEN_ALIASES: Partial<Record<keyof ThemeTokens, string>> = {
-  headerBackground: 'header',
-  bodyBackground: 'canvas',
+  headerBackground: "header",
+  bodyBackground: "canvas",
 };
 
-const toCssVarName = (key: string) =>
-  TOKEN_ALIASES[key as keyof ThemeTokens] ?? toKebab(key);
+const toCssVarName = (key: string) => TOKEN_ALIASES[key as keyof ThemeTokens] ?? toKebab(key);
 
 /** Renders a token map to CSS declarations, dropping empty/unsafe values. */
 function toCssVars(tokens: ThemeTokens): string {
@@ -197,7 +196,7 @@ function toCssVars(tokens: ThemeTokens): string {
     .map(([key, value]) => [key, safeCssValue(value)] as const)
     .filter((entry): entry is readonly [string, string] => entry[1] !== undefined)
     .map(([key, value]) => `  --${toCssVarName(key)}: ${value};`)
-    .join('\n');
+    .join("\n");
 }
 
 /**
@@ -218,26 +217,26 @@ export function applyBranding(config: BrandingConfig): void {
 
   if (config.faviconUrl) {
     const link = (document.querySelector("link[rel~='icon']") ??
-      Object.assign(document.createElement('link'), { rel: 'icon' })) as HTMLLinkElement;
+      Object.assign(document.createElement("link"), { rel: "icon" })) as HTMLLinkElement;
     link.href = config.faviconUrl;
     // A branded favicon may not be an SVG; let the browser sniff the type.
-    link.removeAttribute('type');
+    link.removeAttribute("type");
     document.head.appendChild(link);
   }
 
   if (config.theme) {
-    let css = '';
-    const light = config.theme.light ? toCssVars(config.theme.light) : '';
+    let css = "";
+    const light = config.theme.light ? toCssVars(config.theme.light) : "";
     if (light) {
       css += `:root {\n${light}\n}\n`;
     }
-    const dark = config.theme.dark ? toCssVars(config.theme.dark) : '';
+    const dark = config.theme.dark ? toCssVars(config.theme.dark) : "";
     if (dark) {
       css += `.dark {\n${dark}\n}\n`;
     }
     if (css) {
-      const style = document.createElement('style');
-      style.setAttribute('data-branding', '');
+      const style = document.createElement("style");
+      style.setAttribute("data-branding", "");
       style.textContent = css;
       document.head.appendChild(style);
     }

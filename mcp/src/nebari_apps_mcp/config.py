@@ -42,15 +42,11 @@ class Settings:
 
     # Public device-flow client id, provisioned by this pack's NebariApp
     # (auth.deviceFlowClient) and read from its OIDC secret.
-    oidc_device_client_id: str = field(
-        default_factory=lambda: os.environ.get("OIDC_DEVICE_CLIENT_ID", "")
-    )
+    oidc_device_client_id: str = field(default_factory=lambda: os.environ.get("OIDC_DEVICE_CLIENT_ID", ""))
 
     # In-cluster issuer URL (split horizon): used only to reach JWKS when the
     # browser-facing issuer is not resolvable from inside the cluster.
-    oidc_issuer_internal: str = field(
-        default_factory=lambda: os.environ.get("OIDC_ISSUER_INTERNAL", "")
-    )
+    oidc_issuer_internal: str = field(default_factory=lambda: os.environ.get("OIDC_ISSUER_INTERNAL", ""))
     # Explicit JWKS endpoint override.
     oidc_jwks_url: str = field(default_factory=lambda: os.environ.get("OIDC_JWKS_URL", ""))
     # Optional audience check; empty disables it.
@@ -59,9 +55,7 @@ class Settings:
     # only if its azp (the client it was issued to) or one of its aud values
     # is listed. Keycloak puts the SPA client in azp (aud is just "account"),
     # so a plain audience check cannot do this. Unset disables the check.
-    oidc_allowed_clients: list[str] | None = field(
-        default_factory=lambda: _client_list("OIDC_ALLOWED_CLIENTS")
-    )
+    oidc_allowed_clients: list[str] | None = field(default_factory=lambda: _client_list("OIDC_ALLOWED_CLIENTS"))
 
     host: str = field(default_factory=lambda: os.environ.get("HOST", "0.0.0.0"))
     port: int = field(default_factory=lambda: int(os.environ.get("PORT", "8080")))

@@ -11,7 +11,7 @@ from __future__ import annotations
 import io
 import posixpath
 import zipfile
-from typing import BinaryIO
+from typing import IO
 
 from fastapi import HTTPException
 
@@ -19,10 +19,29 @@ from .config import settings
 
 # ConfigMap values must be UTF-8 text; these are the extensions we accept.
 TEXT_EXTENSIONS = {
-    ".html", ".htm", ".css", ".js", ".mjs", ".json", ".txt", ".md", ".svg",
-    ".xml", ".csv", ".webmanifest", ".map",
+    ".html",
+    ".htm",
+    ".css",
+    ".js",
+    ".mjs",
+    ".json",
+    ".txt",
+    ".md",
+    ".svg",
+    ".xml",
+    ".csv",
+    ".webmanifest",
+    ".map",
     # Python/pixi source trees.
-    ".py", ".toml", ".lock", ".cfg", ".ini", ".yaml", ".yml", ".in", ".sh",
+    ".py",
+    ".toml",
+    ".lock",
+    ".cfg",
+    ".ini",
+    ".yaml",
+    ".yml",
+    ".in",
+    ".sh",
 }
 
 _CHUNK = 64 * 1024
@@ -50,7 +69,7 @@ def _too_large(detail: str) -> HTTPException:
     return HTTPException(413, f"{detail} - use a git or pvc source for larger apps")
 
 
-def read_capped(stream: BinaryIO, limit: int, what: str = "upload") -> bytes:
+def read_capped(stream: IO[bytes], limit: int, what: str = "upload") -> bytes:
     """Read at most `limit` bytes from a file-like object, in chunks.
 
     Raises 413 as soon as the stream yields more than `limit` bytes, so the

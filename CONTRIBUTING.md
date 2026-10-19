@@ -37,11 +37,11 @@ pushing.
 
 | Component | Directory | Checks |
 |---|---|---|
-| Operator (Go) | `operator/` | `go vet ./...`, `go build ./...`, `go test ./... -race` |
+| Operator (Go) | `operator/` | `go vet ./...`, `go build ./...`, `go test ./... -race`, `golangci-lint run` (config in `operator/.golangci.yml`) |
 | CRD / deepcopy | `operator/` | Regenerate with `controller-gen` v0.21.0 (commands below) and commit the result; CI fails on drift. |
-| apps-api | `api/` | `uv lock --check`, `uv sync --frozen --extra dev`, `uv run --frozen --no-sync python -m pytest -q` |
+| apps-api | `api/` | `uv lock --check`, `uv sync --frozen --extra dev`, `uv run --frozen --no-sync python -m pytest -q`, then `ruff check .`, `ruff format --check .` and `mypy` (strict) through `uv run --frozen --no-sync` |
 | apps-mcp | `mcp/` | Same as apps-api, plus `uv pip install --no-deps -e ../api` before the tests (they drive the real API in process). |
-| apps-ui | `ui/` | `npm ci`, `npm run build`, `npm test` |
+| apps-ui | `ui/` | `npm ci`, `npm run check:ci` (Biome lint and format; `npm run check` applies fixes), `npm run build`, `npm test` |
 | Helm chart | `charts/nebari-apps/` | `helm lint charts/nebari-apps --set clusterDomain=nebari.example.com`, and `helm template` with `examples/nebari-values.yaml` |
 | Docs | `docs/` | `bun install --frozen-lockfile`, `bun test test`, `bun run build` |
 | Dependencies | `api/`, `mcp/`, `ui/` | `pip-audit` over the locked Python deps, `npm audit --audit-level=high` |

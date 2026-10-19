@@ -8,7 +8,7 @@ over; failures surface the API's human-readable detail.
 from __future__ import annotations
 
 import logging
-from typing import Annotated, Any, Literal
+from typing import TYPE_CHECKING, Annotated, Any, Literal, cast
 
 from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
@@ -19,6 +19,11 @@ from pydantic import Field
 from .auth import TokenVerificationError, auth, get_validator
 from .client import ApiClient, ApiError
 from .config import settings
+
+if TYPE_CHECKING:
+    import mcp_types as mt
+    from fastmcp.server.middleware import CallNext
+    from fastmcp.tools.base import ToolResult
 
 mcp = FastMCP(
     name="nebari-apps",
@@ -44,7 +49,11 @@ class TokenVerificationMiddleware(Middleware):
     refuses to proxy for anonymous or forged callers at all.
     """
 
-    async def on_call_tool(self, context: MiddlewareContext, call_next):
+    async def on_call_tool(
+        self,
+        context: MiddlewareContext[mt.CallToolRequestParams],
+        call_next: CallNext[mt.CallToolRequestParams, ToolResult],
+    ) -> ToolResult:
         if not settings.auth_enabled or context.message.name == "authenticate":
             return await call_next(context)
 
@@ -54,16 +63,12 @@ class TokenVerificationMiddleware(Middleware):
         passthrough = get_http_headers().get("authorization", "")
         bearer = await auth.bearer(session_id, passthrough)
         if not bearer:
-            raise ToolError(
-                "not authenticated: call the authenticate tool and follow its instructions"
-            )
+            raise ToolError("not authenticated: call the authenticate tool and follow its instructions")
         token = bearer.removeprefix("Bearer ").strip()
         try:
             get_validator().validate(token)
         except TokenVerificationError as exc:
-            raise ToolError(
-                f"token rejected ({exc}): call the authenticate tool to log in again"
-            ) from exc
+            raise ToolError(f"token rejected ({exc}): call the authenticate tool to log in again") from exc
         return await call_next(context)
 
 
@@ -102,10 +107,11 @@ async def authenticate(ctx: Context) -> dict[str, Any]:
 async def describe_cluster(ctx: Context) -> dict[str, Any]:
     """Describe what this cluster supports: available source types, namespaces apps may be
     launched into, and the apps domain (apps get https://<subdomain>.<appsDomain>).
-    Call this first to pick valid launch options."""
+    Call this first to pick valid launch options.
+    """
     try:
         async with await _api(ctx) as api:
-            return await api.get("/capabilities")
+            return cast("dict[str, Any]", await api.get("/capabilities"))
     except ApiError as exc:
         return _error(exc)
 
@@ -116,7 +122,8 @@ async def list_apps(
     namespace: Annotated[str, Field(description="Filter to one namespace; empty = all visible namespaces")] = "",
 ) -> Any:
     """List launched apps with their source type, phase (Pending|Deploying|Running|Failed|Stopped),
-    URL, and owner."""
+    URL, and owner.
+    """
     try:
         async with await _api(ctx) as api:
             return await api.get("/apps", params={"namespace": namespace} if namespace else None)
@@ -137,9 +144,16 @@ async def launch_app(
     ],
     inline_files: Annotated[
         dict[str, str] | None,
-        Field(description="source_type=inline: relative path -> file content; text files only, ~900KB total. Static apps must include index.html; pixi apps (pixi_task set) must include pixi.toml or pyproject.toml"),
+        Field(
+            description="source_type=inline: relative path -> file content; text files only, ~900KB total. Static apps must include index.html; pixi apps (pixi_task set) must include pixi.toml or pyproject.toml"
+        ),
     ] = None,
-    git_url: Annotated[str, Field(description="source_type=git: public https:// repository URL (no credentials, no cluster-internal hosts)")] = "",
+    git_url: Annotated[
+        str,
+        Field(
+            description="source_type=git: public https:// repository URL (no credentials, no cluster-internal hosts)"
+        ),
+    ] = "",
     git_ref: Annotated[str, Field(description="source_type=git: branch, tag, or commit")] = "main",
     git_subdir: Annotated[str, Field(description="source_type=git: path of the content root within the repo")] = "",
     pvc_claim_name: Annotated[str, Field(description="source_type=pvc: existing PersistentVolumeClaim name")] = "",
@@ -157,22 +171,29 @@ async def launch_app(
         ),
     ] = None,
     public: Annotated[bool, Field(description="true = anonymous access; false = Keycloak SSO at the gateway")] = False,
-    groups: Annotated[list[str] | None, Field(description="Keycloak groups allowed to use the app; empty = any signed-in user")] = None,
+    groups: Annotated[
+        list[str] | None, Field(description="Keycloak groups allowed to use the app; empty = any signed-in user")
+    ] = None,
     description: Annotated[str, Field(description="Short description for catalogs")] = "",
     pixi_task: Annotated[
         str,
-        Field(description="Run the app as a Python/pixi service: the pixi task to execute (e.g. 'start'). The task must start a server on 0.0.0.0:8080. Empty = static app served by nginx"),
+        Field(
+            description="Run the app as a Python/pixi service: the pixi task to execute (e.g. 'start'). The task must start a server on 0.0.0.0:8080. Empty = static app served by nginx"
+        ),
     ] = "",
     landing_page: Annotated[
         bool | None,
-        Field(description="Show the app as a tile on the Nebari landing page. Omit to use the cluster default (off unless the operator enables it); the app is reachable at its URL either way"),
+        Field(
+            description="Show the app as a tile on the Nebari landing page. Omit to use the cluster default (off unless the operator enables it); the app is reachable at its URL either way"
+        ),
     ] = None,
 ) -> dict[str, Any]:
     """Create and launch an app: static (HTML/CSS/JS served by nginx) or, with pixi_task set,
     a Python/pixi service whose source includes a pixi manifest. Idempotent on
     (namespace, name): if the app already exists and you own it, its spec is updated instead
     of failing, so retrying is safe; an app owned by someone else is never touched. Returns the app with its (pending) URL; poll get_app_status until
-    phase=Running."""
+    phase=Running.
+    """
     source: dict[str, Any] = {"type": source_type}
     if source_type == "inline":
         source["inline"] = {"files": inline_files or {}}
@@ -200,7 +221,7 @@ async def launch_app(
     try:
         async with await _api(ctx) as api:
             try:
-                return await api.post("/apps", json=body)
+                return cast("dict[str, Any]", await api.post("/apps", json=body))
             except ApiError as exc:
                 # 409 is either "name exists" (upsert below) or "subdomain
                 # taken by another app" (report it as is).
@@ -209,16 +230,19 @@ async def launch_app(
                 # Already exists: update in place (idempotent launch). The API
                 # refuses with 403 when the existing app belongs to someone else,
                 # so a retry never overwrites another user's app.
-                patch = {k: body[k] for k in ("displayName", "description", "source", "runtime", "access", "landingPage") if k in body}
+                patch = {
+                    k: body[k]
+                    for k in ("displayName", "description", "source", "runtime", "access", "landingPage")
+                    if k in body
+                }
                 try:
-                    return await api.patch(f"/apps/{namespace}/{name}", json=patch)
+                    return cast("dict[str, Any]", await api.patch(f"/apps/{namespace}/{name}", json=patch))
                 except ApiError as patch_exc:
                     if patch_exc.status != 403:
                         raise
                     out = _error(patch_exc)
                     out["error"] = (
-                        f"an app named {name!r} already exists in namespace {namespace!r} "
-                        "and belongs to another user"
+                        f"an app named {name!r} already exists in namespace {namespace!r} and belongs to another user"
                     )
                     out["nextAction"] = "choose a different name (and subdomain) and call launch_app again"
                     return out
@@ -240,7 +264,8 @@ async def get_app(ctx: Context, namespace: str, name: str) -> Any:
 async def get_app_status(ctx: Context, namespace: str, name: str) -> Any:
     """Lightweight status poll: phase, URL, replica readiness, conditions, message.
     Poll this after launch_app until phase=Running (typically seconds; image pulls can
-    take longer)."""
+    take longer).
+    """
     try:
         async with await _api(ctx) as api:
             return await api.get(f"/apps/{namespace}/{name}/status")
@@ -256,7 +281,8 @@ async def get_app_logs(
     lines: Annotated[int, Field(description="How many recent lines", ge=1, le=5000)] = 200,
 ) -> Any:
     """Recent pod logs for an app - the first place to look when phase=Failed or the app
-    misbehaves."""
+    misbehaves.
+    """
     try:
         async with await _api(ctx) as api:
             return await api.get(f"/apps/{namespace}/{name}/logs", params={"lines": lines})
@@ -271,7 +297,9 @@ async def update_app(
     name: str,
     patch: Annotated[
         dict[str, Any],
-        Field(description="Fields to change: any of displayName, description, source, runtime, access, landingPage ({enabled: bool}; {} = cluster default)"),
+        Field(
+            description="Fields to change: any of displayName, description, source, runtime, access, landingPage ({enabled: bool}; {} = cluster default)"
+        ),
     ],
 ) -> Any:
     """Update an existing app's spec. The operator rolls the workload automatically."""
@@ -285,7 +313,8 @@ async def update_app(
 @mcp.tool
 async def stop_app(ctx: Context, namespace: str, name: str) -> Any:
     """Scale an app to zero replicas (phase becomes Stopped). Routing and configuration
-    are kept; start_app brings it back."""
+    are kept; start_app brings it back.
+    """
     try:
         async with await _api(ctx) as api:
             return await api.post(f"/apps/{namespace}/{name}/stop")
@@ -307,7 +336,8 @@ async def start_app(ctx: Context, namespace: str, name: str) -> Any:
 async def restart_app(ctx: Context, namespace: str, name: str) -> Any:
     """Roll the app's pods without changing its spec (like `kubectl rollout restart`).
     Use after external content or config changes, or to recover a wedged pod. Fails if the
-    app is stopped (start_app first)."""
+    app is stopped (start_app first).
+    """
     try:
         async with await _api(ctx) as api:
             return await api.post(f"/apps/{namespace}/{name}/restart")
@@ -319,7 +349,8 @@ async def restart_app(ctx: Context, namespace: str, name: str) -> Any:
 async def get_app_metrics(ctx: Context, namespace: str, name: str) -> Any:
     """Instantaneous CPU (millicores) and memory (Mi) usage per pod, from metrics.k8s.io.
     Returns {available, pods:[{name, cpu, memory}]}; available=false when the cluster has no
-    metrics server. Use to judge whether an app needs more replicas or resources."""
+    metrics server. Use to judge whether an app needs more replicas or resources.
+    """
     try:
         async with await _api(ctx) as api:
             return await api.get(f"/apps/{namespace}/{name}/metrics")
@@ -330,7 +361,8 @@ async def get_app_metrics(ctx: Context, namespace: str, name: str) -> Any:
 @mcp.tool
 async def remove_app(ctx: Context, namespace: str, name: str) -> dict[str, Any]:
     """Delete an app permanently. Cascades: workload, routing, TLS certificate, and OIDC
-    client are all removed. There is no undo - confirm with the user first."""
+    client are all removed. There is no undo - confirm with the user first.
+    """
     try:
         async with await _api(ctx) as api:
             await api.delete(f"/apps/{namespace}/{name}")

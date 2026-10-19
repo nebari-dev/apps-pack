@@ -1,26 +1,26 @@
-import { Slider as SliderPrimitive } from '@base-ui/react/slider';
-import { cn } from '@/lib/utils';
+import { Slider as SliderPrimitive } from "@base-ui/react/slider";
+import { cn } from "@/lib/utils";
 
 type SliderRootProps = SliderPrimitive.Root.Props;
 
-type SliderProps = Omit<SliderRootProps, 'children'> & {
+type SliderProps = Omit<SliderRootProps, "children"> & {
   /** Provides an accessible name for each thumb's nested range input. */
-  getThumbAriaLabel?: SliderPrimitive.Thumb.Props['getAriaLabel'];
+  getThumbAriaLabel?: SliderPrimitive.Thumb.Props["getAriaLabel"];
   /** Provides an accessible text value for each thumb's nested range input. */
-  getThumbAriaValueText?: SliderPrimitive.Thumb.Props['getAriaValueText'];
+  getThumbAriaValueText?: SliderPrimitive.Thumb.Props["getAriaValueText"];
   /** Shows the current value in a visual bubble while the thumb is active. */
   showValueTooltip?: boolean;
 };
 
 function getThumbCount(
-  value: SliderRootProps['value'],
-  defaultValue: SliderRootProps['defaultValue'],
+  value: SliderRootProps["value"],
+  defaultValue: SliderRootProps["defaultValue"],
 ) {
   if (Array.isArray(value)) {
     return Math.max(value.length, 1);
   }
 
-  if (typeof value === 'number') {
+  if (typeof value === "number") {
     return 1;
   }
 
@@ -33,15 +33,15 @@ function getThumbCount(
 
 function getDefaultThumbAriaLabel(index: number, thumbCount: number) {
   if (thumbCount === 1) {
-    return 'Value';
+    return "Value";
   }
 
   if (index === 0) {
-    return 'Minimum value';
+    return "Minimum value";
   }
 
   if (index === thumbCount - 1) {
-    return 'Maximum value';
+    return "Maximum value";
   }
 
   return `Value ${index + 1}`;
@@ -64,7 +64,7 @@ function Slider({
   max = 100,
   min = 0,
   showValueTooltip = true,
-  thumbAlignment = 'edge',
+  thumbAlignment = "edge",
   value,
   ...props
 }: SliderProps) {
@@ -78,8 +78,8 @@ function Slider({
     <SliderPrimitive.Root
       className={(state) =>
         cn(
-          'data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-44 data-[orientation=vertical]:w-8',
-          typeof className === 'function' ? className(state) : className,
+          "data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-44 data-[orientation=vertical]:w-8",
+          typeof className === "function" ? className(state) : className,
         )
       }
       data-slot="slider"
@@ -109,7 +109,7 @@ function Slider({
               cn(
                 "relative block size-4 shrink-0 cursor-pointer rounded-full border border-primary bg-background shadow-sm outline-none select-none before:absolute before:top-1/2 before:left-1/2 before:size-6 before:-translate-x-1/2 before:-translate-y-1/2 before:content-[''] hover:border-primary-hover has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background data-[disabled]:cursor-not-allowed data-[disabled]:border-border data-[disabled]:bg-muted data-[disabled]:shadow-none data-[dragging]:cursor-grabbing data-[dragging]:border-primary-hover data-[invalid]:border-destructive-foreground data-[invalid]:has-[:focus-visible]:ring-destructive-foreground motion-safe:transition-[border-color,background-color,box-shadow] motion-safe:duration-(--duration-fast) motion-safe:ease-(--ease-standard)",
                 state.activeThumbIndex === thumb.index &&
-                  '[&_[data-slot=slider-value-tooltip]]:visible [&_[data-slot=slider-value-tooltip]]:opacity-100',
+                  "[&_[data-slot=slider-value-tooltip]]:visible [&_[data-slot=slider-value-tooltip]]:opacity-100",
               )
             }
             data-slot="slider-thumb"

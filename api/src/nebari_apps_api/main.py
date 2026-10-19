@@ -9,12 +9,13 @@ import logging
 from collections import Counter
 from typing import Annotated, Any
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
 
 from . import cr as crmod
 from .auth import User, can_access, current_user, is_admin
 from .config import settings
 from .k8s import AppStore, ConflictError, KubernetesAppStore, NotFoundError
+from .limits import BodySizeLimitMiddleware
 from .models import (
     SOURCE_TYPES,
     AnalyticsSummary,
@@ -26,8 +27,8 @@ from .models import (
     Capabilities,
     ClusterMetrics,
     NamespaceUsage,
+    PodMetric,
 )
-from .limits import BodySizeLimitMiddleware
 from .upload import PIXI_MANIFESTS, files_from_upload, read_capped
 
 PREFIX = "/api/v1"
@@ -46,7 +47,8 @@ def create_app(store: AppStore | None = None) -> FastAPI:
     def get_store() -> AppStore:
         if app.state.store is None:
             app.state.store = KubernetesAppStore(settings.allowed_namespaces or None)
-        return app.state.store
+        current: AppStore = app.state.store
+        return current
 
     Store = Annotated[AppStore, Depends(get_store)]
     Me = Annotated[User, Depends(current_user)]
@@ -93,7 +95,8 @@ def create_app(store: AppStore | None = None) -> FastAPI:
     def authorized_app(store: AppStore, user: User, namespace: str, name: str) -> dict[str, Any]:
         """Fetch an App the caller may act on: the path namespace must be a
         launchable namespace and the caller must own the App or be an admin.
-        Every route that addresses one App goes through here."""
+        Every route that addresses one App goes through here.
+        """
         check_namespace(store, namespace)
         cr = must_get(store, namespace, name)
         if not can_access(user, cr):
@@ -102,7 +105,8 @@ def create_app(store: AppStore | None = None) -> FastAPI:
 
     def visible_apps(store: AppStore, user: User, namespace: str | None) -> list[dict[str, Any]]:
         """Apps the caller may see: launchable namespaces only, filtered by
-        owner unless the caller is an admin."""
+        owner unless the caller is an admin.
+        """
         if namespace is not None:
             check_namespace(store, namespace)
         allowed = launchable_namespaces(store)
@@ -257,7 +261,7 @@ def create_app(store: AppStore | None = None) -> FastAPI:
             pods = store.pod_metrics(namespace, name)
         except NotFoundError:
             return AppMetrics(available=False, pods=[])
-        return AppMetrics(available=True, pods=pods)
+        return AppMetrics(available=True, pods=[PodMetric.model_validate(p) for p in pods])
 
     # -------------------------------------------------------------- analytics
     @app.get(PREFIX + "/analytics/summary", response_model=AnalyticsSummary)
@@ -322,9 +326,7 @@ def create_app(store: AppStore | None = None) -> FastAPI:
             n = ns_agg.setdefault(a.namespace, {"cpu": 0, "memory": 0})
             n["cpu"] += a.cpu
             n["memory"] += a.memory
-        by_namespace = [
-            NamespaceUsage(namespace=ns, cpu=v["cpu"], memory=v["memory"]) for ns, v in ns_agg.items()
-        ]
+        by_namespace = [NamespaceUsage(namespace=ns, cpu=v["cpu"], memory=v["memory"]) for ns, v in ns_agg.items()]
         by_namespace.sort(key=lambda n: (n.cpu, n.memory), reverse=True)
 
         return ClusterMetrics(usageAvailable=usage_available, apps=apps, byNamespace=by_namespace)
@@ -359,9 +361,7 @@ def _validate_request(req: AppCreate) -> None:
     if req.runtime.pixiTask and req.source.type == "inline":
         files = req.source.inline.files if req.source.inline else {}
         if not any(m in files for m in PIXI_MANIFESTS):
-            raise HTTPException(
-                422, "pixi apps need a pixi.toml or pyproject.toml at the source root"
-            )
+            raise HTTPException(422, "pixi apps need a pixi.toml or pyproject.toml at the source root")
 
 
 app = create_app()

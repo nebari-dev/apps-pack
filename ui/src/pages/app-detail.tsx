@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -11,54 +11,62 @@ import {
   RotateCw,
   Trash2,
   XCircle,
-} from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import { AppThumbnail, ConfirmDeleteDialog, KindBadge, metricValue, PhaseBadge, Sparkline, SourceBadge } from '@/components/app-bits';
-import { api } from '@/lib/api';
-import type { App } from '@/lib/types';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CodeBlock, CodeBlockBody } from '@/components/ui/code-block';
-import { Input } from '@/components/ui/input';
-import { Spinner } from '@/components/ui/spinner';
-import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsList, TabsPanel, TabsTab } from '@/components/ui/tabs';
-import { toast } from '@/components/ui/toast';
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import {
+  AppThumbnail,
+  ConfirmDeleteDialog,
+  KindBadge,
+  metricValue,
+  PhaseBadge,
+  SourceBadge,
+  Sparkline,
+} from "@/components/app-bits";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CodeBlock, CodeBlockBody } from "@/components/ui/code-block";
+import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
+import { toast } from "@/components/ui/toast";
+import { api } from "@/lib/api";
+import type { App } from "@/lib/types";
 
 const MAX_SAMPLES = 30;
 const errMessage = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
 export function AppDetailPage() {
-  const { namespace = '', name = '' } = useParams();
+  const { namespace = "", name = "" } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [logFollow, setLogFollow] = useState(true);
-  const [logSearch, setLogSearch] = useState('');
+  const [logSearch, setLogSearch] = useState("");
   const [cpuHistory, setCpuHistory] = useState<number[]>([]);
   const [memHistory, setMemHistory] = useState<number[]>([]);
 
   const app = useQuery({
-    queryKey: ['app', namespace, name],
+    queryKey: ["app", namespace, name],
     queryFn: () => api.getApp(namespace, name),
     refetchInterval: 5_000,
   });
   const logs = useQuery({
-    queryKey: ['logs', namespace, name],
+    queryKey: ["logs", namespace, name],
     queryFn: () => api.logs(namespace, name, 500),
     refetchInterval: logFollow ? 3_000 : false,
     retry: false,
   });
   const events = useQuery({
-    queryKey: ['events', namespace, name],
+    queryKey: ["events", namespace, name],
     queryFn: () => api.events(namespace, name),
     refetchInterval: 15_000,
   });
   const metrics = useQuery({
-    queryKey: ['metrics', namespace, name],
+    queryKey: ["metrics", namespace, name],
     queryFn: () => api.metrics(namespace, name),
     refetchInterval: 5_000,
     retry: false,
@@ -75,9 +83,9 @@ export function AppDetailPage() {
   }, [sample]);
 
   const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: ['app', namespace, name] });
-    void queryClient.invalidateQueries({ queryKey: ['apps'] });
-    void queryClient.invalidateQueries({ queryKey: ['analytics'] });
+    void queryClient.invalidateQueries({ queryKey: ["app", namespace, name] });
+    void queryClient.invalidateQueries({ queryKey: ["apps"] });
+    void queryClient.invalidateQueries({ queryKey: ["analytics"] });
   };
   const label = () => app.data?.displayName || name;
 
@@ -85,34 +93,58 @@ export function AppDetailPage() {
     mutationFn: () => api.stopApp(namespace, name),
     onSuccess: () => {
       invalidate();
-      toast.add({ type: 'success', title: `Stopped ${label()}` });
+      toast.add({ type: "success", title: `Stopped ${label()}` });
     },
-    onError: (err) => toast.add({ type: 'error', title: `Failed to stop ${label()}`, description: errMessage(err) }),
+    onError: (err) =>
+      toast.add({
+        type: "error",
+        title: `Failed to stop ${label()}`,
+        description: errMessage(err),
+      }),
   });
   const start = useMutation({
     mutationFn: () => api.startApp(namespace, name),
     onSuccess: () => {
       invalidate();
-      toast.add({ type: 'success', title: `Started ${label()}` });
+      toast.add({ type: "success", title: `Started ${label()}` });
     },
-    onError: (err) => toast.add({ type: 'error', title: `Failed to start ${label()}`, description: errMessage(err) }),
+    onError: (err) =>
+      toast.add({
+        type: "error",
+        title: `Failed to start ${label()}`,
+        description: errMessage(err),
+      }),
   });
   const restart = useMutation({
     mutationFn: () => api.restartApp(namespace, name),
     onSuccess: () => {
       invalidate();
-      toast.add({ type: 'success', title: `Restarting ${label()}`, description: 'Pods are rolling now.' });
+      toast.add({
+        type: "success",
+        title: `Restarting ${label()}`,
+        description: "Pods are rolling now.",
+      });
     },
-    onError: (err) => toast.add({ type: 'error', title: `Failed to restart ${label()}`, description: errMessage(err) }),
+    onError: (err) =>
+      toast.add({
+        type: "error",
+        title: `Failed to restart ${label()}`,
+        description: errMessage(err),
+      }),
   });
   const remove = useMutation({
     mutationFn: () => api.deleteApp(namespace, name),
     onSuccess: () => {
       invalidate();
-      toast.add({ type: 'success', title: `Deleted ${label()}` });
-      void navigate('/apps');
+      toast.add({ type: "success", title: `Deleted ${label()}` });
+      void navigate("/apps");
     },
-    onError: (err) => toast.add({ type: 'error', title: `Failed to delete ${label()}`, description: errMessage(err) }),
+    onError: (err) =>
+      toast.add({
+        type: "error",
+        title: `Failed to delete ${label()}`,
+        description: errMessage(err),
+      }),
   });
 
   if (app.isLoading) {
@@ -126,7 +158,7 @@ export function AppDetailPage() {
     return (
       <Alert variant="destructive">
         <AlertTitle>Could not load app</AlertTitle>
-        <AlertDescription>{String(app.error ?? 'not found')}</AlertDescription>
+        <AlertDescription>{String(app.error ?? "not found")}</AlertDescription>
       </Alert>
     );
   }
@@ -135,14 +167,14 @@ export function AppDetailPage() {
   const stopped = (a.status.replicas?.desired ?? a.runtime?.replicas ?? 1) === 0;
   // Only offer the app's URL while it can actually serve: stopped or
   // still-deploying apps would just show a gateway error.
-  const ready = a.status.phase === 'Running';
+  const ready = a.status.phase === "Running";
   const manifest = toManifest(a);
 
-  const filteredLogs = filterLogs(logs.data?.logs ?? '', logSearch);
+  const filteredLogs = filterLogs(logs.data?.logs ?? "", logSearch);
   const downloadLogs = () => {
-    const blob = new Blob([logs.data?.logs ?? ''], { type: 'text/plain' });
+    const blob = new Blob([logs.data?.logs ?? ""], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.href = url;
     link.download = `${name}-logs.txt`;
     link.click();
@@ -153,14 +185,22 @@ export function AppDetailPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 gap-4">
-          <AppThumbnail name={a.name} displayName={a.displayName} thumbnail={a.thumbnail} className="mt-6 size-12" />
+          <AppThumbnail
+            name={a.name}
+            displayName={a.displayName}
+            thumbnail={a.thumbnail}
+            className="mt-6 size-12"
+          />
           <div className="min-w-0">
-            <Link to="/apps" className="mb-1 inline-flex items-center gap-1 text-muted-foreground text-sm hover:text-foreground">
+            <Link
+              to="/apps"
+              className="mb-1 inline-flex items-center gap-1 text-muted-foreground text-sm hover:text-foreground"
+            >
               <ArrowLeft className="size-3.5" /> Apps
             </Link>
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="font-semibold text-2xl">{a.displayName || a.name}</h1>
-              <SourceBadge source={a.source?.type ?? '—'} />
+              <SourceBadge source={a.source?.type ?? "—"} />
               <KindBadge pixiTask={a.runtime?.pixiTask} />
               <PhaseBadge phase={a.status.phase} />
             </div>
@@ -174,14 +214,28 @@ export function AppDetailPage() {
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
           {a.status.url ? (
             ready ? (
-              <Button variant="outline" render={<a href={a.status.url} target="_blank" rel="noreferrer">Open <ExternalLink /></a>} />
+              <Button
+                variant="outline"
+                render={
+                  <a href={a.status.url} target="_blank" rel="noreferrer">
+                    Open <ExternalLink />
+                  </a>
+                }
+              />
             ) : (
               <Button variant="outline" disabled>
                 Open <ExternalLink />
               </Button>
             )
           ) : null}
-          <Button variant="outline" render={<Link to={`/apps/${namespace}/${name}/edit`}>Edit <Pencil /></Link>} />
+          <Button
+            variant="outline"
+            render={
+              <Link to={`/apps/${namespace}/${name}/edit`}>
+                Edit <Pencil />
+              </Link>
+            }
+          />
           {stopped ? (
             <Button variant="secondary" loading={start.isPending} onClick={() => start.mutate()}>
               <Play /> Start
@@ -191,7 +245,12 @@ export function AppDetailPage() {
               <Pause /> Stop
             </Button>
           )}
-          <Button variant="secondary" disabled={stopped} loading={restart.isPending} onClick={() => restart.mutate()}>
+          <Button
+            variant="secondary"
+            disabled={stopped}
+            loading={restart.isPending}
+            onClick={() => restart.mutate()}
+          >
             <RotateCw /> Restart
           </Button>
           <Button variant="destructive" onClick={() => setDeleteOpen(true)}>
@@ -208,11 +267,19 @@ export function AppDetailPage() {
           <CardContent>
             {a.status.url ? (
               ready ? (
-                <a className="break-all font-mono text-sm underline" href={a.status.url} target="_blank" rel="noreferrer">
+                <a
+                  className="break-all font-mono text-sm underline"
+                  href={a.status.url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
                   {a.status.url}
                 </a>
               ) : (
-                <p className="break-all font-mono text-muted-foreground text-sm" title="App is not running">
+                <p
+                  className="break-all font-mono text-muted-foreground text-sm"
+                  title="App is not running"
+                >
                   {a.status.url}
                 </p>
               )
@@ -221,15 +288,15 @@ export function AppDetailPage() {
             )}
             <p className="mt-2 text-muted-foreground text-xs">
               {a.access?.public
-                ? 'Public - no authentication'
-                : `Keycloak SSO at the gateway${a.access?.groups?.length ? ` · groups: ${a.access.groups.join(', ')}` : ''}`}
+                ? "Public - no authentication"
+                : `Keycloak SSO at the gateway${a.access?.groups?.length ? ` · groups: ${a.access.groups.join(", ")}` : ""}`}
             </p>
             <p className="mt-1 text-muted-foreground text-xs">
               {a.landingPage?.enabled === true
-                ? 'Shown on the landing page'
+                ? "Shown on the landing page"
                 : a.landingPage?.enabled === false
-                  ? 'Hidden from the landing page'
-                  : 'Landing page: cluster default'}
+                  ? "Hidden from the landing page"
+                  : "Landing page: cluster default"}
             </p>
           </CardContent>
         </Card>
@@ -239,7 +306,7 @@ export function AppDetailPage() {
           </CardHeader>
           <CardContent>
             <p className="font-semibold text-2xl tabular-nums">
-              {a.status.replicas ? `${a.status.replicas.ready}/${a.status.replicas.desired}` : '—'}
+              {a.status.replicas ? `${a.status.replicas.ready}/${a.status.replicas.desired}` : "—"}
             </p>
             <p className="mt-1 text-muted-foreground text-xs">{a.status.message}</p>
           </CardContent>
@@ -296,7 +363,7 @@ export function AppDetailPage() {
               <ul className="space-y-3">
                 {a.status.conditions.map((c) => (
                   <li key={c.type} className="flex items-start gap-2">
-                    {c.status === 'True' ? (
+                    {c.status === "True" ? (
                       <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success-foreground" />
                     ) : (
                       <XCircle className="mt-0.5 size-4 shrink-0 text-destructive-foreground" />
@@ -309,7 +376,9 @@ export function AppDetailPage() {
                     </div>
                   </li>
                 ))}
-                {a.status.conditions.length === 0 ? <p className="text-muted-foreground text-sm">No conditions reported yet.</p> : null}
+                {a.status.conditions.length === 0 ? (
+                  <p className="text-muted-foreground text-sm">No conditions reported yet.</p>
+                ) : null}
               </ul>
             </CardContent>
           </Card>
@@ -326,20 +395,39 @@ export function AppDetailPage() {
                   value={logSearch}
                   onChange={(e) => setLogSearch(e.target.value)}
                 />
-                <label htmlFor="log-follow" className="flex items-center gap-2 text-muted-foreground text-sm">
-                  <Switch id="log-follow" checked={logFollow} onCheckedChange={setLogFollow} /> Follow
+                <label
+                  htmlFor="log-follow"
+                  className="flex items-center gap-2 text-muted-foreground text-sm"
+                >
+                  <Switch id="log-follow" checked={logFollow} onCheckedChange={setLogFollow} />{" "}
+                  Follow
                 </label>
-                <Button variant="ghost" size="icon-sm" aria-label="Refresh logs" onClick={() => void logs.refetch()}>
-                  <RefreshCw className={logs.isFetching ? 'animate-spin' : ''} />
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Refresh logs"
+                  onClick={() => void logs.refetch()}
+                >
+                  <RefreshCw className={logs.isFetching ? "animate-spin" : ""} />
                 </Button>
-                <Button variant="ghost" size="icon-sm" aria-label="Download logs" onClick={downloadLogs}>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Download logs"
+                  onClick={downloadLogs}
+                >
                   <Download />
                 </Button>
               </div>
             </CardHeader>
             <CardContent>
               <pre className="max-h-96 overflow-auto rounded-md bg-muted p-3 font-mono text-xs leading-relaxed">
-                {filteredLogs || (logs.isError ? `No logs available: ${logs.error}` : logSearch ? 'No matching lines.' : 'Loading…')}
+                {filteredLogs ||
+                  (logs.isError
+                    ? `No logs available: ${logs.error}`
+                    : logSearch
+                      ? "No matching lines."
+                      : "Loading…")}
               </pre>
             </CardContent>
           </Card>
@@ -350,17 +438,28 @@ export function AppDetailPage() {
             <CardContent className="p-4">
               <ul className="space-y-2">
                 {(events.data ?? []).map((ev, i) => (
-                  <li key={`${ev.object}-${ev.reason}-${i}`} className="flex items-start justify-between gap-3 border-border border-b pb-2 text-sm last:border-0">
+                  <li
+                    // biome-ignore lint/suspicious/noArrayIndexKey: events have no stable id and the list is replaced on every poll
+                    key={`${ev.object}-${ev.reason}-${i}`}
+                    className="flex items-start justify-between gap-3 border-border border-b pb-2 text-sm last:border-0"
+                  >
                     <div>
                       <p className="font-medium">
-                        {ev.reason} <span className="font-normal text-muted-foreground">· {ev.kind}/{ev.object}</span>
+                        {ev.reason}{" "}
+                        <span className="font-normal text-muted-foreground">
+                          · {ev.kind}/{ev.object}
+                        </span>
                       </p>
                       <p className="text-muted-foreground">{ev.message}</p>
                     </div>
-                    <span className="shrink-0 text-muted-foreground text-xs">{ev.lastTimestamp}</span>
+                    <span className="shrink-0 text-muted-foreground text-xs">
+                      {ev.lastTimestamp}
+                    </span>
                   </li>
                 ))}
-                {(events.data ?? []).length === 0 ? <p className="text-muted-foreground text-sm">No events.</p> : null}
+                {(events.data ?? []).length === 0 ? (
+                  <p className="text-muted-foreground text-sm">No events.</p>
+                ) : null}
               </ul>
             </CardContent>
           </Card>
@@ -373,7 +472,7 @@ export function AppDetailPage() {
             </CardHeader>
             <CardContent>
               <p className="mb-3 text-muted-foreground text-sm">
-                The App custom resource for this app. Copy it into a GitOps repo, or apply with{' '}
+                The App custom resource for this app. Copy it into a GitOps repo, or apply with{" "}
                 <span className="font-mono">kubectl apply -f</span>.
               </p>
               <CodeBlock code={manifest}>
@@ -400,9 +499,9 @@ function filterLogs(logs: string, term: string): string {
   const t = term.trim().toLowerCase();
   if (!t) return logs;
   return logs
-    .split('\n')
+    .split("\n")
     .filter((line) => line.toLowerCase().includes(t))
-    .join('\n');
+    .join("\n");
 }
 
 /** Rebuild the App custom resource from API data, as pretty JSON. */
@@ -414,8 +513,8 @@ function toManifest(a: App): string {
   if (a.runtime) spec.runtime = a.runtime;
   if (a.access) spec.access = a.access;
   const cr = {
-    apiVersion: 'apps.nebari.dev/v1alpha1',
-    kind: 'App',
+    apiVersion: "apps.nebari.dev/v1alpha1",
+    kind: "App",
     metadata: { name: a.name, namespace: a.namespace },
     spec,
   };

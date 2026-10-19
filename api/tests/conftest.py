@@ -22,11 +22,7 @@ class FakeStore:
         self.metrics_available = True
 
     def list_apps(self, namespace: str | None) -> list[dict[str, Any]]:
-        return [
-            copy.deepcopy(cr)
-            for (ns, _), cr in sorted(self.apps.items())
-            if namespace is None or ns == namespace
-        ]
+        return [copy.deepcopy(cr) for (ns, _), cr in sorted(self.apps.items()) if namespace is None or ns == namespace]
 
     def get_app(self, namespace: str, name: str) -> dict[str, Any]:
         try:
@@ -60,9 +56,17 @@ class FakeStore:
         return self.logs
 
     def app_events(self, namespace: str, app_name: str) -> list[dict[str, Any]]:
-        return [{"type": "Normal", "reason": "Created", "message": "ok",
-                 "kind": "Deployment", "object": f"app-{app_name}", "count": 1,
-                 "lastTimestamp": "2026-07-15T00:00:00Z"}]
+        return [
+            {
+                "type": "Normal",
+                "reason": "Created",
+                "message": "ok",
+                "kind": "Deployment",
+                "object": f"app-{app_name}",
+                "count": 1,
+                "lastTimestamp": "2026-07-15T00:00:00Z",
+            }
+        ]
 
     def restart_app(self, namespace: str, app_name: str) -> None:
         if (namespace, app_name) not in self.apps:
@@ -77,10 +81,7 @@ class FakeStore:
     def cluster_pod_metrics(self) -> list[dict[str, Any]]:
         if not self.metrics_available:
             raise NotFoundError("metrics.k8s.io not available")
-        return [
-            {"namespace": ns, "app": name, "cpu": 12, "memory": 34}
-            for (ns, name) in self.apps
-        ]
+        return [{"namespace": ns, "app": name, "cpu": 12, "memory": 34} for (ns, name) in self.apps]
 
     def app_restarts(self) -> list[dict[str, Any]]:
         return [{"namespace": ns, "app": name, "restarts": 1} for (ns, name) in self.apps]

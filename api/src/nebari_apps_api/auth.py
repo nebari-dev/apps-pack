@@ -9,6 +9,7 @@ launched apps do NOT use this - they sit behind the gateway's SecurityPolicy.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -31,13 +32,14 @@ _ANONYMOUS = User(username="anonymous")
 def is_admin(user: User) -> bool:
     """Admins see and manage every App. With auth disabled (local development
     only) the anonymous caller is treated as an admin, since there is no
-    identity to scope by."""
+    identity to scope by.
+    """
     if not settings.auth_enabled:
         return True
     return any(g.lstrip("/") in settings.admin_groups for g in user.groups)
 
 
-def app_owner(cr: dict) -> str:
+def app_owner(cr: dict[str, Any]) -> str:
     """The App's owner: spec.owner, falling back to the owner label."""
     owner = (cr.get("spec") or {}).get("owner")
     if owner:
@@ -45,7 +47,7 @@ def app_owner(cr: dict) -> str:
     return str(((cr.get("metadata") or {}).get("labels") or {}).get("apps.nebari.dev/owner", ""))
 
 
-def can_access(user: User, cr: dict) -> bool:
+def can_access(user: User, cr: dict[str, Any]) -> bool:
     """Owner-or-admin: the single authorization rule for every App route.
 
     Apps without an owner (created with kubectl) are admin-only.
@@ -56,24 +58,21 @@ def can_access(user: User, cr: dict) -> bool:
     return bool(owner) and owner == user.username
 
 
-def check_client(claims: dict, allowed: list[str] | None) -> None:
+def check_client(claims: dict[str, Any], allowed: list[str] | None) -> None:
     """Raise ValueError unless the token was issued to (azp) or for (aud) one
-    of the allowed clients. None disables the check."""
+    of the allowed clients. None disables the check.
+    """
     if allowed is None:
         return
     aud = claims.get("aud") or []
     auds = [aud] if isinstance(aud, str) else list(aud)
     if claims.get("azp") in allowed or any(a in allowed for a in auds):
         return
-    raise ValueError(
-        f"token was issued to client {claims.get('azp')!r}, which is not allowed here"
-    )
+    raise ValueError(f"token was issued to client {claims.get('azp')!r}, which is not allowed here")
 
 
 class JWTValidator:
-    def __init__(
-        self, jwks_url: str, issuer: str, audience: str, allowed_clients: list[str] | None = None
-    ) -> None:
+    def __init__(self, jwks_url: str, issuer: str, audience: str, allowed_clients: list[str] | None = None) -> None:
         import jwt
 
         self._issuer = issuer
@@ -85,14 +84,13 @@ class JWTValidator:
         import jwt
 
         signing_key = self._jwks.get_signing_key_from_jwt(token)
-        options = {"verify_aud": bool(self._audience)}
         claims = jwt.decode(
             token,
             signing_key.key,
             algorithms=["RS256", "ES256"],
             issuer=self._issuer or None,
             audience=self._audience or None,
-            options=options,
+            options={"verify_aud": bool(self._audience)},
         )
         check_client(claims, self._allowed_clients)
         return User(
@@ -134,5 +132,5 @@ def current_user(
         return validator.validate(credentials.credentials)
     except HTTPException:
         raise
-    except Exception as exc:  # noqa: BLE001 - any validation failure is a 401
+    except Exception as exc:  # any validation failure is a 401
         raise HTTPException(401, f"invalid token: {exc}") from exc

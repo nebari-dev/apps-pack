@@ -1,5 +1,6 @@
 """KubernetesAppStore never lists cluster-wide when scoped to namespaces
-(the chart then grants the API only per-namespace RoleBindings)."""
+(the chart then grants the API only per-namespace RoleBindings).
+"""
 
 from __future__ import annotations
 

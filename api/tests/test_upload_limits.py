@@ -1,5 +1,6 @@
 """Upload hardening: zip bombs and oversize bodies are refused with 413
-without inflating or buffering them."""
+without inflating or buffering them.
+"""
 
 from __future__ import annotations
 
@@ -20,11 +21,13 @@ MANIFEST = json.dumps(
 def _deflated_zip(name: str, size: int) -> bytes:
     """A zip whose single member inflates to `size` bytes of zeros."""
     buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
-        with zf.open(name, "w", force_zip64=True) as member:
-            chunk = b"\0" * (1024 * 1024)
-            for _ in range(size // len(chunk)):
-                member.write(chunk)
+    with (
+        zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as zf,
+        zf.open(name, "w", force_zip64=True) as member,
+    ):
+        chunk = b"\0" * (1024 * 1024)
+        for _ in range(size // len(chunk)):
+            member.write(chunk)
     return buf.getvalue()
 
 

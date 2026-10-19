@@ -33,7 +33,7 @@ class ApiClient:
             transport=transport,
         )
 
-    async def __aenter__(self) -> "ApiClient":
+    async def __aenter__(self) -> ApiClient:
         return self
 
     async def __aexit__(self, *exc: object) -> None:

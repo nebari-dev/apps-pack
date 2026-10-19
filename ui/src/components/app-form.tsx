@@ -1,36 +1,43 @@
-import { Plus, Trash2, UploadCloud } from 'lucide-react';
-import { useMemo, useState } from 'react';
-import type { App, AppCreate, AppPatch, AppSource, EnvVar } from '@/lib/types';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsList, TabsPanel, TabsTab } from '@/components/ui/tabs';
+import { Plus, Trash2, UploadCloud } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
+import type { App, AppCreate, AppPatch, AppSource, EnvVar } from "@/lib/types";
 
 const SUBDOMAIN_RE = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/;
 
 /** Source authoring tabs. "keep" is edit-only: leave the current source as-is. */
-type SourceTab = 'upload' | 'git' | 'pvc' | 'keep';
+type SourceTab = "upload" | "git" | "pvc" | "keep";
 
 /** What the app is: a static site served by nginx, or a Python/pixi service. */
-type AppKind = 'static' | 'pixi';
+type AppKind = "static" | "pixi";
 
 /** Resource presets that fill both requests and limits in one click. */
-const PRESETS: Record<string, { cpuReq: string; memReq: string; cpuLim: string; memLim: string }> = {
-  Small: { cpuReq: '100m', memReq: '128Mi', cpuLim: '250m', memLim: '256Mi' },
-  Medium: { cpuReq: '250m', memReq: '512Mi', cpuLim: '500m', memLim: '1Gi' },
-  Large: { cpuReq: '500m', memReq: '1Gi', cpuLim: '1', memLim: '2Gi' },
-};
+const PRESETS: Record<string, { cpuReq: string; memReq: string; cpuLim: string; memLim: string }> =
+  {
+    Small: { cpuReq: "100m", memReq: "128Mi", cpuLim: "250m", memLim: "256Mi" },
+    Medium: { cpuReq: "250m", memReq: "512Mi", cpuLim: "500m", memLim: "1Gi" },
+    Large: { cpuReq: "500m", memReq: "1Gi", cpuLim: "1", memLim: "2Gi" },
+  };
 
 export type SubmitPayload =
-  | { kind: 'create'; body: AppCreate }
-  | { kind: 'upload'; manifest: Omit<AppCreate, 'source'>; file: File }
-  | { kind: 'patch'; body: AppPatch };
+  | { kind: "create"; body: AppCreate }
+  | { kind: "upload"; manifest: Omit<AppCreate, "source">; file: File }
+  | { kind: "patch"; body: AppPatch };
 
 export interface AppFormProps {
-  mode: 'create' | 'edit';
+  mode: "create" | "edit";
   namespaces: string[];
   appsDomain: string;
   appsScheme: string;
@@ -48,40 +55,40 @@ export function AppForm({
   submitting,
   onSubmit,
 }: AppFormProps) {
-  const isEdit = mode === 'edit';
+  const isEdit = mode === "edit";
   const res = initial?.runtime?.resources;
 
-  const [name] = useState(initial?.name ?? '');
-  const [displayName, setDisplayName] = useState(initial?.displayName ?? '');
-  const [description, setDescription] = useState(initial?.description ?? '');
-  const [thumbnail, setThumbnail] = useState(initial?.thumbnail ?? '');
-  const [namespace, setNamespace] = useState(initial?.namespace ?? '');
+  const [name] = useState(initial?.name ?? "");
+  const [displayName, setDisplayName] = useState(initial?.displayName ?? "");
+  const [description, setDescription] = useState(initial?.description ?? "");
+  const [thumbnail, setThumbnail] = useState(initial?.thumbnail ?? "");
+  const [namespace, setNamespace] = useState(initial?.namespace ?? "");
 
-  const [sourceTab, setSourceTab] = useState<SourceTab>(isEdit ? 'keep' : 'upload');
-  const [nameInput, setNameInput] = useState(initial?.name ?? '');
+  const [sourceTab, setSourceTab] = useState<SourceTab>(isEdit ? "keep" : "upload");
+  const [nameInput, setNameInput] = useState(initial?.name ?? "");
 
   // App kind: presence of a pixi task is the wire discriminator.
-  const [kind, setKind] = useState<AppKind>(initial?.runtime?.pixiTask ? 'pixi' : 'static');
-  const [pixiTask, setPixiTask] = useState(initial?.runtime?.pixiTask ?? '');
+  const [kind, setKind] = useState<AppKind>(initial?.runtime?.pixiTask ? "pixi" : "static");
+  const [pixiTask, setPixiTask] = useState(initial?.runtime?.pixiTask ?? "");
 
   // Sources
   const [file, setFile] = useState<File | null>(null);
-  const [gitUrl, setGitUrl] = useState(initial?.source?.git?.url ?? '');
-  const [gitRef, setGitRef] = useState(initial?.source?.git?.ref ?? 'main');
-  const [gitSubdir, setGitSubdir] = useState(initial?.source?.git?.subdir ?? '');
-  const [pvcClaim, setPvcClaim] = useState(initial?.source?.pvc?.claimName ?? '');
-  const [pvcSubPath, setPvcSubPath] = useState(initial?.source?.pvc?.subPath ?? '');
+  const [gitUrl, setGitUrl] = useState(initial?.source?.git?.url ?? "");
+  const [gitRef, setGitRef] = useState(initial?.source?.git?.ref ?? "main");
+  const [gitSubdir, setGitSubdir] = useState(initial?.source?.git?.subdir ?? "");
+  const [pvcClaim, setPvcClaim] = useState(initial?.source?.pvc?.claimName ?? "");
+  const [pvcSubPath, setPvcSubPath] = useState(initial?.source?.pvc?.subPath ?? "");
 
   // Runtime + access
   const [envVars, setEnvVars] = useState<EnvVar[]>(initial?.runtime?.env ?? []);
   const [replicas, setReplicas] = useState(initial?.runtime?.replicas ?? 1);
-  const [cpuReq, setCpuReq] = useState(res?.requests?.cpu ?? '');
-  const [memReq, setMemReq] = useState(res?.requests?.memory ?? '');
-  const [cpuLim, setCpuLim] = useState(res?.limits?.cpu ?? '');
-  const [memLim, setMemLim] = useState(res?.limits?.memory ?? '');
+  const [cpuReq, setCpuReq] = useState(res?.requests?.cpu ?? "");
+  const [memReq, setMemReq] = useState(res?.requests?.memory ?? "");
+  const [cpuLim, setCpuLim] = useState(res?.limits?.cpu ?? "");
+  const [memLim, setMemLim] = useState(res?.limits?.memory ?? "");
   const [isPublic, setIsPublic] = useState(initial?.access?.public ?? false);
-  const [groups, setGroups] = useState((initial?.access?.groups ?? []).join(', '));
-  const [subdomain, setSubdomain] = useState(initial?.access?.subdomain ?? '');
+  const [groups, setGroups] = useState((initial?.access?.groups ?? []).join(", "));
+  const [subdomain, setSubdomain] = useState(initial?.access?.subdomain ?? "");
   // Landing-page tile is opt-in: unset on the App means "cluster default"
   // (off unless the chart enables it), so a new app only sends the field when
   // the switch is on; edits always send it so an opt-out is explicit.
@@ -93,24 +100,45 @@ export function AppForm({
 
   const validationError = useMemo(() => {
     if (!isEdit) {
-      if (!nameInput) return 'Give the app a name.';
-      if (!SUBDOMAIN_RE.test(nameInput)) return 'Name must be lowercase letters, digits, and hyphens.';
-      if (!subdomain) return 'Pick a subdomain.';
-      if (!SUBDOMAIN_RE.test(subdomain)) return 'Subdomain must be lowercase letters, digits, and hyphens.';
+      if (!nameInput) return "Give the app a name.";
+      if (!SUBDOMAIN_RE.test(nameInput))
+        return "Name must be lowercase letters, digits, and hyphens.";
+      if (!subdomain) return "Pick a subdomain.";
+      if (!SUBDOMAIN_RE.test(subdomain))
+        return "Subdomain must be lowercase letters, digits, and hyphens.";
     }
-    if (!displayName) return 'Give the app a display name.';
-    if (!namespace) return 'Pick a namespace.';
-    if (kind === 'pixi' && !pixiTask) return 'Enter the pixi task that launches the app.';
-    if (sourceTab === 'upload' && !file) {
-      return kind === 'pixi' ? 'Choose a .zip of your pixi project to upload.' : 'Choose a .zip or .html file to upload.';
+    if (!displayName) return "Give the app a display name.";
+    if (!namespace) return "Pick a namespace.";
+    if (kind === "pixi" && !pixiTask) return "Enter the pixi task that launches the app.";
+    if (sourceTab === "upload" && !file) {
+      return kind === "pixi"
+        ? "Choose a .zip of your pixi project to upload."
+        : "Choose a .zip or .html file to upload.";
     }
-    if (kind === 'pixi' && sourceTab === 'upload' && file && !file.name.toLowerCase().endsWith('.zip')) {
-      return 'Pixi apps must be uploaded as a .zip archive.';
+    if (
+      kind === "pixi" &&
+      sourceTab === "upload" &&
+      file &&
+      !file.name.toLowerCase().endsWith(".zip")
+    ) {
+      return "Pixi apps must be uploaded as a .zip archive.";
     }
-    if (sourceTab === 'git' && !gitUrl) return 'Enter the git repository URL.';
-    if (sourceTab === 'pvc' && !pvcClaim) return 'Enter the PVC claim name.';
-    return '';
-  }, [isEdit, nameInput, displayName, namespace, subdomain, kind, pixiTask, sourceTab, file, gitUrl, pvcClaim]);
+    if (sourceTab === "git" && !gitUrl) return "Enter the git repository URL.";
+    if (sourceTab === "pvc" && !pvcClaim) return "Enter the PVC claim name.";
+    return "";
+  }, [
+    isEdit,
+    nameInput,
+    displayName,
+    namespace,
+    subdomain,
+    kind,
+    pixiTask,
+    sourceTab,
+    file,
+    gitUrl,
+    pvcClaim,
+  ]);
 
   const applyPreset = (preset: keyof typeof PRESETS) => {
     const p = PRESETS[preset];
@@ -121,14 +149,21 @@ export function AppForm({
   };
 
   const buildResources = () => {
-    const requests = cpuReq || memReq ? { cpu: cpuReq || undefined, memory: memReq || undefined } : undefined;
-    const limits = cpuLim || memLim ? { cpu: cpuLim || undefined, memory: memLim || undefined } : undefined;
+    const requests =
+      cpuReq || memReq ? { cpu: cpuReq || undefined, memory: memReq || undefined } : undefined;
+    const limits =
+      cpuLim || memLim ? { cpu: cpuLim || undefined, memory: memLim || undefined } : undefined;
     return requests || limits ? { requests, limits } : undefined;
   };
 
   const buildSource = (): AppSource | undefined => {
-    if (sourceTab === 'git') return { type: 'git', git: { url: gitUrl, ref: gitRef || 'main', subdir: gitSubdir || undefined } };
-    if (sourceTab === 'pvc') return { type: 'pvc', pvc: { claimName: pvcClaim, subPath: pvcSubPath || undefined } };
+    if (sourceTab === "git")
+      return {
+        type: "git",
+        git: { url: gitUrl, ref: gitRef || "main", subdir: gitSubdir || undefined },
+      };
+    if (sourceTab === "pvc")
+      return { type: "pvc", pvc: { claimName: pvcClaim, subPath: pvcSubPath || undefined } };
     return undefined; // 'upload' handled separately; 'keep' leaves source untouched
   };
 
@@ -138,7 +173,7 @@ export function AppForm({
       replicas,
       env: envVars.filter((e) => e.name),
       resources: buildResources(),
-      pixiTask: kind === 'pixi' ? pixiTask : '',
+      pixiTask: kind === "pixi" ? pixiTask : "",
     };
 
     if (isEdit) {
@@ -156,7 +191,7 @@ export function AppForm({
       };
       const source = buildSource();
       if (source) body.source = source;
-      onSubmit({ kind: 'patch', body });
+      onSubmit({ kind: "patch", body });
       return;
     }
 
@@ -171,12 +206,12 @@ export function AppForm({
       ...(onLandingPage ? { landingPage: { enabled: true } } : {}),
     };
 
-    if (sourceTab === 'upload') {
+    if (sourceTab === "upload") {
       if (!file) return;
-      onSubmit({ kind: 'upload', manifest: base, file });
+      onSubmit({ kind: "upload", manifest: base, file });
       return;
     }
-    onSubmit({ kind: 'create', body: { ...base, source: buildSource() } as AppCreate });
+    onSubmit({ kind: "create", body: { ...base, source: buildSource() } as AppCreate });
   };
 
   return (
@@ -201,19 +236,38 @@ export function AppForm({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="displayName">Display name</Label>
-            <Input id="displayName" placeholder="Sales Dashboard" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+            <Input
+              id="displayName"
+              placeholder="Sales Dashboard"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+            />
           </div>
           <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor="description">Description</Label>
-            <Input id="description" placeholder="Optional short description" value={description} onChange={(e) => setDescription(e.target.value)} />
+            <Input
+              id="description"
+              placeholder="Optional short description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="thumbnail">Thumbnail URL</Label>
-            <Input id="thumbnail" placeholder="https://…/icon.png (optional)" value={thumbnail} onChange={(e) => setThumbnail(e.target.value)} />
+            <Input
+              id="thumbnail"
+              placeholder="https://…/icon.png (optional)"
+              value={thumbnail}
+              onChange={(e) => setThumbnail(e.target.value)}
+            />
           </div>
           <div className="space-y-1.5">
             <Label>Namespace</Label>
-            <Select value={namespace} onValueChange={(v) => setNamespace(v as string)} disabled={isEdit}>
+            <Select
+              value={namespace}
+              onValueChange={(v) => setNamespace(v as string)}
+              disabled={isEdit}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -231,7 +285,7 @@ export function AppForm({
             <Select
               value={kind}
               onValueChange={(v) => setKind(v as AppKind)}
-              items={{ static: 'Static site (HTML/CSS/JS)', pixi: 'Python app (pixi)' }}
+              items={{ static: "Static site (HTML/CSS/JS)", pixi: "Python app (pixi)" }}
             >
               <SelectTrigger>
                 <SelectValue />
@@ -242,7 +296,7 @@ export function AppForm({
               </SelectContent>
             </Select>
           </div>
-          {kind === 'pixi' ? (
+          {kind === "pixi" ? (
             <div className="space-y-1.5">
               <Label htmlFor="pixiTask">Launch task</Label>
               <Input
@@ -253,8 +307,8 @@ export function AppForm({
                 onChange={(e) => setPixiTask(e.target.value)}
               />
               <p className="text-muted-foreground text-xs">
-                Runs <span className="font-mono">pixi run {pixiTask || '<task>'}</span>; the task must serve on{' '}
-                <span className="font-mono">0.0.0.0:8080</span>.
+                Runs <span className="font-mono">pixi run {pixiTask || "<task>"}</span>; the task
+                must serve on <span className="font-mono">0.0.0.0:8080</span>.
               </p>
             </div>
           ) : null}
@@ -266,14 +320,18 @@ export function AppForm({
           <CardTitle>Source</CardTitle>
           <CardDescription>
             {isEdit
-              ? 'Keep the current source, or point the app at a new one.'
-              : 'Upload files directly, point at a git repository, or mount a PVC.'}
+              ? "Keep the current source, or point the app at a new one."
+              : "Upload files directly, point at a git repository, or mount a PVC."}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs value={sourceTab} onValueChange={(v) => setSourceTab(v as SourceTab)}>
             <TabsList>
-              {isEdit ? <TabsTab value="keep">Keep current</TabsTab> : <TabsTab value="upload">Upload</TabsTab>}
+              {isEdit ? (
+                <TabsTab value="keep">Keep current</TabsTab>
+              ) : (
+                <TabsTab value="upload">Upload</TabsTab>
+              )}
               <TabsTab value="git">Git</TabsTab>
               <TabsTab value="pvc">PVC</TabsTab>
             </TabsList>
@@ -281,8 +339,10 @@ export function AppForm({
             {isEdit ? (
               <TabsPanel value="keep" className="mt-4">
                 <p className="text-muted-foreground text-sm">
-                  Current source: <span className="font-mono">{initial?.source?.type ?? 'unknown'}</span>. Uploaded
-                  (inline) content can't be edited here — switch to Git or PVC, or relaunch to replace files.
+                  Current source:{" "}
+                  <span className="font-mono">{initial?.source?.type ?? "unknown"}</span>. Uploaded
+                  (inline) content can't be edited here — switch to Git or PVC, or relaunch to
+                  replace files.
                 </p>
               </TabsPanel>
             ) : (
@@ -294,23 +354,28 @@ export function AppForm({
                   <UploadCloud className="size-6 text-muted-foreground" />
                   {file ? (
                     <p className="font-medium text-sm">{file.name}</p>
-                  ) : kind === 'pixi' ? (
+                  ) : kind === "pixi" ? (
                     <>
                       <p className="font-medium text-sm">Drop a .zip of your pixi project</p>
                       <p className="text-muted-foreground text-xs">
-                        Needs a pixi.toml (or pyproject.toml) at the root · text files only · up to ~900KB
+                        Needs a pixi.toml (or pyproject.toml) at the root · text files only · up to
+                        ~900KB
                       </p>
                     </>
                   ) : (
                     <>
-                      <p className="font-medium text-sm">Drop a .zip of your site, or a single .html file</p>
-                      <p className="text-muted-foreground text-xs">Needs an index.html at the root · text assets only · up to ~900KB</p>
+                      <p className="font-medium text-sm">
+                        Drop a .zip of your site, or a single .html file
+                      </p>
+                      <p className="text-muted-foreground text-xs">
+                        Needs an index.html at the root · text assets only · up to ~900KB
+                      </p>
                     </>
                   )}
                   <input
                     id="file-upload"
                     type="file"
-                    accept={kind === 'pixi' ? '.zip' : '.zip,.html,.htm'}
+                    accept={kind === "pixi" ? ".zip" : ".zip,.html,.htm"}
                     className="hidden"
                     onChange={(e) => setFile(e.target.files?.[0] ?? null)}
                   />
@@ -321,7 +386,12 @@ export function AppForm({
             <TabsPanel value="git" className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div className="space-y-1.5 sm:col-span-3">
                 <Label htmlFor="gitUrl">Repository URL</Label>
-                <Input id="gitUrl" placeholder="https://github.com/org/site" value={gitUrl} onChange={(e) => setGitUrl(e.target.value)} />
+                <Input
+                  id="gitUrl"
+                  placeholder="https://github.com/org/site"
+                  value={gitUrl}
+                  onChange={(e) => setGitUrl(e.target.value)}
+                />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="gitRef">Branch / tag</Label>
@@ -329,18 +399,33 @@ export function AppForm({
               </div>
               <div className="space-y-1.5 sm:col-span-2">
                 <Label htmlFor="gitSubdir">Subdirectory</Label>
-                <Input id="gitSubdir" placeholder="e.g. public (optional)" value={gitSubdir} onChange={(e) => setGitSubdir(e.target.value)} />
+                <Input
+                  id="gitSubdir"
+                  placeholder="e.g. public (optional)"
+                  value={gitSubdir}
+                  onChange={(e) => setGitSubdir(e.target.value)}
+                />
               </div>
             </TabsPanel>
 
             <TabsPanel value="pvc" className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div className="space-y-1.5 sm:col-span-2">
                 <Label htmlFor="pvcClaim">Claim name</Label>
-                <Input id="pvcClaim" placeholder="shared-sites" value={pvcClaim} onChange={(e) => setPvcClaim(e.target.value)} />
+                <Input
+                  id="pvcClaim"
+                  placeholder="shared-sites"
+                  value={pvcClaim}
+                  onChange={(e) => setPvcClaim(e.target.value)}
+                />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="pvcSubPath">Sub-path</Label>
-                <Input id="pvcSubPath" placeholder="site/ (optional)" value={pvcSubPath} onChange={(e) => setPvcSubPath(e.target.value)} />
+                <Input
+                  id="pvcSubPath"
+                  placeholder="site/ (optional)"
+                  value={pvcSubPath}
+                  onChange={(e) => setPvcSubPath(e.target.value)}
+                />
               </div>
             </TabsPanel>
           </Tabs>
@@ -350,13 +435,21 @@ export function AppForm({
       <Card>
         <CardHeader>
           <CardTitle>Runtime</CardTitle>
-          <CardDescription>Presets fill requests and limits; tweak any field afterwards.</CardDescription>
+          <CardDescription>
+            Presets fill requests and limits; tweak any field afterwards.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-muted-foreground text-sm">Preset:</span>
             {Object.keys(PRESETS).map((p) => (
-              <Button key={p} type="button" variant="outline" size="sm" onClick={() => applyPreset(p as keyof typeof PRESETS)}>
+              <Button
+                key={p}
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => applyPreset(p as keyof typeof PRESETS)}
+              >
                 {p}
               </Button>
             ))}
@@ -364,25 +457,52 @@ export function AppForm({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="space-y-1.5">
               <Label htmlFor="replicas">Replicas</Label>
-              <Input id="replicas" type="number" min={0} max={10} value={replicas} onChange={(e) => setReplicas(Number(e.target.value))} />
+              <Input
+                id="replicas"
+                type="number"
+                min={0}
+                max={10}
+                value={replicas}
+                onChange={(e) => setReplicas(Number(e.target.value))}
+              />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <div className="space-y-1.5">
               <Label htmlFor="cpuReq">CPU request</Label>
-              <Input id="cpuReq" placeholder="250m" value={cpuReq} onChange={(e) => setCpuReq(e.target.value)} />
+              <Input
+                id="cpuReq"
+                placeholder="250m"
+                value={cpuReq}
+                onChange={(e) => setCpuReq(e.target.value)}
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="memReq">Memory request</Label>
-              <Input id="memReq" placeholder="512Mi" value={memReq} onChange={(e) => setMemReq(e.target.value)} />
+              <Input
+                id="memReq"
+                placeholder="512Mi"
+                value={memReq}
+                onChange={(e) => setMemReq(e.target.value)}
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="cpuLim">CPU limit</Label>
-              <Input id="cpuLim" placeholder="500m" value={cpuLim} onChange={(e) => setCpuLim(e.target.value)} />
+              <Input
+                id="cpuLim"
+                placeholder="500m"
+                value={cpuLim}
+                onChange={(e) => setCpuLim(e.target.value)}
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="memLim">Memory limit</Label>
-              <Input id="memLim" placeholder="1Gi" value={memLim} onChange={(e) => setMemLim(e.target.value)} />
+              <Input
+                id="memLim"
+                placeholder="1Gi"
+                value={memLim}
+                onChange={(e) => setMemLim(e.target.value)}
+              />
             </div>
           </div>
 
@@ -391,14 +511,40 @@ export function AppForm({
             {envVars.map((env, i) => (
               // biome-ignore lint/suspicious/noArrayIndexKey: positional editor rows
               <div key={i} className="flex w-full items-center gap-2">
-                <Input placeholder="NAME" className="font-mono" value={env.name} onChange={(e) => setEnvVars(envVars.map((v, j) => (j === i ? { ...v, name: e.target.value } : v)))} />
-                <Input placeholder="value" className="font-mono" value={env.value} onChange={(e) => setEnvVars(envVars.map((v, j) => (j === i ? { ...v, value: e.target.value } : v)))} />
-                <Button variant="ghost" size="icon-sm" onClick={() => setEnvVars(envVars.filter((_, j) => j !== i))}>
+                <Input
+                  placeholder="NAME"
+                  className="font-mono"
+                  value={env.name}
+                  onChange={(e) =>
+                    setEnvVars(
+                      envVars.map((v, j) => (j === i ? { ...v, name: e.target.value } : v)),
+                    )
+                  }
+                />
+                <Input
+                  placeholder="value"
+                  className="font-mono"
+                  value={env.value}
+                  onChange={(e) =>
+                    setEnvVars(
+                      envVars.map((v, j) => (j === i ? { ...v, value: e.target.value } : v)),
+                    )
+                  }
+                />
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => setEnvVars(envVars.filter((_, j) => j !== i))}
+                >
                   <Trash2 />
                 </Button>
               </div>
             ))}
-            <Button variant="outline" size="sm" onClick={() => setEnvVars([...envVars, { name: '', value: '' }])}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setEnvVars([...envVars, { name: "", value: "" }])}
+            >
               <Plus /> Add variable
             </Button>
           </div>
@@ -409,15 +555,18 @@ export function AppForm({
         <CardHeader>
           <CardTitle>Access</CardTitle>
           <CardDescription>
-            Apps are served behind the shared gateway. Private apps require a Keycloak sign-in at the gateway - the
-            app itself needs no auth code. Sign-in is authentication only: every user in the realm can open a private app.
+            Apps are served behind the shared gateway. Private apps require a Keycloak sign-in at
+            the gateway - the app itself needs no auth code. Sign-in is authentication only: every
+            user in the realm can open a private app.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between rounded-md border border-border p-3">
             <div>
               <p className="font-medium text-sm">Public app</p>
-              <p className="text-muted-foreground text-xs">Anyone with the URL can use it - no login required.</p>
+              <p className="text-muted-foreground text-xs">
+                Anyone with the URL can use it - no login required.
+              </p>
             </div>
             <Switch checked={isPublic} onCheckedChange={setIsPublic} />
           </div>
@@ -432,38 +581,54 @@ export function AppForm({
                 onChange={(e) => setGroups(e.target.value)}
               />
               <p id="groups-help" className="text-muted-foreground text-xs">
-                Not enforced yet: any signed-in user can open a private app, whatever groups you list.
+                Not enforced yet: any signed-in user can open a private app, whatever groups you
+                list.
               </p>
             </div>
           ) : null}
           <div className="space-y-1.5">
             <Label htmlFor="subdomain">Subdomain</Label>
             <div className="flex items-center gap-2">
-              <Input id="subdomain" className="max-w-56 font-mono" value={subdomain} disabled={isEdit} onChange={(e) => setSubdomain(e.target.value)} />
+              <Input
+                id="subdomain"
+                className="max-w-56 font-mono"
+                value={subdomain}
+                disabled={isEdit}
+                onChange={(e) => setSubdomain(e.target.value)}
+              />
               <span className="text-muted-foreground text-sm">.{appsDomain}</span>
             </div>
-            {isEdit ? <p className="text-muted-foreground text-xs">Subdomain is fixed after launch.</p> : null}
+            {isEdit ? (
+              <p className="text-muted-foreground text-xs">Subdomain is fixed after launch.</p>
+            ) : null}
           </div>
           <div className="flex items-center justify-between rounded-md border border-border p-3">
             <div>
               <p className="font-medium text-sm">Show on the landing page</p>
               <p className="text-muted-foreground text-xs">
-                Add a tile for this app to the Nebari landing page. Off by default - the app is reachable at its
-                URL and listed here either way.
+                Add a tile for this app to the Nebari landing page. Off by default - the app is
+                reachable at its URL and listed here either way.
               </p>
             </div>
-            <Switch checked={onLandingPage} onCheckedChange={setOnLandingPage} aria-label="Show on the landing page" />
+            <Switch
+              checked={onLandingPage}
+              onCheckedChange={setOnLandingPage}
+              aria-label="Show on the landing page"
+            />
           </div>
         </CardContent>
       </Card>
 
       <div className="flex items-center justify-end gap-3">
-        {validationError ? <p className="text-muted-foreground text-sm">{validationError}</p> : null}
+        {validationError ? (
+          <p className="text-muted-foreground text-sm">{validationError}</p>
+        ) : null}
         <p className="mr-auto text-muted-foreground text-sm">
-          {appsScheme}://{(isEdit ? initial?.access?.subdomain : subdomain) || '<subdomain>'}.{appsDomain}
+          {appsScheme}://{(isEdit ? initial?.access?.subdomain : subdomain) || "<subdomain>"}.
+          {appsDomain}
         </p>
         <Button size="lg" disabled={!!validationError} loading={submitting} onClick={handleSubmit}>
-          {isEdit ? 'Save changes' : 'Launch app'}
+          {isEdit ? "Save changes" : "Launch app"}
         </Button>
       </div>
     </div>
@@ -472,7 +637,7 @@ export function AppForm({
 
 function splitGroups(raw: string): string[] {
   return raw
-    .split(',')
+    .split(",")
     .map((g) => g.trim())
     .filter(Boolean);
 }

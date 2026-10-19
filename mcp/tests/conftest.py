@@ -11,7 +11,6 @@ from typing import Any
 
 import httpx
 import pytest
-
 from nebari_apps_api.config import settings as api_settings
 from nebari_apps_api.k8s import ConflictError, NotFoundError
 from nebari_apps_api.main import create_app
@@ -31,11 +30,7 @@ class FakeStore:
         self.metrics_available = True
 
     def list_apps(self, namespace: str | None) -> list[dict[str, Any]]:
-        return [
-            copy.deepcopy(cr)
-            for (ns, _), cr in sorted(self.apps.items())
-            if namespace is None or ns == namespace
-        ]
+        return [copy.deepcopy(cr) for (ns, _), cr in sorted(self.apps.items()) if namespace is None or ns == namespace]
 
     def get_app(self, namespace: str, name: str) -> dict[str, Any]:
         try:
