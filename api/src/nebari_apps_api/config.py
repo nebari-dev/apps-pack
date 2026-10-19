@@ -28,6 +28,17 @@ class Settings:
         ]
     )
 
+    # Keycloak groups whose members may see and manage every App. Everyone
+    # else sees and manages only the Apps they own (spec.owner). Group names
+    # are compared without a leading "/" (Keycloak full-path groups).
+    admin_groups: list[str] = field(
+        default_factory=lambda: [
+            g.strip().lstrip("/")
+            for g in os.environ.get("APPS_ADMIN_GROUPS", "admin").split(",")
+            if g.strip()
+        ]
+    )
+
     # --- Auth (Keycloak JWT bearer) ---
     auth_enabled: bool = field(default_factory=lambda: _env_bool("AUTH_ENABLED", True))
     # Issuer as it appears in tokens (browser-facing Keycloak realm URL).

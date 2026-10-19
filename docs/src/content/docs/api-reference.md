@@ -18,7 +18,16 @@ Authorization: Bearer <access-token>
 
 The API validates the signature against the realm JWKS, and stamps the caller's
 `preferred_username` as the app's `owner` on create. With `api.auth.enabled=false`
-(local development), requests are anonymous.
+(local development), requests are anonymous and treated as an admin.
+
+### Authorization
+
+Every route that addresses one app (`/apps/{ns}/{name}` and everything under it) allows
+only the app's **owner** or a member of an **admin group** (`api.adminGroups`, default
+`["admin"]`); anyone else gets `403`. `GET /apps` and the `/analytics/*` endpoints return
+only the apps the caller may see. Apps without an owner (created with `kubectl`) are
+admin-only. The path namespace must be a launchable namespace on every route, not only on
+create.
 
 ## Endpoints
 
@@ -29,13 +38,13 @@ The API validates the signature against the realm JWKS, and stamps the caller's
 | `GET /healthz` | Liveness (public). |
 | `GET /config` | UI bootstrap config (public): `authEnabled`, Keycloak url/realm/SPA client id, `appsDomain`, `appsScheme`. |
 | `GET /capabilities` | `{appsDomain, sourceTypes, namespaces}` — what this cluster supports and where the caller may launch. `sourceTypes` is `["git", "inline", "pvc"]`. |
-| `GET /auth/me` | The caller's username, email, and groups. |
+| `GET /auth/me` | The caller's username, email, groups, and `admin` (member of an admin group). |
 
 ### Apps
 
 | Method & path | Description |
 |---|---|
-| `GET /apps?namespace=` | List apps (all managed namespaces, or one). |
+| `GET /apps?namespace=` | List the apps the caller may see (all launchable namespaces, or one). |
 | `POST /apps` | Create + launch. Body mirrors `App.spec` plus `name`/`namespace` (see below). `409` if the name exists. |
 | `POST /apps/upload` | Create + launch an app from an upload. Multipart: `manifest` (JSON, source omitted) + `file` (`.zip` or `.html`). A manifest with `runtime.pixiTask` launches the zip as a Python/pixi app. |
 | `GET /apps/{ns}/{name}` | Full spec + status. |
@@ -53,8 +62,8 @@ The API validates the signature against the realm JWKS, and stamps the caller's
 | `GET /apps/{ns}/{name}/logs?lines=200&container=` | Recent pod logs (`lines` 1–5000, default 200). |
 | `GET /apps/{ns}/{name}/events` | Kubernetes events for the app's resources. |
 | `GET /apps/{ns}/{name}/metrics` | Instantaneous per-pod CPU (millicores) and memory (Mi) from `metrics.k8s.io`. `{available, pods:[{name, cpu, memory}]}`; `available:false` when the cluster has no metrics server. |
-| `GET /analytics/summary?namespace=` | Totals and breakdowns by phase / source type / namespace, plus replica readiness. |
-| `GET /analytics/metrics` | Cluster-wide resource usage aggregated per app and per namespace, plus restart counts. `{usageAvailable, apps:[{namespace, name, cpu, memory, restarts}], byNamespace:[…]}`. Restart counts always populate (pod status); CPU/memory require a metrics server. |
+| `GET /analytics/summary?namespace=` | Over the apps the caller may see: totals and breakdowns by phase / source type / namespace, plus replica readiness. |
+| `GET /analytics/metrics` | Resource usage of the apps the caller may see, aggregated per app and per namespace, plus restart counts. `{usageAvailable, apps:[{namespace, name, cpu, memory, restarts}], byNamespace:[…]}`. Restart counts always populate (pod status); CPU/memory require a metrics server. |
 
 ## Create request
 
@@ -114,7 +123,7 @@ curl -X POST https://apps.example.ai/api/v1/apps/upload \
 | Status | Meaning |
 |---|---|
 | `401` | Missing or invalid bearer token. |
-| `403` | Namespace not available (not labeled `nebari.dev/managed=true`). |
+| `403` | Namespace not available (not a launchable namespace), or the caller is neither the app's owner nor an admin. |
 | `404` | App (or its pods, for logs) not found. |
 | `409` | An app with that name already exists in the namespace. |
 | `413` | Upload exceeds the inline size cap. |

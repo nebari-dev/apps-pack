@@ -196,10 +196,9 @@ Alpha means the happy path works; these are the gaps to know about before a demo
   (`access.public: false`) is reachable by **any signed-in realm user**, and `access.users` is
   not used at all; `groups` is only forwarded to the `NebariApp`. Treat `public: false` as
   "authenticated", not "authorized".
-- **No per-user authorization in the API.** Every authenticated user can list, edit, stop,
-  restart, delete and read the logs of every App in the managed namespaces — including apps
-  they did not create. Scope access with `api.allowedNamespaces` and Keycloak client access
-  until owner/admin-group checks land.
+- **Authorization is owner-or-admin only.** The API lets a user see and manage only the
+  Apps they launched; members of `api.adminGroups` manage all of them. There is no sharing
+  or delegation yet, and anyone with `kubectl` access to an app namespace bypasses the API.
 - **Inline sources are capped at ~900 KB of UTF-8 text** (a ConfigMap). Binary assets or
   larger sites need a `git` or `pvc` source.
 - **No resource defaults or quotas for launched apps.** An App that omits `runtime.resources`
