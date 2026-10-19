@@ -58,7 +58,7 @@ status:
 | `displayName` | string | Yes | Human-readable name (max 64 chars); shown in the UI and on the landing page. |
 | `description` | string | No | Short description (max 256 chars). |
 | `thumbnail` | string | No | Data-URI image for catalogs / the landing-page tile. |
-| `owner` | string | No | Keycloak `preferred_username` that manages the app. The API sets this from the caller's token. |
+| `owner` | string | No | Keycloak `preferred_username` that manages the app. The API sets this from the caller's token. It is the owner of record; the API also writes it to the `apps.nebari.dev/owner` label when the name is a valid label value (an email-style username such as `a@b.c` gets no label). |
 | `source` | [AppSource](#specsource) | Yes | Where the app's content comes from. |
 | `runtime` | [AppRuntime](#specruntime) | No | Process configuration: env, resources, replicas. |
 | `access` | [AppAccess](#specaccess) | Yes | Who can reach the app and at which subdomain. |

@@ -301,7 +301,9 @@ def create_app(store: AppStore | None = None) -> FastAPI:
 
     @app.post(PREFIX + "/apps/{namespace}/{name}/restart", response_model=AppOut)
     def restart_app(namespace: str, name: str, store: Store, user: Me) -> AppOut:
-        authorized_app(store, user, namespace, name)
+        cr = authorized_app(store, user, namespace, name)
+        if ((cr.get("spec") or {}).get("runtime") or {}).get("replicas", 1) == 0:
+            raise HTTPException(409, f"app {namespace}/{name} is stopped; start it instead")
         try:
             store.restart_app(namespace, name)
         except NotFoundError as exc:
@@ -425,6 +427,16 @@ def _reject_users(access: Any) -> None:
 
 
 def _check_source(source: Any) -> None:
+    if source is not None and source.inline is not None:
+        # The same cap as uploads: inline files become one ConfigMap, which
+        # the apiserver refuses past ~1 MiB.
+        size = sum(len(c.encode()) for c in source.inline.files.values())
+        if size > settings.max_upload_bytes:
+            raise HTTPException(
+                413,
+                f"inline files total {size} bytes, over the {settings.max_upload_bytes}-byte cap; "
+                "use a git or pvc source for larger apps",
+            )
     if source is not None and source.type == "git" and source.git is not None:
         try:
             source.git.check()

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
-from typing import Literal
+from typing import Any, Literal
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -71,24 +71,34 @@ class AppSource(BaseModel):
 
 
 class EnvVar(BaseModel):
+    """A Kubernetes EnvVar: a literal `value`, or `valueFrom` (a Secret,
+    ConfigMap or field reference, passed through as written).
+    """
+
     name: str
     value: str = ""
-
-
-class ResourceAmounts(BaseModel):
-    cpu: str | None = None
-    memory: str | None = None
+    valueFrom: dict[str, Any] | None = None
 
 
 class Resources(BaseModel):
-    requests: ResourceAmounts | None = None
-    limits: ResourceAmounts | None = None
+    """Kubernetes ResourceRequirements. Any resource name is kept (cpu,
+    memory, ephemeral-storage, extended resources such as nvidia.com/gpu),
+    so an App authored with kubectl keeps them through an edit.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    requests: dict[str, str] | None = None
+    limits: dict[str, str] | None = None
 
 
 class AppRuntime(BaseModel):
     env: list[EnvVar] = Field(default_factory=list)
     resources: Resources | None = None
     replicas: int = Field(default=1, ge=0, le=10)
+    # Reserved for scale-to-zero idle reaping (not implemented); kept so an
+    # App that sets it does not lose it on an edit.
+    keepAlive: bool | None = None
     # When set, the app runs as a Python/pixi service: the operator installs
     # the pixi environment and executes `pixi run <pixiTask>`. The task must
     # start a server listening on 0.0.0.0:8080.

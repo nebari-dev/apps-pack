@@ -216,3 +216,13 @@ async def test_launch_passes_resources(store):
 async def test_launch_without_resources_leaves_defaults_to_operator(store):
     await call("launch_app", LAUNCH_ARGS)
     assert "resources" not in store.apps[("apps", "docs-site")]["spec"]["runtime"]
+
+
+async def test_launch_over_the_inline_cap_is_413(store, monkeypatch):
+    from nebari_apps_api.config import settings as api_settings
+
+    monkeypatch.setattr(api_settings, "max_upload_bytes", 1000)
+    result = await call("launch_app", {**LAUNCH_ARGS, "inline_files": {"index.html": "x" * 1001}})
+    assert result["status"] == 413
+    assert "1000-byte cap" in result["error"]
+    assert ("apps", "docs-site") not in store.apps
