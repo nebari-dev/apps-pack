@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -25,11 +25,14 @@ describe("Header branding", () => {
   it("uses the bundled logos when no branding is configured", () => {
     renderWithRouter(<Header />);
 
-    const logos = screen.getAllByRole("img", { name: "Nebari" });
-    expect(logos).toHaveLength(2);
-    // Both are rendered; CSS (dark:hidden / dark:block) picks one.
-    expect(logos[0]).toHaveClass("dark:hidden");
-    expect(logos[1]).toHaveClass("dark:block");
+    // One logo, picked from the theme the header is told about (no dark: CSS).
+    const light = screen.getByRole("img", { name: "Nebari" });
+    const lightSrc = light.getAttribute("src");
+    expect(screen.getAllByRole("img")).toHaveLength(1);
+    cleanup();
+
+    renderWithRouter(<Header isDarkMode />);
+    expect(screen.getByRole("img", { name: "Nebari" }).getAttribute("src")).not.toBe(lightSrc);
   });
 
   it("renders the branded logo and uses the title as its alt text", () => {

@@ -16,24 +16,30 @@ const css = readFileSync(path.resolve(process.cwd(), "src/index.css"), "utf8");
  * primitives, so this guards the derivation.
  */
 
-function block(selector: string): string {
-  const match = new RegExp(`${selector}\\s*\\{([^}]*)\\}`).exec(css);
-  if (!match) {
-    throw new Error(`no ${selector} block found in index.css`);
-  }
-  return match[1];
+/** Bodies of every `<selector> { ... }` block, in file order. */
+function blocks(selector: string): string[] {
+  return [...css.matchAll(new RegExp(`(?:^|\\n)${selector}\\s*\\{([^}]*)\\}`, "g"))].map(
+    (m) => m[1],
+  );
 }
 
-// The first :root block holds the primitives; the semantic light tokens are the
-// second one (the first block containing --primary).
-const lightBlock = css
-  .split(/:root\s*\{/)
-  .map((chunk) => chunk.split("}")[0])
-  .find((chunk) => /--primary:/.test(chunk));
+// App changes live in the "App overrides" blocks at the end of the file, after
+// the registry's, so re-applying the theme leaves them alone: the last :root
+// and the last .dark.
+const overrides = css.slice(css.indexOf("App overrides:"));
+const lightOverride = blocks(":root").at(-1) ?? "";
+const darkOverride = blocks("\\.dark").at(-1) ?? "";
+
+it("keeps the app overrides after the registry blocks", () => {
+  expect(css.indexOf("App overrides:")).toBeGreaterThan(css.lastIndexOf("--primary:"));
+  expect(overrides).toMatch(/:root\s*\{/);
+  expect(overrides).toMatch(/\.dark\s*\{/);
+  expect(overrides).toContain("--color-header-border: var(--header-border);");
+});
 
 describe.each([
-  ["light", lightBlock ?? ""],
-  ["dark", block("\\.dark")],
+  ["light", lightOverride],
+  ["dark", darkOverride],
 ])("%s theme tokens", (mode, declarations) => {
   it("was located", () => {
     expect(declarations, `no semantic ${mode} block found in index.css`).not.toBe("");

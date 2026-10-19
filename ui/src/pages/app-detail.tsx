@@ -408,7 +408,7 @@ export function AppDetailPage() {
                   aria-label="Refresh logs"
                   onClick={() => void logs.refetch()}
                 >
-                  <RefreshCw className={logs.isFetching ? "animate-spin" : ""} />
+                  <RefreshCw className={logs.isFetching ? "motion-safe:animate-spin" : ""} />
                 </Button>
                 <Button
                   variant="ghost"

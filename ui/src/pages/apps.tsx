@@ -551,7 +551,7 @@ function FilterChip({
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-medium text-xs transition-colors",
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-medium text-xs motion-safe:transition-colors motion-safe:duration-(--duration-fast)",
         active
           ? "border-primary bg-primary text-primary-foreground"
           : "border-border text-muted-foreground hover:bg-accent hover:text-foreground",
