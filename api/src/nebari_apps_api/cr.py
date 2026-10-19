@@ -44,7 +44,8 @@ def to_cr(req: AppCreate, owner: str) -> dict[str, Any]:
         "metadata": {
             "name": req.name,
             "namespace": req.namespace,
-            "labels": {"apps.nebari.dev/owner": owner} if owner else {},
+            "labels": ({"apps.nebari.dev/owner": owner} if owner else {})
+            | {"apps.nebari.dev/subdomain": req.access.subdomain},
         },
         "spec": _clean(spec) | {"access": {**_clean(spec["access"]), "public": req.access.public}},
     }

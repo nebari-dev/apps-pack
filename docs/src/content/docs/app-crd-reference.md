@@ -117,7 +117,7 @@ current state of the ref.
 | `public` | bool | No | `true` disables authentication entirely (anonymous access). |
 | `groups` | []string | No | Keycloak groups intended to use the app. Passed to the `NebariApp` as `auth.groups`, but **not enforced by the gateway in nebari-operator 0.1.0** — any signed-in realm user can open a private app. |
 | `users` | []string | No | **Reserved.** Not used by the operator or the gateway. The API rejects a non-empty list with `422`; a value set with `kubectl` is stored and ignored. Tracked in [#67](https://github.com/nebari-dev/apps-pack/issues/67). |
-| `subdomain` | string | Yes | Lowercase DNS label. The app is served at `https://<subdomain>.<appsDomain>`. |
+| `subdomain` | string | Yes | Lowercase DNS label, at most 63 characters. The app is served at `https://<subdomain>.<appsDomain>`. **Unique across all Apps** in the cluster: the API returns `409` for a taken subdomain, and if two Apps claim one anyway (e.g. via `kubectl`), the oldest keeps it and the other goes `Failed` with `Validated=False`, reason `SubdomainTaken`, and no `NebariApp`. **Immutable** after creation. The operator mirrors it into the `apps.nebari.dev/subdomain` label. |
 
 ## spec.landingPage
 

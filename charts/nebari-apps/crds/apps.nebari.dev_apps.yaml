@@ -69,9 +69,16 @@ spec:
                       access).
                     type: boolean
                   subdomain:
-                    description: 'Subdomain under the cluster domain: https://<subdomain>.<clusterDomain>.'
+                    description: |-
+                      Subdomain under the cluster domain: https://<subdomain>.<clusterDomain>.
+                      Unique across all Apps (the oldest App keeps a contested subdomain) and
+                      immutable after creation.
+                    maxLength: 63
                     pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                     type: string
+                    x-kubernetes-validations:
+                    - message: access.subdomain is immutable
+                      rule: self == oldSelf
                   users:
                     description: |-
                       Users is reserved and currently ignored: nothing enforces it, and the
