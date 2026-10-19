@@ -1,0 +1,56 @@
+name: Audit
+
+# Known-vulnerability scan of the locked dependency sets. Runs on every PR
+# and push to main, and weekly so advisories published after a merge surface
+# even when nothing changes.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python deps (${{ matrix.component }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        component: [api, mcp]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.10.11"
+
+      - name: pip-audit the locked set
+        working-directory: ${{ matrix.component }}
+        # Audit exactly what uv.lock pins (all extras, hashes included), with
+        # no resolution of its own.
+        run: |
+          uv export --frozen --all-extras --no-emit-project -o "$RUNNER_TEMP/requirements.txt"
+          uvx pip-audit@2.10.0 --disable-pip --strict -r "$RUNNER_TEMP/requirements.txt"
+
+  ui:
+    name: UI deps
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: npm audit
+        working-directory: ui
+        run: npm audit --audit-level=high

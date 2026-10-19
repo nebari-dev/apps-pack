@@ -26,15 +26,22 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v7
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
+          version: "0.10.11"
           python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: api/uv.lock
 
-      - name: Install and test
+      - name: Check the lockfile is current
+        working-directory: api
+        run: uv lock --check
+
+      - name: Install from the lockfile and test
         working-directory: api
         run: |
-          pip install -e ".[dev]"
-          pytest -q
+          uv sync --frozen --extra dev
+          uv run --frozen --no-sync python -m pytest -q
 
   mcp:
     name: MCP tests
@@ -42,15 +49,26 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v7
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
+          version: "0.10.11"
           python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: mcp/uv.lock
 
-      - name: Install and test
+      - name: Check the lockfile is current
         working-directory: mcp
+        run: uv lock --check
+
+      - name: Install from the lockfile and test
+        working-directory: mcp
+        # The tests drive the real apps-api in process. Its dependencies are
+        # pinned by mcp/uv.lock (the dev extra), so the package itself goes
+        # in without resolving anything.
         run: |
-          pip install -e ".[dev]" -e ../api
-          pytest -q
+          uv sync --frozen --extra dev
+          uv pip install --no-deps -e ../api
+          uv run --frozen --no-sync python -m pytest -q
 
   ui:
     name: UI build
