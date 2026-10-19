@@ -327,6 +327,13 @@ Design documents stay in the repository:
 - [software-pack-template](https://github.com/nebari-dev/software-pack-template) — pack
   conventions and the `NebariApp` CRD reference this pack builds on.
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the development loop, the checks each component
+must pass, and pull request conventions. Participation is governed by the
+[Code of Conduct](CODE_OF_CONDUCT.md); report security issues as described in
+[SECURITY.md](SECURITY.md).
+
 ## License
 
 [Apache License 2.0](LICENSE).

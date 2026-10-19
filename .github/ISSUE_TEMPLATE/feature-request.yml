@@ -1,0 +1,41 @@
+name: Feature request
+description: Suggest a new capability or a change to existing behavior.
+labels: ["type: enhancement 💅🏼", "needs: triage 🚦"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What you are trying to do, and what gets in the way today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How you would like it to work. Include an example App spec, API call or UI flow if it helps.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      multiple: true
+      options:
+        - apps-operator / App CRD
+        - apps-api
+        - apps-ui
+        - apps-mcp / agent skill
+        - Helm chart
+        - Docs
+        - Not sure
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contributing
+      options:
+        - label: I would like to work on this

@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/nebari-dev/apps-pack/security/advisories/new
+    about: Report vulnerabilities privately, never in a public issue. See SECURITY.md.
+  - name: Documentation
+    url: https://packs.nebari.dev/apps-pack/
+    about: Installation, configuration and the App CRD reference.
+  - name: Nebari community
+    url: https://www.nebari.dev/docs/community
+    about: Questions and discussion about Nebari in general.
