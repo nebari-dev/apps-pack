@@ -58,3 +58,23 @@ jobs:
       - name: npm audit
         working-directory: ui
         run: npm audit --audit-level=high
+
+  # The design-system skill in ui/.claude is a copy of a registry item; this
+  # flags when the registry has moved on (weekly, like the advisories above).
+  ui-skill:
+    name: Vendored nebari-ui skill is current
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Diff against the @nebari/claude-skill registry item
+        run: |
+          curl -fsSL https://nebari-dev.github.io/nebari-design/r/claude-skill.json \
+            | python3 -c 'import json, sys; sys.stdout.write(json.load(sys.stdin)["files"][0]["content"])' \
+            > "$RUNNER_TEMP/SKILL.md"
+          if ! diff -u ui/.claude/skills/nebari-ui/SKILL.md "$RUNNER_TEMP/SKILL.md"; then
+            echo "::error file=ui/.claude/skills/nebari-ui/SKILL.md::out of date; run 'npx shadcn add @nebari/claude-skill --overwrite' in ui/"
+            exit 1
+          fi
