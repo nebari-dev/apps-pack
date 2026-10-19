@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { api } from "@/lib/api";
+import { listInterval } from "@/lib/polling";
 import type { App } from "@/lib/types";
 
 export function MetricsPage() {
@@ -24,7 +25,11 @@ export function MetricsPage() {
     queryFn: api.clusterMetrics,
     refetchInterval: 10_000,
   });
-  const apps = useQuery({ queryKey: ["apps"], queryFn: () => api.listApps() });
+  const apps = useQuery({
+    queryKey: ["apps"],
+    queryFn: () => api.listApps(),
+    refetchInterval: (q) => listInterval(q.state.data),
+  });
 
   if (metrics.isLoading) {
     return (

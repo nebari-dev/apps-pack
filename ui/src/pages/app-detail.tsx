@@ -34,6 +34,7 @@ import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toast";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { api } from "@/lib/api";
+import { pollFor } from "@/lib/polling";
 import type { App } from "@/lib/types";
 
 const MAX_SAMPLES = 30;
@@ -54,23 +55,25 @@ export function AppDetailPage() {
   const app = useQuery({
     queryKey: ["app", namespace, name],
     queryFn: () => api.getApp(namespace, name),
-    refetchInterval: 5_000,
+    refetchInterval: (q) => pollFor([q.state.data?.status.phase], 5_000, 30_000),
   });
+  const phase = app.data?.status.phase;
+  const phaseStopped = phase === "Stopped";
   const logs = useQuery({
     queryKey: ["logs", namespace, name],
     queryFn: () => api.logs(namespace, name, 500),
-    refetchInterval: logFollow ? 3_000 : false,
+    refetchInterval: logFollow && !phaseStopped ? 3_000 : false,
     retry: false,
   });
   const events = useQuery({
     queryKey: ["events", namespace, name],
     queryFn: () => api.events(namespace, name),
-    refetchInterval: 15_000,
+    refetchInterval: pollFor([phase], 10_000, 60_000),
   });
   const metrics = useQuery({
     queryKey: ["metrics", namespace, name],
     queryFn: () => api.metrics(namespace, name),
-    refetchInterval: 5_000,
+    refetchInterval: phaseStopped ? false : pollFor([phase], 5_000, 15_000),
     retry: false,
   });
 
