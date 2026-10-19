@@ -12,6 +12,10 @@
 # also register the registry as a Helm OCI repository (a Secret labeled
 # argocd.argoproj.io/secret-type=repository with type: helm, enableOCI: "true",
 # url: ghcr.io/nebari-dev/apps-pack/charts).
+#
+# Releases are also published to the org Helm repository; to install from it,
+# use repoURL: https://raw.githubusercontent.com/nebari-dev/helm-repository/gh-pages/
+# (same chart name and versions, no OCI repository Secret needed).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
