@@ -1,3 +1,6 @@
+{{- if and (not .Values.api.auth.enabled) .Values.tls.enabled (not .Values.api.auth.insecureAllowAnonymous) }}
+{{- fail "api.auth.enabled=false makes the API anonymous with cluster-wide write access. It is meant for local development (which also sets tls.enabled=false). To run without authentication anyway, set api.auth.insecureAllowAnonymous=true." }}
+{{- end }}
 {{- if .Values.api.enabled }}
 apiVersion: v1
 kind: ServiceAccount
@@ -111,6 +114,18 @@ spec:
                   name: {{ include "nebari-apps.fullname" . }}-ui-oidc-client
                   key: spa-client-id
                   optional: true
+            # The MCP server forwards device-flow tokens to this API.
+            - name: OIDC_DEVICE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "nebari-apps.fullname" . }}-ui-oidc-client
+                  key: device-client-id
+                  optional: true
+            # Only tokens issued to this pack's clients are accepted. If the
+            # secret is missing the references stay unexpanded and every
+            # token is rejected (fail closed).
+            - name: OIDC_ALLOWED_CLIENTS
+              value: "$(UI_KEYCLOAK_CLIENT_ID),$(OIDC_DEVICE_CLIENT_ID)"
             {{- end }}
           ports:
             - name: http

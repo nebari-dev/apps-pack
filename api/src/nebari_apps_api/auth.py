@@ -56,12 +56,29 @@ def can_access(user: User, cr: dict) -> bool:
     return bool(owner) and owner == user.username
 
 
+def check_client(claims: dict, allowed: list[str] | None) -> None:
+    """Raise ValueError unless the token was issued to (azp) or for (aud) one
+    of the allowed clients. None disables the check."""
+    if allowed is None:
+        return
+    aud = claims.get("aud") or []
+    auds = [aud] if isinstance(aud, str) else list(aud)
+    if claims.get("azp") in allowed or any(a in allowed for a in auds):
+        return
+    raise ValueError(
+        f"token was issued to client {claims.get('azp')!r}, which is not allowed here"
+    )
+
+
 class JWTValidator:
-    def __init__(self, jwks_url: str, issuer: str, audience: str) -> None:
+    def __init__(
+        self, jwks_url: str, issuer: str, audience: str, allowed_clients: list[str] | None = None
+    ) -> None:
         import jwt
 
         self._issuer = issuer
         self._audience = audience
+        self._allowed_clients = allowed_clients
         self._jwks = jwt.PyJWKClient(jwks_url, cache_keys=True, lifespan=300)
 
     def validate(self, token: str) -> User:
@@ -77,6 +94,7 @@ class JWTValidator:
             audience=self._audience or None,
             options=options,
         )
+        check_client(claims, self._allowed_clients)
         return User(
             username=claims.get("preferred_username", claims.get("sub", "")),
             email=claims.get("email", ""),
@@ -92,7 +110,12 @@ def get_validator(request: Request) -> JWTValidator | None:
     if validator is None:
         if not settings.jwks_url:
             raise HTTPException(500, "auth is enabled but OIDC_ISSUER/OIDC_JWKS_URL is not configured")
-        validator = JWTValidator(settings.jwks_url, settings.oidc_issuer, settings.oidc_audience)
+        validator = JWTValidator(
+            settings.jwks_url,
+            settings.oidc_issuer,
+            settings.oidc_audience,
+            settings.oidc_allowed_clients,
+        )
         request.app.state.jwt_validator = validator
     return validator
 

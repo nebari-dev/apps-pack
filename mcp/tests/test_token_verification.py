@@ -89,3 +89,35 @@ async def test_auth_disabled_skips_verification():
     async with Client(mcp) as client:
         caps = (await client.call_tool("describe_cluster", {})).data
         assert "namespaces" in caps
+
+
+def test_jwt_validator_binds_tokens_to_pack_clients():
+    """Real RS256 tokens: a valid token issued to another realm client is refused."""
+    import jwt
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    from nebari_apps_mcp.auth import JWTValidator
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    issuer = "https://keycloak.example.test/realms/nebari"
+
+    class _Key:
+        pass
+
+    _Key.key = key.public_key()
+    v = JWTValidator("https://unused.example.test/certs", issuer, "", ["apps-ui-device", "apps-ui-spa"])
+    v._jwks.get_signing_key_from_jwt = lambda _t: _Key()  # type: ignore[method-assign]
+
+    def tok(azp, aud="account"):
+        return jwt.encode(
+            {"iss": issuer, "azp": azp, "aud": aud, "exp": int(time.time()) + 300}, key, algorithm="RS256"
+        )
+
+    assert v.validate(tok("apps-ui-device", ["apps-ui", "account"]))["azp"] == "apps-ui-device"
+    assert v.validate(tok("apps-ui-spa"))["azp"] == "apps-ui-spa"
+    with pytest.raises(TokenVerificationError):
+        v.validate(tok("grafana"))
+    empty = JWTValidator("https://unused.example.test/certs", issuer, "", [])
+    empty._jwks.get_signing_key_from_jwt = lambda _t: _Key()  # type: ignore[method-assign]
+    with pytest.raises(TokenVerificationError):
+        empty.validate(tok("apps-ui-spa"))

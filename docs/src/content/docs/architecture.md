@@ -56,7 +56,9 @@ logins. The UI boots
 served by the API (`GET /api/v1/config`), runs the PKCE login flow, and attaches the access
 token to every request. The API validates tokens against the realm **JWKS** (with an
 optional in-cluster JWKS URL for split-horizon clusters) and derives the caller's identity
-and groups from the claims. It then authorizes every request: the caller must own the
+and groups from the claims. Tokens must have been issued to one of this pack's own clients
+(the SPA or the device-flow client, checked against `azp`/`aud`), so a token another realm
+client obtained is refused. It then authorizes every request: the caller must own the
 app (`spec.owner`, stamped from `preferred_username` on create) or belong to one of
 `api.adminGroups`. Lists and analytics are filtered the same way.
 

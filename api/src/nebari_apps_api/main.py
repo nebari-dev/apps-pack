@@ -5,6 +5,7 @@ UI and (later) the MCP server are thin clients over this API.
 """
 
 import json
+import logging
 from collections import Counter
 from typing import Annotated, Any
 
@@ -34,6 +35,11 @@ PREFIX = "/api/v1"
 
 def create_app(store: AppStore | None = None) -> FastAPI:
     app = FastAPI(title="nebari-apps-api", version="0.1.0")
+    if not settings.auth_enabled:
+        logging.getLogger("nebari_apps_api").warning(
+            "AUTHENTICATION IS DISABLED (AUTH_ENABLED=false): every request is anonymous and "
+            "treated as an admin. Use this for local development only."
+        )
     app.add_middleware(BodySizeLimitMiddleware, max_bytes=lambda: settings.max_request_bytes)
     app.state.store = store
 
