@@ -7,6 +7,9 @@ repository.
 
 Security problems are not reported here: see [SECURITY.md](SECURITY.md).
 
+Using a coding agent? [AGENTS.md](AGENTS.md) has the repo map, commands and invariants it
+needs; keep it current when you change any of them (CI checks the paths it names).
+
 ## Before you start
 
 - **Open or find an issue first** for anything bigger than a typo, so the approach can be

@@ -127,6 +127,17 @@ jobs:
             -schema-location "$CRDS_CATALOG/{{ .Group }}/{{ .ResourceKind }}_{{ .ResourceAPIVersion }}.json" \
             "${manifests[@]}" "$RUNNER_TEMP"/rendered/*.yaml
 
+  agent-docs:
+    name: Agent docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Paths named in AGENTS.md and the skill exist
+        run: python3 .github/scripts/check_doc_paths.py
+
   versions:
     name: Version strings
     runs-on: ubuntu-latest
