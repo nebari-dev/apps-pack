@@ -5,10 +5,12 @@ import { AppForm, type SubmitPayload } from "@/components/app-form";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toast";
+import { usePageTitle } from "@/hooks/use-page-title";
 import { api } from "@/lib/api";
 import { getConfig } from "@/lib/auth";
 
 export function EditPage() {
+  const heading = usePageTitle("Edit app");
   const { namespace = "", name = "" } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -66,7 +68,9 @@ export function EditPage() {
         >
           <ArrowLeft className="size-3.5" /> {app.data.displayName || app.data.name}
         </Link>
-        <h1 className="font-semibold text-2xl">Edit app</h1>
+        <h1 ref={heading} tabIndex={-1} className="font-semibold text-2xl outline-none">
+          Edit app
+        </h1>
       </div>
       <AppForm
         mode="edit"

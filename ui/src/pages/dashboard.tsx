@@ -14,9 +14,11 @@ import { QueryError } from "@/components/query-error";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
+import { usePageTitle } from "@/hooks/use-page-title";
 import { api } from "@/lib/api";
 
 export function DashboardPage() {
+  const heading = usePageTitle("Dashboard");
   const analytics = useQuery({ queryKey: ["analytics"], queryFn: api.analytics });
   const apps = useQuery({ queryKey: ["apps"], queryFn: () => api.listApps() });
 
@@ -31,7 +33,9 @@ export function DashboardPage() {
   if (analytics.isError) {
     return (
       <div className="space-y-6">
-        <h1 className="font-semibold text-2xl">Dashboard</h1>
+        <h1 ref={heading} tabIndex={-1} className="font-semibold text-2xl outline-none">
+          Dashboard
+        </h1>
         <QueryError
           title="Could not load the dashboard"
           error={analytics.error}
@@ -51,7 +55,9 @@ export function DashboardPage() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="font-semibold text-2xl">Dashboard</h1>
+          <h1 ref={heading} tabIndex={-1} className="font-semibold text-2xl outline-none">
+            Dashboard
+          </h1>
           <p className="text-muted-foreground text-sm">
             Web applications running on this Nebari cluster.
           </p>
@@ -65,7 +71,9 @@ export function DashboardPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-semibold text-2xl">Dashboard</h1>
+          <h1 ref={heading} tabIndex={-1} className="font-semibold text-2xl outline-none">
+            Dashboard
+          </h1>
           <p className="text-muted-foreground text-sm">
             Web applications running on this Nebari cluster.
           </p>

@@ -32,6 +32,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toast";
+import { usePageTitle } from "@/hooks/use-page-title";
 import { api } from "@/lib/api";
 import type { App } from "@/lib/types";
 
@@ -49,6 +50,7 @@ export function AppDetailPage() {
   const [cpuHistory, setCpuHistory] = useState<number[]>([]);
   const [memHistory, setMemHistory] = useState<number[]>([]);
 
+  const heading = usePageTitle(name);
   const app = useQuery({
     queryKey: ["app", namespace, name],
     queryFn: () => api.getApp(namespace, name),
@@ -199,7 +201,9 @@ export function AppDetailPage() {
               <ArrowLeft className="size-3.5" /> Apps
             </Link>
             <div className="flex flex-wrap items-center gap-3">
-              <h1 className="font-semibold text-2xl">{a.displayName || a.name}</h1>
+              <h1 ref={heading} tabIndex={-1} className="font-semibold text-2xl outline-none">
+                {a.displayName || a.name}
+              </h1>
               <SourceBadge source={a.source?.type ?? "—"} />
               <KindBadge pixiTask={a.runtime?.pixiTask} />
               <PhaseBadge phase={a.status.phase} />
@@ -364,12 +368,21 @@ export function AppDetailPage() {
                 {a.status.conditions.map((c) => (
                   <li key={c.type} className="flex items-start gap-2">
                     {c.status === "True" ? (
-                      <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success-foreground" />
+                      <CheckCircle2
+                        aria-hidden="true"
+                        className="mt-0.5 size-4 shrink-0 text-success-foreground"
+                      />
                     ) : (
-                      <XCircle className="mt-0.5 size-4 shrink-0 text-destructive-foreground" />
+                      <XCircle
+                        aria-hidden="true"
+                        className="mt-0.5 size-4 shrink-0 text-destructive-foreground"
+                      />
                     )}
                     <div>
                       <p className="font-medium text-sm">
+                        <span className="sr-only">
+                          {c.status === "True" ? "Passing: " : "Failing: "}
+                        </span>
                         {c.type} <span className="text-muted-foreground">· {c.reason}</span>
                       </p>
                       <p className="text-muted-foreground text-sm">{c.message}</p>

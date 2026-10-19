@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/table";
 import { toast } from "@/components/ui/toast";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { usePageTitle } from "@/hooks/use-page-title";
 import { api } from "@/lib/api";
 import type { App } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -58,6 +59,7 @@ const appType = (app: App) => (app.runtime?.pixiTask ? "python" : "static");
 type SortDir = "asc" | "desc";
 
 export function AppsPage() {
+  const heading = usePageTitle("Apps");
   const queryClient = useQueryClient();
   const apps = useQuery({ queryKey: ["apps"], queryFn: () => api.listApps() });
   const [filter, setFilter] = useState("");
@@ -229,7 +231,9 @@ export function AppsPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="font-semibold text-2xl">Apps</h1>
+          <h1 ref={heading} tabIndex={-1} className="font-semibold text-2xl outline-none">
+            Apps
+          </h1>
           <p className="text-muted-foreground text-sm">
             Everything launched through the Apps Pack, across your namespaces.
           </p>
@@ -549,6 +553,7 @@ function FilterChip({
   return (
     <button
       type="button"
+      aria-pressed={active}
       onClick={onClick}
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-medium text-xs motion-safe:transition-colors motion-safe:duration-(--duration-fast)",
@@ -576,7 +581,7 @@ function SortableHead({
 }) {
   const active = sort.col === col;
   return (
-    <TableHead>
+    <TableHead aria-sort={active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}>
       <button
         type="button"
         className="inline-flex items-center gap-1 hover:text-foreground"

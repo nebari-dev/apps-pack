@@ -98,22 +98,32 @@ export function AppForm({
 
   const effectiveName = isEdit ? name : nameInput;
 
-  const validationError = useMemo(() => {
+  // The first problem with the form, and the control it belongs to, so that
+  // control can be marked invalid and point at the message.
+  const validation = useMemo((): { field: string; message: string } | null => {
     if (!isEdit) {
-      if (!nameInput) return "Give the app a name.";
+      if (!nameInput) return { field: "name", message: "Give the app a name." };
       if (!SUBDOMAIN_RE.test(nameInput))
-        return "Name must be lowercase letters, digits, and hyphens.";
-      if (!subdomain) return "Pick a subdomain.";
+        return { field: "name", message: "Name must be lowercase letters, digits, and hyphens." };
+      if (!subdomain) return { field: "subdomain", message: "Pick a subdomain." };
       if (!SUBDOMAIN_RE.test(subdomain))
-        return "Subdomain must be lowercase letters, digits, and hyphens.";
+        return {
+          field: "subdomain",
+          message: "Subdomain must be lowercase letters, digits, and hyphens.",
+        };
     }
-    if (!displayName) return "Give the app a display name.";
-    if (!namespace) return "Pick a namespace.";
-    if (kind === "pixi" && !pixiTask) return "Enter the pixi task that launches the app.";
+    if (!displayName) return { field: "displayName", message: "Give the app a display name." };
+    if (!namespace) return { field: "namespace", message: "Pick a namespace." };
+    if (kind === "pixi" && !pixiTask)
+      return { field: "pixiTask", message: "Enter the pixi task that launches the app." };
     if (sourceTab === "upload" && !file) {
-      return kind === "pixi"
-        ? "Choose a .zip of your pixi project to upload."
-        : "Choose a .zip or .html file to upload.";
+      return {
+        field: "file",
+        message:
+          kind === "pixi"
+            ? "Choose a .zip of your pixi project to upload."
+            : "Choose a .zip or .html file to upload.",
+      };
     }
     if (
       kind === "pixi" &&
@@ -121,11 +131,13 @@ export function AppForm({
       file &&
       !file.name.toLowerCase().endsWith(".zip")
     ) {
-      return "Pixi apps must be uploaded as a .zip archive.";
+      return { field: "file", message: "Pixi apps must be uploaded as a .zip archive." };
     }
-    if (sourceTab === "git" && !gitUrl) return "Enter the git repository URL.";
-    if (sourceTab === "pvc" && !pvcClaim) return "Enter the PVC claim name.";
-    return "";
+    if (sourceTab === "git" && !gitUrl)
+      return { field: "gitUrl", message: "Enter the git repository URL." };
+    if (sourceTab === "pvc" && !pvcClaim)
+      return { field: "pvcClaim", message: "Enter the PVC claim name." };
+    return null;
   }, [
     isEdit,
     nameInput,
@@ -139,6 +151,11 @@ export function AppForm({
     gitUrl,
     pvcClaim,
   ]);
+  const validationError = validation?.message ?? "";
+  const errorProps = (field: string) =>
+    validation?.field === field
+      ? { "aria-invalid": true as const, "aria-describedby": "form-error" }
+      : {};
 
   const applyPreset = (preset: keyof typeof PRESETS) => {
     const p = PRESETS[preset];
@@ -234,6 +251,7 @@ export function AppForm({
             <Label htmlFor="name">Name</Label>
             <Input
               id="name"
+              {...errorProps("name")}
               placeholder="sales-dashboard"
               value={effectiveName}
               disabled={isEdit}
@@ -247,6 +265,7 @@ export function AppForm({
             <Label htmlFor="displayName">Display name</Label>
             <Input
               id="displayName"
+              {...errorProps("displayName")}
               placeholder="Sales Dashboard"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
@@ -271,13 +290,17 @@ export function AppForm({
             />
           </div>
           <div className="space-y-1.5">
-            <Label>Namespace</Label>
+            <Label id="namespace-label">Namespace</Label>
             <Select
               value={namespace}
               onValueChange={(v) => setNamespace(v as string)}
               disabled={isEdit}
             >
-              <SelectTrigger>
+              <SelectTrigger
+                id="namespace"
+                aria-labelledby="namespace-label"
+                {...errorProps("namespace")}
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -290,13 +313,13 @@ export function AppForm({
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>App type</Label>
+            <Label id="kind-label">App type</Label>
             <Select
               value={kind}
               onValueChange={(v) => setKind(v as AppKind)}
               items={{ static: "Static site (HTML/CSS/JS)", pixi: "Python app (pixi)" }}
             >
-              <SelectTrigger>
+              <SelectTrigger aria-labelledby="kind-label">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -310,6 +333,7 @@ export function AppForm({
               <Label htmlFor="pixiTask">Launch task</Label>
               <Input
                 id="pixiTask"
+                {...errorProps("pixiTask")}
                 className="font-mono"
                 placeholder="start"
                 value={pixiTask}
@@ -383,6 +407,7 @@ export function AppForm({
                   )}
                   <input
                     id="file-upload"
+                    {...errorProps("file")}
                     type="file"
                     accept={kind === "pixi" ? ".zip" : ".zip,.html,.htm"}
                     className="hidden"
@@ -397,6 +422,7 @@ export function AppForm({
                 <Label htmlFor="gitUrl">Repository URL</Label>
                 <Input
                   id="gitUrl"
+                  {...errorProps("gitUrl")}
                   placeholder="https://github.com/org/site"
                   value={gitUrl}
                   onChange={(e) => setGitUrl(e.target.value)}
@@ -422,6 +448,7 @@ export function AppForm({
                 <Label htmlFor="pvcClaim">Claim name</Label>
                 <Input
                   id="pvcClaim"
+                  {...errorProps("pvcClaim")}
                   placeholder="shared-sites"
                   value={pvcClaim}
                   onChange={(e) => setPvcClaim(e.target.value)}
@@ -515,12 +542,13 @@ export function AppForm({
             </div>
           </div>
 
-          <div className="flex flex-col items-start gap-2">
-            <Label>Environment variables</Label>
+          <fieldset className="flex flex-col items-start gap-2">
+            <legend className="mb-2 font-medium text-sm leading-none">Environment variables</legend>
             {envVars.map((env, i) => (
               // biome-ignore lint/suspicious/noArrayIndexKey: positional editor rows
               <div key={i} className="flex w-full items-center gap-2">
                 <Input
+                  aria-label={`Variable ${i + 1} name`}
                   placeholder="NAME"
                   className="font-mono"
                   value={env.name}
@@ -531,6 +559,7 @@ export function AppForm({
                   }
                 />
                 <Input
+                  aria-label={`Value of ${env.name || `variable ${i + 1}`}`}
                   placeholder="value"
                   className="font-mono"
                   // A valueFrom reference (set with kubectl) is kept but not editable here.
@@ -545,9 +574,10 @@ export function AppForm({
                 <Button
                   variant="ghost"
                   size="icon-sm"
+                  aria-label={`Remove ${env.name || `variable ${i + 1}`}`}
                   onClick={() => setEnvVars(envVars.filter((_, j) => j !== i))}
                 >
-                  <Trash2 />
+                  <Trash2 aria-hidden="true" />
                 </Button>
               </div>
             ))}
@@ -558,7 +588,7 @@ export function AppForm({
             >
               <Plus /> Add variable
             </Button>
-          </div>
+          </fieldset>
         </CardContent>
       </Card>
 
@@ -574,12 +604,19 @@ export function AppForm({
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between rounded-md border border-border p-3">
             <div>
-              <p className="font-medium text-sm">Public app</p>
-              <p className="text-muted-foreground text-xs">
+              <p id="public-label" className="font-medium text-sm">
+                Public app
+              </p>
+              <p id="public-help" className="text-muted-foreground text-xs">
                 Anyone with the URL can use it - no login required.
               </p>
             </div>
-            <Switch checked={isPublic} onCheckedChange={setIsPublic} />
+            <Switch
+              checked={isPublic}
+              onCheckedChange={setIsPublic}
+              aria-labelledby="public-label"
+              aria-describedby="public-help"
+            />
           </div>
           {!isPublic ? (
             <div className="space-y-1.5">
@@ -602,6 +639,7 @@ export function AppForm({
             <div className="flex items-center gap-2">
               <Input
                 id="subdomain"
+                {...errorProps("subdomain")}
                 className="max-w-56 font-mono"
                 value={subdomain}
                 disabled={isEdit}
@@ -632,7 +670,9 @@ export function AppForm({
 
       <div className="flex items-center justify-end gap-3">
         {validationError ? (
-          <p className="text-muted-foreground text-sm">{validationError}</p>
+          <p id="form-error" role="alert" className="text-destructive-foreground text-sm">
+            {validationError}
+          </p>
         ) : null}
         <p className="mr-auto text-muted-foreground text-sm">
           {appsScheme}://{(isEdit ? initial?.access?.subdomain : subdomain) || "<subdomain>"}.
