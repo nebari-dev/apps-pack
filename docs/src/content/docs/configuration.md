@@ -67,7 +67,7 @@ Environment the API container receives: `APPS_DOMAIN`, `APPS_NAMESPACES`, `APPS_
 provisions), and `OIDC_ALLOWED_CLIENTS` (built from those two: a token is accepted only if its
 `azp` or `aud` names one of them; if the Secret is missing every token is rejected). The MCP
 server receives the same `OIDC_ALLOWED_CLIENTS`. Not rendered by the chart but honoured when set on the container: `OIDC_JWKS_URL`, `OIDC_AUDIENCE`,
-`MAX_UPLOAD_BYTES` (default 921600, the cap on an upload and on its extracted contents) and
+`LOG_LEVEL` (default `INFO`), `MAX_UPLOAD_BYTES` (default 921600, the cap on an upload and on its extracted contents) and
 `MAX_REQUEST_BYTES` (default 2097152, the cap on any request body, enforced while it streams
 in).
 
@@ -98,7 +98,23 @@ in).
 
 Environment: `API_URL`, `AUTH_ENABLED`, `OIDC_ISSUER`, `OIDC_ISSUER_INTERNAL`,
 `OIDC_DEVICE_CLIENT_ID` (from the UI's OIDC Secret); optional `OIDC_JWKS_URL`,
-`OIDC_AUDIENCE`, `HOST`, `PORT`.
+`OIDC_AUDIENCE`, `HOST`, `PORT`, `LOG_LEVEL`.
+
+## Logs and probes
+
+apps-api and apps-mcp write one JSON object per line to stdout (`timestamp`, `level`,
+`logger`, `event`, plus fields). Every HTTP request gets an access line with `request_id`,
+`method`, `path`, `status`, `duration_ms` and, on the API, the authenticated `user`. The
+id comes from the incoming `X-Request-ID` header (on a Nebari cluster, the one Envoy
+assigns at the gateway) or is generated, and is returned on the response. The UI's nginx and the MCP server pass it on to apps-api, and MCP tool calls log
+it with the `tool` name, so one id ties a browser or agent action to the API's lines for
+it. Probe requests log at `DEBUG`.
+
+| Component | Liveness | Readiness |
+|---|---|---|
+| apps-api | `GET /api/v1/healthz` | `GET /api/v1/readyz`: Kubernetes API reachable and, with auth on, the realm JWKS loads |
+| apps-mcp | `GET /healthz` | `GET /healthz` |
+| apps-ui | `GET /healthz` | `GET /healthz` |
 
 ## Overrides
 

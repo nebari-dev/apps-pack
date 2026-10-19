@@ -17,6 +17,7 @@ class FakeStore:
     def __init__(self) -> None:
         self.apps: dict[tuple[str, str], dict[str, Any]] = {}
         self.namespaces = ["apps", "team-a"]
+        self.ready = True
         self.logs = "hello from pod\n"
         self.restarted: list[tuple[str, str]] = []
         self.metrics_available = True
@@ -48,6 +49,10 @@ class FakeStore:
         if (namespace, name) not in self.apps:
             raise NotFoundError(f"{namespace}/{name}")
         del self.apps[(namespace, name)]
+
+    def check_ready(self) -> None:
+        if not self.ready:
+            raise ConnectionError("apiserver unreachable")
 
     def list_managed_namespaces(self) -> list[str]:
         return list(self.namespaces)

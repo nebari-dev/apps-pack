@@ -7,18 +7,23 @@ over; failures surface the API's human-readable detail.
 
 from __future__ import annotations
 
-import logging
+import time
 from typing import TYPE_CHECKING, Annotated, Any, Literal, cast
 
+import structlog
 from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 from fastmcp.server.dependencies import get_http_headers
 from fastmcp.server.middleware import Middleware, MiddlewareContext
 from pydantic import Field
+from starlette.middleware import Middleware as ASGIMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse, Response
 
 from .auth import TokenVerificationError, auth, get_validator
 from .client import ApiClient, ApiError
 from .config import settings
+from .logs import REQUEST_ID_HEADER, RequestIdMiddleware, configure_logging
 
 if TYPE_CHECKING:
     import mcp_types as mt
@@ -37,6 +42,44 @@ mcp = FastMCP(
         "instructions."
     ),
 )
+
+log = structlog.get_logger("nebari_apps_mcp")
+
+
+@mcp.custom_route("/healthz", methods=["GET"], include_in_schema=False)
+async def healthz(request: Request) -> Response:
+    return JSONResponse({"status": "ok"})
+
+
+def _request_id() -> str:
+    return get_http_headers().get(REQUEST_ID_HEADER, "")
+
+
+class ToolLogMiddleware(Middleware):
+    """One log line per tool call, carrying the HTTP request's id.
+
+    Tools run in the MCP session's task, not the request's, so the id that
+    RequestIdMiddleware bound there is re-bound here from the request headers.
+    """
+
+    async def on_call_tool(
+        self,
+        context: MiddlewareContext[mt.CallToolRequestParams],
+        call_next: CallNext[mt.CallToolRequestParams, ToolResult],
+    ) -> ToolResult:
+        start = time.perf_counter()
+        with structlog.contextvars.bound_contextvars(request_id=_request_id(), tool=context.message.name):
+            try:
+                result = await call_next(context)
+            except Exception as exc:
+                log.info("tool call", outcome="error", error=str(exc), duration_ms=_ms(start))
+                raise
+            log.info("tool call", outcome="ok", duration_ms=_ms(start))
+            return result
+
+
+def _ms(start: float) -> float:
+    return round((time.perf_counter() - start) * 1000, 1)
 
 
 class TokenVerificationMiddleware(Middleware):
@@ -72,6 +115,7 @@ class TokenVerificationMiddleware(Middleware):
         return await call_next(context)
 
 
+mcp.add_middleware(ToolLogMiddleware())
 mcp.add_middleware(TokenVerificationMiddleware())
 
 
@@ -82,7 +126,7 @@ def _session_id(ctx: Context) -> str:
 async def _api(ctx: Context) -> ApiClient:
     passthrough = get_http_headers().get("authorization", "")
     bearer = await auth.bearer(_session_id(ctx), passthrough)
-    return ApiClient(bearer)
+    return ApiClient(bearer, request_id=_request_id())
 
 
 def _error(exc: ApiError) -> dict[str, Any]:
@@ -372,12 +416,21 @@ async def remove_app(ctx: Context, namespace: str, name: str) -> dict[str, Any]:
 
 
 def main() -> None:
+    configure_logging()
     if not settings.auth_enabled:
-        logging.getLogger("nebari_apps_mcp").warning(
+        log.warning(
             "AUTHENTICATION IS DISABLED (AUTH_ENABLED=false): every tool call is anonymous. "
             "Use this for local development only."
         )
-    mcp.run(transport="http", host=settings.host, port=settings.port)
+    mcp.run(
+        transport="http",
+        host=settings.host,
+        port=settings.port,
+        show_banner=False,
+        middleware=[ASGIMiddleware(RequestIdMiddleware, quiet_paths=["/healthz"])],
+        # Keep the logging configure_logging set up; RequestIdMiddleware writes the access lines.
+        uvicorn_config={"log_config": None, "access_log": False},
+    )
 
 
 if __name__ == "__main__":

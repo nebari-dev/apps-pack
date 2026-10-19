@@ -184,12 +184,15 @@ spec:
               port: http
             initialDelaySeconds: 10
             periodSeconds: 20
+          # Ready only while the Kubernetes API answers and (with auth) the
+          # realm JWKS loads; each check gives up after 3s.
           readinessProbe:
             httpGet:
-              path: /api/v1/healthz
+              path: /api/v1/readyz
               port: http
             initialDelaySeconds: 3
             periodSeconds: 10
+            timeoutSeconds: 8
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

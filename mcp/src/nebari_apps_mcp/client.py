@@ -24,8 +24,11 @@ class ApiError(Exception):
 
 
 class ApiClient:
-    def __init__(self, authorization: str = "") -> None:
+    def __init__(self, authorization: str = "", request_id: str = "") -> None:
         headers = {"Authorization": authorization} if authorization else {}
+        if request_id:
+            # The caller's request id, so apps-api logs the same id.
+            headers["X-Request-ID"] = request_id
         self._client = httpx.AsyncClient(
             base_url=f"{settings.api_url.rstrip('/')}/api/v1",
             headers=headers,
