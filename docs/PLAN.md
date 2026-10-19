@@ -35,7 +35,7 @@ Companion to [`DESIGN.md`](./DESIGN.md). Phased, each phase ends with a usable i
 > (mirroring software-pack-template, the adopted source of truth) rather than k3d/Tilt;
 > app URLs are `<sub>.apps.<cluster-domain>` (dedicated apps zone); TLS is chart-toggleable
 > (`tls.enabled`, off in local dev). NebariApp contract pinned to nebari-operator
-> `v0.1.0-alpha.19` with a contract test.
+> `v0.1.0-alpha.20` with a contract test.
 
 ## Phase 1 — apps-api + CRUD ✅ Complete
 **Goal:** create/manage apps over HTTP; CR is written by the API, not by hand.
@@ -151,7 +151,7 @@ Companion to [`DESIGN.md`](./DESIGN.md). Phased, each phase ends with a usable i
 
 ## Risks
 - **nebari-operator `NebariApp` contract drift** — pin the version; add a contract test.
-  ✅ *Mitigated: pinned to `v0.1.0-alpha.19`, contract tests in the operator suite.*
+  ✅ *Mitigated: pinned to `v0.1.0-alpha.20`, contract tests in the operator suite.*
 - **Untrusted agent-generated content** — tenancy + hardening must land before any public
   exposure. ⏳ *Pod hardening + namespace tenancy shipped; NetworkPolicies remain (Phase 6).*
 - **Keycloak device-flow client provisioning** — confirm nebari-operator exposes this for the MCP.

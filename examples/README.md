@@ -19,6 +19,7 @@ kubectl get apps -n apps -w
 | `python-app/` | The Streamlit app `python-git-app.yaml` points at (`subdir: examples/python-app`): `pixi.toml`, `pixi.lock`, `app.py`, and a `nebari-app.yaml` for agent launches. |
 | `web-terminal/` | An interactive **bash shell in the browser** via [ttyd](https://github.com/tsl0922/ttyd), with vim, nano, git, gh, curl, wget, ssh, jq, yq, ripgrep, fd, bat, htop, tree, tmux, fzf, make, zip/unzip and Python on PATH — all from conda-forge via `pixi.toml`, no image build. `terminal.sh` + `bashrc` give the shell a prompt, git identity and a username (app pods run as UID 65532 with no passwd entry — nss_wrapper fixes that fully on linux-64; elsewhere the prompt falls back to `$USER`). SSO-gated (`access.public: false`) because it is a shell. |
 | `static/` | The content `static-git-app.yaml` points at (`subdir: examples/static`). |
+| `nebari-values.yaml` | Helm values for a full Nebari deployment — deploys unmodified except for `clusterDomain` and `keycloak.url`. |
 
 The operator reconciles each `App` into a Deployment, a Service, and a
 `NebariApp` (routing + TLS + auth, plus a landing-page tile when the App sets

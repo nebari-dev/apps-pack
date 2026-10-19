@@ -33,7 +33,7 @@ For each `App`, the operator runs an ordered, idempotent pipeline:
    `RuntimeDefault`): nginx serving the app's content, with git sources cloned by a
    non-root init container.
 4. **Service** — ClusterIP on port 8080.
-5. **Routing** — a `NebariApp` (contract pinned to nebari-operator `v0.1.0-alpha.19`,
+5. **Routing** — a `NebariApp` (contract pinned to nebari-operator `v0.1.0-alpha.20`,
    guarded by a contract test) carrying the hostname, auth policy, TLS setting, and
    landing-page entry.
 6. **Status** — children's state folds back into phase, conditions, replica counts, and
@@ -68,9 +68,14 @@ validates the same token again, so the MCP proxies only as the authenticated use
 ### Launched apps — gateway-enforced only
 
 Apps never contain auth code. A private app's `NebariApp` creates an Envoy Gateway
-`SecurityPolicy`: unauthenticated browsers are redirected to Keycloak, and only members of
-`access.groups` get through. `access.public: true` skips the policy entirely. This keeps
-user workloads honest — there is no token to mishandle inside an app pod.
+`SecurityPolicy`: unauthenticated browsers are redirected to Keycloak and must sign in.
+`access.public: true` skips the policy entirely. This keeps user workloads honest — there is
+no token to mishandle inside an app pod.
+
+`access.groups` is forwarded to the `NebariApp`, but nebari-operator `0.1.0` does not yet
+turn it into a gateway authorization rule, so a private app is open to **every signed-in
+realm user**; `access.users` is not used at all. See the
+[Known limitations](https://github.com/nebari-dev/apps-pack#known-limitations).
 
 ## TLS
 
@@ -97,9 +102,11 @@ The zone is configurable via the `appsDomain` value (default `apps.<clusterDomai
 - Git init containers receive user input via environment variables — never interpolated
   into shell — and subdirectories are validated against path traversal.
 - Uploads are size-capped, text-only, and rejected on unsafe archive paths.
-- The API acts with a dedicated ServiceAccount scoped to `App` CRUD, read-only
+- The API acts with a dedicated ServiceAccount limited to `App` CRUD, read-only
   observability (pods, logs, events, and `metrics.k8s.io`), and a single narrow write —
-  patching child Deployments to roll pods for restart; the operator's RBAC covers only the
-  resources it reconciles.
+  patching child Deployments to roll pods for restart. That grant is a `ClusterRole`
+  (apps may live in any managed namespace), so `api.allowedNamespaces` is the tenancy
+  boundary; the API itself has no per-user authorization yet — any authenticated user can
+  manage any app. The operator's RBAC covers only the resources it reconciles.
 - Treat every app as untrusted user code: tenancy is per-namespace, and only opted-in
   namespaces (`nebari.dev/managed=true`) can host apps.

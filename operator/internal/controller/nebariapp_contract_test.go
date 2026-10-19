@@ -1,7 +1,7 @@
 package controller
 
 // The NebariApp CR is consumed as a versioned contract with the
-// nebari-operator (pinned: v0.1.0-alpha.19). These tests pin the exact shape
+// nebari-operator (pinned: v0.1.0-alpha.20). These tests pin the exact shape
 // this pack emits so contract drift shows up as a test failure, not a broken
 // cluster. Field reference:
 // https://github.com/nebari-dev/software-pack-template/blob/main/docs/nebariapp-crd-reference.md

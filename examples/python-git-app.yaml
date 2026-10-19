@@ -12,7 +12,7 @@ spec:
   source:
     type: git
     git:
-      url: https://github.com/nebari-dev/nebari-apps-pack
+      url: https://github.com/nebari-dev/apps-pack
       ref: main
       subdir: examples/python-app
   runtime:

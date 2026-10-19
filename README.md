@@ -16,13 +16,15 @@ Apps can be launched four ways, all converging on a single declarative `App` res
 - 🔧 **The MCP server** directly (launch / list / status / logs / update / stop / remove as
   agent tools; Keycloak device-flow auth).
 
-> **Status:** In development. Implemented so far: the **`App` CRD** and
-> **apps-operator** (static + Python/pixi apps from `inline`/`git`/`pvc` sources), the
-> **apps-api** (CRUD, logs/events/status, analytics, zip/.html upload), the
-> **apps-ui** (Nebari design system: dashboard + analytics, app detail with
-> logs, launch form with upload), the **apps-mcp** server (agent tools +
-> device-flow auth at `/mcp`), and the **`new-nebari-app` skill** (scaffold
-> apps with a `nebari-app.yaml` manifest, then "launch it").
+> **Status: Alpha** (`level: alpha` in [`pack-metadata.yaml`](pack-metadata.yaml)) — installs
+> and runs the happy path on a current Nebari dev cluster; APIs, chart values and the `App`
+> CRD may still change between releases. Read [Known limitations](#known-limitations)
+> before demoing. Implemented: the **`App` CRD** and **apps-operator** (static +
+> Python/pixi apps from `inline`/`git`/`pvc` sources), the **apps-api** (CRUD,
+> logs/events/status, analytics, zip/.html upload), the **apps-ui** (Nebari design system:
+> dashboard + analytics, app detail with logs, launch form with upload), the **apps-mcp**
+> server (agent tools + device-flow auth at `/mcp`), and the **`new-nebari-app` skill**
+> (scaffold apps with a `nebari-app.yaml` manifest, then "launch it").
 > Apps are served at `https://<subdomain>.apps.<cluster-domain>` (TLS can be
 > switched off via `tls.enabled=false`, as local dev does).
 
@@ -83,7 +85,7 @@ uniformly. See the [Branding docs](https://packs.nebari.dev/apps-pack/branding/)
 ## Repository layout
 
 ```
-nebari-apps-pack/
+apps-pack/
   pack-metadata.yaml          # dashboard registration
   charts/nebari-apps/         # Helm chart (App CRD + operator + api + ui + mcp)
   operator/                   # Go operator (controller-runtime)
@@ -166,10 +168,54 @@ form, the API, or GitOps.
 
 ## Prerequisites
 
-- A Nebari cluster with **nebari-operator** (provides the `NebariApp` CRD), Envoy Gateway,
-  cert-manager issuer (only when TLS is enabled), and a Keycloak realm.
+- A Nebari cluster running the Nebari Infrastructure Core stack: **nebari-operator**
+  `v0.1.0-alpha.20` or later (provides the `NebariApp` CRD; this is the version the pack's
+  contract test and local dev loop pin), **Envoy Gateway** with the shared `public` (or
+  `internal`) Gateway, a **Keycloak** realm (`nebari` by default), and **cert-manager** with a
+  cluster issuer when TLS is enabled (the default).
+- **Helm 3.8+** and `kubectl` with cluster-admin for the install (the chart creates a CRD and
+  ClusterRoles).
+- **Namespace opt-in:** the nebari-operator only reconciles namespaces labeled
+  `nebari.dev/managed=true`. Label the release namespace and every namespace in
+  `api.allowedNamespaces` (default `apps`).
+- **Sizing:** the pack itself requests 300m CPU / 448Mi memory (limits 1.5 CPU / 896Mi)
+  across its four pods. Each launched app adds a pod with whatever `runtime.resources` the
+  App sets (there is no default; see Known limitations) — budget roughly 100m / 128Mi for a
+  static site and 500m / 1Gi for a Python app with a cold `pixi install`.
+- **Optional:** metrics-server (per-app CPU/memory in the UI; the UI degrades gracefully
+  without it) and the LGTM observability pack for logs.
 
 ---
+
+## Known limitations
+
+Alpha means the happy path works; these are the gaps to know about before a demo or pilot.
+
+- **`access.groups` / `access.users` are not enforced at the gateway.** The nebari-operator
+  `0.1.0` SecurityPolicy authenticates but does not authorize by group, so a private app
+  (`access.public: false`) is reachable by **any signed-in realm user**, and `access.users` is
+  not used at all; `groups` is only forwarded to the `NebariApp`. Treat `public: false` as
+  "authenticated", not "authorized".
+- **No per-user authorization in the API.** Every authenticated user can list, edit, stop,
+  restart, delete and read the logs of every App in the managed namespaces — including apps
+  they did not create. Scope access with `api.allowedNamespaces` and Keycloak client access
+  until owner/admin-group checks land.
+- **Inline sources are capped at ~900 KB of UTF-8 text** (a ConfigMap). Binary assets or
+  larger sites need a `git` or `pvc` source.
+- **No resource defaults or quotas for launched apps.** An App that omits `runtime.resources`
+  runs unbounded; `replicas` has no upper bound via the API or kubectl (the MCP tool caps it
+  at 10). Apply a `LimitRange`/`ResourceQuota` to app namespaces.
+- **Subdomains are not checked for uniqueness** across Apps; two Apps claiming the same
+  `access.subdomain` both emit a `NebariApp` for one hostname.
+- **One API version (`v1alpha1`) and no conversion webhook** — a future schema change will
+  require re-creating Apps. `helm upgrade` does not update CRDs; re-apply
+  `charts/nebari-apps/crds/` by hand on upgrades.
+- **The MCP server must run as a single replica**: device-flow sessions are held in process
+  memory.
+- **Landing-page tiles are off by default** for launched apps (`apps.landingPage.enabled`
+  / `spec.landingPage.enabled`); only the pack's own "Apps" tile is registered.
+- **Local dev disables authentication** (`api.auth.enabled=false`); never carry that flag to
+  a real cluster.
 
 ## Getting started
 
@@ -181,6 +227,16 @@ helm install nebari-apps charts/nebari-apps \
   --set clusterDomain=<your-cluster-domain> \
   --set keycloak.url=https://keycloak.<your-cluster-domain>/auth
 kubectl label namespace nebari-apps nebari.dev/managed=true
+kubectl create namespace apps && kubectl label namespace apps nebari.dev/managed=true
+```
+
+Or install from the published chart with the ready-made values file
+([`examples/nebari-values.yaml`](examples/nebari-values.yaml) — only the two hostnames need
+editing):
+
+```bash
+helm install nebari-apps oci://ghcr.io/nebari-dev/apps-pack/charts/nebari-apps \
+  --namespace nebari-apps --create-namespace -f examples/nebari-values.yaml
 ```
 
 The UI lands at `https://apps.<your-cluster-domain>` (keycloak-js SSO) with the
@@ -251,14 +307,15 @@ repository (repo **Projects** tab → *Link a project*).
 
 ## Documentation
 
-The user guide lives at **[packs.nebari.dev/nebari-apps-pack](https://packs.nebari.dev/nebari-apps-pack/)**
+The user guide lives at **[packs.nebari.dev/apps-pack](https://packs.nebari.dev/apps-pack/)**
 (an [Astro Starlight](https://starlight.astro.build/) site in [`docs/`](docs/); run it locally
 with `cd docs && bun install && bun run dev`):
 
 - Getting started, launching apps (UI / upload / API / kubectl), the **MCP server**
   (connecting agents, device-flow auth, tool list), the scaffolding skill, and local
   development
-- Reference: the App CRD, the REST API, and architecture & auth
+- Reference: chart configuration (every value and the `NebariApp` fields the chart
+  emits), the App CRD, the REST API, and architecture & auth
 
 Design documents stay in the repository:
 

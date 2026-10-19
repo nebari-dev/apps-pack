@@ -7,7 +7,7 @@ Complete field-by-field reference for the `App` custom resource.
 **API Version:** `apps.nebari.dev/v1alpha1`
 **Kind:** `App`
 **Scope:** Namespaced — the namespace must be labeled `nebari.dev/managed=true`.
-**Source:** [operator/api/v1alpha1/app_types.go](https://github.com/nebari-dev/nebari-apps-pack/blob/main/operator/api/v1alpha1/app_types.go)
+**Source:** [operator/api/v1alpha1/app_types.go](https://github.com/nebari-dev/apps-pack/blob/main/operator/api/v1alpha1/app_types.go)
 
 ## Full example
 
@@ -116,8 +116,8 @@ current state of the ref.
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `public` | bool | No | `true` disables authentication entirely (anonymous access). |
-| `groups` | []string | No | Keycloak groups allowed to use the app. Empty = any signed-in user. |
-| `users` | []string | No | Additional individual users. |
+| `groups` | []string | No | Keycloak groups intended to use the app. Passed to the `NebariApp` as `auth.groups`, but **not enforced by the gateway in nebari-operator 0.1.0** — any signed-in realm user can open a private app. |
+| `users` | []string | No | Reserved. Accepted and stored, but not used by the operator or the gateway yet. |
 | `subdomain` | string | Yes | Lowercase DNS label. The app is served at `https://<subdomain>.<appsDomain>`. |
 
 ## spec.landingPage
@@ -154,6 +154,6 @@ For each `App` the operator creates (and owns, via `ownerReferences`):
 | ConfigMap | `app-<name>-content` | Inline source files (inline apps only). |
 | Deployment | `app-<name>` | The app workload (hardened: non-root, no privilege escalation, seccomp `RuntimeDefault`). |
 | Service | `app-<name>` | ClusterIP on port 8080. |
-| NebariApp | `app-<name>` | Routing + TLS + auth + (opt-in) landing-page tile, reconciled by the nebari-operator (contract pinned to `v0.1.0-alpha.19`). |
+| NebariApp | `app-<name>` | Routing + TLS + auth + (opt-in) landing-page tile, reconciled by the nebari-operator (contract pinned to `v0.1.0-alpha.20`). |
 
 Deleting the `App` cascades through all of them.

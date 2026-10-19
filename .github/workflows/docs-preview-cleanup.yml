@@ -14,7 +14,7 @@ concurrency:
   group: docs-preview-cleanup-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 env:
-  CF_PROJECT: nebari-apps-pack
+  CF_PROJECT: apps-pack
 jobs:
   cleanup:
     # Fork PRs never get a preview (deploy is skipped, secrets unavailable),

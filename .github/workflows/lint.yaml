@@ -24,6 +24,9 @@ jobs:
             --set keycloak.url=https://keycloak.nebari.example.com/auth > /tmp/rendered.yaml
           echo "Rendered $(grep -c '^kind:' /tmp/rendered.yaml) resources"
 
+      - name: helm template (examples/nebari-values.yaml)
+        run: helm template test charts/nebari-apps -f examples/nebari-values.yaml > /dev/null
+
       - name: Validate example App CRs against the CRD schema
         run: |
           curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz \

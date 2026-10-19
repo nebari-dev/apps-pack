@@ -1,0 +1,31 @@
+# Helm values for a full Nebari deployment of the Apps Pack.
+#
+# Deploys unmodified except for the two hostnames below:
+#
+#   helm install nebari-apps oci://ghcr.io/nebari-dev/apps-pack/charts/nebari-apps \
+#     --namespace nebari-apps --create-namespace \
+#     -f examples/nebari-values.yaml
+#   kubectl label namespace nebari-apps nebari.dev/managed=true
+#
+# Everything else keeps the chart defaults; the full reference is at
+# https://packs.nebari.dev/apps-pack/configuration/
+
+# The cluster's base domain. The UI is served at apps.<clusterDomain> and
+# every launched app at <subdomain>.apps.<clusterDomain>.
+clusterDomain: example.ai
+
+keycloak:
+  # Browser-facing Keycloak base URL of the cluster (realm defaults to "nebari").
+  url: https://keycloak.example.ai/auth
+
+# Namespaces users may launch apps into. Each must carry the
+# nebari.dev/managed=true label (kubectl label namespace apps nebari.dev/managed=true).
+api:
+  allowedNamespaces:
+    - apps
+
+# Launched apps do not get a landing-page tile unless the App opts in
+# (spec.landingPage.enabled: true). Flip this to true to register every app.
+apps:
+  landingPage:
+    enabled: false

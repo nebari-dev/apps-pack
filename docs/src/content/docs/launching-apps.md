@@ -102,7 +102,7 @@ The contract:
 - First start resolves and downloads the environment, so cold starts take longer —
   commit a `pixi.lock` and the startup probe allows up to ten minutes.
 
-See [`examples/python-inline-app.yaml`](https://github.com/nebari-dev/nebari-apps-pack/blob/main/examples/python-inline-app.yaml)
+See [`examples/python-inline-app.yaml`](https://github.com/nebari-dev/apps-pack/blob/main/examples/python-inline-app.yaml)
 for a complete resource.
 
 ## From the API
@@ -160,8 +160,15 @@ natural language through the **apps-mcp** server — `launch_app` is idempotent 
 
 - **`access.public: true`** — no authentication; anyone with the URL.
 - **Private (default)** — the app's `NebariApp` creates a gateway `SecurityPolicy`: users
-  are redirected to Keycloak, and only `access.groups` members are authorized (empty
-  groups = any signed-in user). The app itself never sees or handles auth.
+  are redirected to Keycloak and must sign in. The app itself never sees or handles auth.
+
+:::caution[Groups are not enforced yet]
+`access.groups` is passed to the `NebariApp`, but the nebari-operator `0.1.0`
+`SecurityPolicy` has no group-authorization rule: **any signed-in realm user** can open a
+private app, whatever `groups` says, and `access.users` is not used at all. Treat
+`public: false` as "authenticated", not "authorized", until the platform ships group
+enforcement.
+:::
 
 ## Landing page
 

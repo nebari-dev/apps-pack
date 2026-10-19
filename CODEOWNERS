@@ -1,0 +1,9 @@
+# Accountable engineer for this pack (see pack-metadata.yaml). Reviews are
+# requested automatically for every change.
+* @jbouder
+
+# Deploy surface and CI get an explicit owner so changes here never merge
+# without a look from the pack owner.
+/charts/ @jbouder
+/.github/ @jbouder
+/operator/api/ @jbouder
