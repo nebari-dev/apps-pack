@@ -1,73 +1,76 @@
 name: Release
 
+# Releasing is a chart version bump: merging a change to `version` in
+# charts/nebari-apps/Chart.yaml releases it through the org's reusable
+# workflow, which
+#   - pins the four image tags to sha-<release commit> (build-image.yaml
+#     builds those images on the same push),
+#   - signs the packaged chart (keyless cosign, with provenance and SBOM) and
+#     attaches it to a GitHub Release nebari-apps-<version>, and
+#   - opens a PR in nebari-dev/helm-repository, which publishes the chart to
+#     the org Helm repo once merged.
+# The same packaged chart is mirrored to oci://ghcr.io/nebari-dev/apps-pack/charts.
+
 on:
-  release:
-    types: [published]
+  push:
+    branches: [main]
+    paths:
+      - "charts/nebari-apps/Chart.yaml"
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
-  build:
+  release:
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    # Same nebari-dev/.github commit as build-image.yaml: chart signing landed
+    # after the v1 tag.
+    uses: nebari-dev/.github/.github/workflows/pack-release.yaml@a6c757c72124a03542a79ac5385fd250ee9c45b7
+    with:
+      chart-path: charts/nebari-apps
+      chart-name: nebari-apps
+      tag-paths: |
+        operator.image.tag
+        api.image.tag
+        ui.image.tag
+        mcp.image.tag
+    secrets:
+      NEBARI_HELM_REPO_TOKEN: ${{ secrets.NEBARI_HELM_REPO_TOKEN }}
+
+  mirror-oci:
+    name: Mirror chart to GHCR
+    needs: release
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - name: apps-operator
-            context: operator
-          - name: apps-api
-            context: api
-          - name: apps-ui
-            context: ui
-          - name: apps-mcp
-            context: mcp
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: docker/setup-buildx-action@v4
-
-      - uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: docker/metadata-action@v6
-        id: meta
-        with:
-          images: ghcr.io/${{ github.repository }}/${{ matrix.name }}
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-
-      - uses: docker/build-push-action@v7
-        with:
-          context: ${{ matrix.context }}
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.name }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
-
-  publish-chart:
-    runs-on: ubuntu-latest
-    needs: build
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v7
 
       - uses: azure/setup-helm@v5
 
-      - name: Log in to GHCR
+      - name: Download the released chart
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(grep -E '^version:' charts/nebari-apps/Chart.yaml | awk '{print $2}' | tr -d "\"'")
+          gh release download "nebari-apps-${version}" --pattern '*.tgz' --dir dist
+
+      - name: Push to GHCR
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io \
             --username "${{ github.actor }}" --password-stdin
+          helm push dist/*.tgz "oci://ghcr.io/${{ github.repository }}/charts"
 
-      - name: Package and push chart
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          helm package charts/nebari-apps \
-            --version "$VERSION" --app-version "$VERSION"
-          helm push "nebari-apps-${VERSION}.tgz" \
-            "oci://ghcr.io/${{ github.repository }}/charts"
+  # The release above is created with GITHUB_TOKEN, which does not trigger
+  # other workflows, so project-status's own `release: published` trigger
+  # would never fire for it. Run its sweep directly.
+  project-status:
+    needs: release
+    uses: ./.github/workflows/project-status.yaml
+    with:
+      release-sweep: true
+    secrets: inherit

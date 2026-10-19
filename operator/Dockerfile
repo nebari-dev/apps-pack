@@ -1,4 +1,6 @@
-FROM golang:1.27 AS builder
+# The builder runs natively and cross-compiles (GOARCH below), instead of
+# running the whole Go toolchain under emulation for non-native platforms.
+FROM --platform=$BUILDPLATFORM golang:1.27 AS builder
 ARG TARGETOS=linux
 ARG TARGETARCH
 

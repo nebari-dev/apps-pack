@@ -11,7 +11,9 @@ FROM nginx:1.31-alpine
 
 # envsubst (gettext) renders ${API_URL} into the config at startup; jq powers
 # the entrypoint's optional BRANDING_* overlay (standalone runs only).
-RUN apk add --no-cache gettext jq && \
+# `apk upgrade` picks up Alpine security fixes released since the base tag.
+RUN apk upgrade --no-cache && \
+    apk add --no-cache gettext jq && \
     rm -rf /usr/share/nginx/html/* && \
     mkdir -p /tmp/nginx /var/cache/nginx && \
     chown -R 1000:1000 /tmp/nginx /var/cache/nginx /var/log/nginx /usr/share/nginx/html

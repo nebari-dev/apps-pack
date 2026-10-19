@@ -15,7 +15,10 @@ COPY src/ src/
 RUN uv sync --frozen --no-dev --no-editable
 
 FROM python:3.14-slim
-RUN useradd --uid 65532 --user-group --no-create-home app
+# The app runs from /app/.venv; the base image's pip (and the packages it
+# vendors) is never used at runtime, so it is removed rather than shipped.
+RUN useradd --uid 65532 --user-group --no-create-home app \
+    && python -m pip uninstall --yes --root-user-action=ignore pip
 COPY --from=builder /app/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
 
