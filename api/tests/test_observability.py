@@ -6,6 +6,7 @@ import logging
 
 import httpx
 import pytest
+
 from nebari_apps_api import main
 from nebari_apps_api.config import settings
 
