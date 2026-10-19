@@ -409,8 +409,8 @@ export function AppForm({
         <CardHeader>
           <CardTitle>Access</CardTitle>
           <CardDescription>
-            Apps are served behind the shared gateway. Private apps get Keycloak SSO enforced at the gateway - the
-            app itself needs no auth code.
+            Apps are served behind the shared gateway. Private apps require a Keycloak sign-in at the gateway - the
+            app itself needs no auth code. Sign-in is authentication only: every user in the realm can open a private app.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -423,8 +423,17 @@ export function AppForm({
           </div>
           {!isPublic ? (
             <div className="space-y-1.5">
-              <Label htmlFor="groups">Allowed groups</Label>
-              <Input id="groups" placeholder="comma-separated, empty = any signed-in user" value={groups} onChange={(e) => setGroups(e.target.value)} />
+              <Label htmlFor="groups">Intended groups</Label>
+              <Input
+                id="groups"
+                placeholder="comma-separated"
+                aria-describedby="groups-help"
+                value={groups}
+                onChange={(e) => setGroups(e.target.value)}
+              />
+              <p id="groups-help" className="text-muted-foreground text-xs">
+                Not enforced yet: any signed-in user can open a private app, whatever groups you list.
+              </p>
             </div>
           ) : null}
           <div className="space-y-1.5">

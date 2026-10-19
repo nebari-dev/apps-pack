@@ -94,11 +94,14 @@ type AppAccess struct {
 	// +optional
 	Public bool `json:"public,omitempty"`
 
-	// Groups are the Keycloak/OIDC groups allowed to use the app.
+	// Groups are the Keycloak/OIDC groups intended to use the app. Forwarded
+	// to the NebariApp; not yet enforced at the gateway (any signed-in realm
+	// user can reach a private app).
 	// +optional
 	Groups []string `json:"groups,omitempty"`
 
-	// Users are additional individual users allowed to use the app.
+	// Users is reserved and currently ignored: nothing enforces it, and the
+	// apps-api rejects a non-empty list.
 	// +optional
 	Users []string `json:"users,omitempty"`
 

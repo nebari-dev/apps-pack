@@ -173,6 +173,7 @@ def create_app(store: AppStore | None = None) -> FastAPI:
 
     @app.patch(PREFIX + "/apps/{namespace}/{name}", response_model=AppOut)
     def patch_app(namespace: str, name: str, patch: AppPatch, store: Store, user: Me) -> AppOut:
+        _reject_users(patch.access)
         existing = authorized_app(store, user, namespace, name)
         updated = store.replace_app(namespace, name, crmod.apply_patch(existing, patch))
         return crmod.from_cr(updated)
@@ -312,7 +313,19 @@ def create_app(store: AppStore | None = None) -> FastAPI:
     return app
 
 
+USERS_NOT_SUPPORTED = (
+    "access.users is not supported yet: nothing enforces it, so it is rejected rather than "
+    "silently ignored. Use access.groups (see https://github.com/nebari-dev/apps-pack/issues/67)."
+)
+
+
+def _reject_users(access: Any) -> None:
+    if access is not None and access.users:
+        raise HTTPException(422, USERS_NOT_SUPPORTED)
+
+
 def _validate_request(req: AppCreate) -> None:
+    _reject_users(req.access)
     if getattr(req.source, req.source.type, None) is None:
         raise HTTPException(422, f"source.{req.source.type} is required for source type {req.source.type!r}")
     if req.runtime.pixiTask and req.source.type == "inline":
