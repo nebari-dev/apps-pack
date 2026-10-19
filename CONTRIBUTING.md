@@ -47,6 +47,12 @@ pushing.
 | Dependencies | `api/`, `mcp/`, `ui/` | `pip-audit` over the locked Python deps, `npm audit --audit-level=high` |
 | Workflows | `.github/workflows/` | `actionlint` and `zizmor .github/workflows` (config in `.github/zizmor.yml`). Pin every action to a full commit SHA with a `# vX.Y.Z` comment (Dependabot keeps them current), and give each workflow `permissions: contents: read`, widening per job only where needed. |
 
+Runtime versions are pinned once and read everywhere: `ui/.node-version`, `api/.python-version`
+and `mcp/.python-version` (CI's setup-node and uv read them), `docs/.bun-version`, and the
+`toolchain` line in `operator/go.mod`. Base images are pinned by digest. When you change a
+runtime version, change the pin file and the matching Dockerfile `FROM` in the same PR; the
+Runtime pins check in CI fails when they disagree.
+
 Regenerating the CRD after changing `operator/api/`:
 
 ```bash

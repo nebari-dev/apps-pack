@@ -87,6 +87,39 @@ jobs:
           kubeconform -schema-location '/tmp/app-schema.json' \
             -summary examples/static-inline-app.yaml examples/static-git-app.yaml
 
+  pins:
+    name: Runtime pins
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # One version per runtime: the pin file CI reads must match the image
+      # the Dockerfile builds from, and every base image is pinned by digest.
+      - name: Pin files agree with the Dockerfiles
+        run: |
+          set -u
+          fail=0
+          check() { # <dockerfile> <image> <expected tag prefix>
+            tags=$(sed -nE "s|^FROM (--platform=[^ ]+ )?$2:([^@ ]+).*|\2|p" "$1")
+            [ -n "$tags" ] || { echo "::error file=$1::no FROM $2 line"; fail=1; return; }
+            for t in $tags; do
+              case "$t" in
+                "$3"|"$3"-*) echo "ok   $1 $2:$t";;
+                *) echo "::error file=$1::$2:$t does not match pin $3"; fail=1;;
+              esac
+            done
+          }
+          check ui/Dockerfile node "$(cat ui/.node-version)"
+          check api/Dockerfile python "$(cat api/.python-version)"
+          check mcp/Dockerfile python "$(cat mcp/.python-version)"
+          check operator/Dockerfile golang "$(sed -nE 's/^toolchain go(.+)/\1/p' operator/go.mod)"
+          if grep -nE '^FROM ' ui/Dockerfile api/Dockerfile mcp/Dockerfile operator/Dockerfile | grep -v '@sha256:'; then
+            echo "::error::base images above are not pinned by digest"; fail=1
+          fi
+          exit "$fail"
+
   go:
     name: Operator
     runs-on: ubuntu-latest
@@ -139,7 +172,6 @@ jobs:
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: "0.10.11"
-          python-version: "3.12"
           enable-cache: true
           cache-dependency-glob: ${{ matrix.package }}/uv.lock
 
@@ -168,7 +200,7 @@ jobs:
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version-file: ui/.node-version
           cache: npm
           cache-dependency-path: ui/package-lock.json
 

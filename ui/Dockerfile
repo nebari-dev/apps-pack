@@ -1,4 +1,5 @@
-FROM node:26-alpine AS builder
+# Node major comes from ui/.node-version (CI checks they agree).
+FROM node:24-alpine@sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f AS builder
 
 WORKDIR /app
 COPY package*.json ./
@@ -7,7 +8,7 @@ RUN npm ci
 COPY ./ ./
 RUN npm run build
 
-FROM nginx:1.31-alpine
+FROM nginx:1.31-alpine@sha256:892bb2152464f0c5d8972593a5f5afaf8054552580b699d95f8ff4af08c2d33d
 
 # envsubst (gettext) renders ${API_URL} into the config at startup; jq powers
 # the entrypoint's optional BRANDING_* overlay (standalone runs only).
