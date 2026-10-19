@@ -205,3 +205,13 @@ async def test_launch_reports_taken_subdomain(store):
     assert result["status"] == 409
     assert "subdomain" in result["error"]
     assert ("apps", "other-site") not in store.apps
+
+async def test_launch_passes_resources(store):
+    res = {"requests": {"cpu": "250m", "memory": "512Mi"}, "limits": {"memory": "1Gi"}}
+    await call("launch_app", {**LAUNCH_ARGS, "resources": res})
+    assert store.apps[("apps", "docs-site")]["spec"]["runtime"]["resources"] == res
+
+
+async def test_launch_without_resources_leaves_defaults_to_operator(store):
+    await call("launch_app", LAUNCH_ARGS)
+    assert "resources" not in store.apps[("apps", "docs-site")]["spec"]["runtime"]

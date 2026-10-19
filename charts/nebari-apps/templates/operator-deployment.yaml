@@ -32,6 +32,8 @@ spec:
             - --static-image={{ .Values.staticImage }}
             - --git-image={{ .Values.gitImage }}
             - --python-image={{ .Values.pythonImage }}
+            - {{ printf "--default-static-resources=%s" (toJson .Values.apps.defaultResources.static) | quote }}
+            - {{ printf "--default-python-resources=%s" (toJson .Values.apps.defaultResources.python) | quote }}
             {{- if not .Values.tls.enabled }}
             - --tls-disabled
             {{- end }}

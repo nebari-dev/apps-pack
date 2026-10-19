@@ -32,6 +32,40 @@ apps:
     # (ui.landingPage).
     enabled: false
 
+  # Requests/limits the operator fills in for any cpu/memory value an App's
+  # runtime.resources leaves unset, so no launched container runs unbounded.
+  # A filled limit never drops below the App's own request.
+  defaultResources:
+    static:            # nginx serving files
+      requests: { cpu: 50m, memory: 64Mi }
+      limits: { cpu: 500m, memory: 256Mi }
+    python:            # runtime.pixiTask apps (pixi install on cold start)
+      requests: { cpu: 250m, memory: 512Mi }
+      limits: { cpu: "2", memory: 2Gi }
+
+  # Optional guard rails rendered into every namespace in api.allowedNamespaces
+  # (the namespaces must already exist). Off by default.
+  limitRange:
+    # A LimitRange so any container without requests/limits (including ones
+    # created outside this pack) gets these defaults, plus a per-container max.
+    enabled: false
+    default: { cpu: 500m, memory: 512Mi }
+    defaultRequest: { cpu: 50m, memory: 64Mi }
+    max: { cpu: "4", memory: 4Gi }
+  networkPolicy:
+    # A NetworkPolicy for launched app pods: ingress only from the gateway
+    # namespace on the app port, egress only to DNS and to the internet
+    # (blockedCIDRs excluded), so user code cannot reach cluster-internal
+    # services. git/pixi sources still clone and install from the internet.
+    enabled: false
+    gatewayNamespace: envoy-gateway-system
+    blockedCIDRs:
+      - 10.0.0.0/8
+      - 172.16.0.0/12
+      - 192.168.0.0/16
+      - 100.64.0.0/10
+      - 169.254.0.0/16
+
 # =============================================================================
 # apps-operator
 # =============================================================================

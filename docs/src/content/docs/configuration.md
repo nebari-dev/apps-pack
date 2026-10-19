@@ -25,6 +25,9 @@ only `clusterDomain` and `keycloak.url` need changing.
 
 | Value | Default | Purpose |
 |---|---|---|
+| `apps.defaultResources.static` / `.python` | 50m/64Mi → 500m/256Mi; 250m/512Mi → 2/2Gi | Requests/limits filled in for any cpu/memory value an App's `runtime.resources` leaves unset (static apps vs `runtime.pixiTask` apps). |
+| `apps.limitRange.enabled` | `false` | Render a `LimitRange` (`default`, `defaultRequest`, `max`) into every `api.allowedNamespaces` namespace. The namespaces must exist. |
+| `apps.networkPolicy.enabled` | `false` | Render a `NetworkPolicy` for launched app pods in every `api.allowedNamespaces` namespace: ingress only from `gatewayNamespace` on port 8080; egress only to DNS and to the internet minus `blockedCIDRs` (private, CGNAT and link-local ranges by default), so app code cannot reach cluster-internal services. Needs a CNI that enforces NetworkPolicy. |
 | `apps.landingPage.enabled` | `false` | Cluster default for registering launched apps as tiles on the Nebari landing page. Off: an app appears only if it sets `spec.landingPage.enabled: true`. On: every app gets a tile unless it sets `enabled: false`. Apps are reachable at their URL and listed in the Apps UI either way. |
 | `staticImage` | `nginxinc/nginx-unprivileged:1.27-alpine` | Serves static app content; must listen on 8080 as non-root. |
 | `gitImage` | `alpine/git:v2.47.2` | Init-container image that clones `git` sources. |

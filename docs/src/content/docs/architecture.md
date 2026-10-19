@@ -102,7 +102,11 @@ The zone is configurable via the `appsDomain` value (default `apps.<clusterDomai
 ## Security posture
 
 - App pods run non-root with dropped capabilities, seccomp `RuntimeDefault`, and no
-  privilege escalation; static content mounts read-only.
+  privilege escalation; static content mounts read-only. They get no ServiceAccount token
+  (`automountServiceAccountToken: false`), and every container, init containers included,
+  gets cpu/memory requests and limits (the App's own, or the chart defaults). The chart can
+  add a `LimitRange` and a `NetworkPolicy` that keeps app pods off cluster-internal
+  addresses.
 - Git init containers receive user input via environment variables — never interpolated
   into shell — and subdirectories are validated against path traversal.
 - Uploads are size-capped, text-only, and rejected on unsafe archive paths.

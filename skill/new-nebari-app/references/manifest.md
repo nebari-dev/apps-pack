@@ -60,7 +60,8 @@ landingPage:                   # optional
 | `source.type: git` | `source_type: "git"` + `git_url`, `git_ref`, `git_subdir` |
 | `source.type: pvc` | `source_type: "pvc"` + `pvc_claim_name`, `pvc_sub_path` |
 | `runtime.env` | `env` (as a `{NAME: value}` dict) |
-| `runtime.replicas` | `replicas` |
+| `runtime.replicas` | `replicas` (0–10) |
+| `runtime.resources` | `resources` (same `{requests, limits}` shape; omitted values get the cluster default) |
 | `runtime.pixiTask` | `pixi_task` |
 | `access.public` / `access.groups` | `public` / `groups` |
 | `access.subdomain` | `subdomain` |
