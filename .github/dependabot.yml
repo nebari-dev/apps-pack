@@ -104,6 +104,11 @@ updates:
       - "/api"
       - "/mcp"
       - "/operator"
+    # The Node major is pinned in ui/.node-version (CI fails when the image
+    # disagrees); move both together on purpose.
+    ignore:
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
     schedule:
       interval: "monthly"
       day: "monday"
