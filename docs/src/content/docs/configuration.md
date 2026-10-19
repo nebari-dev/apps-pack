@@ -117,6 +117,33 @@ it. Probe requests log at `DEBUG`.
 | apps-mcp | `GET /healthz` | `GET /healthz` |
 | apps-ui | `GET /healthz` | `GET /healthz` |
 
+## Metrics
+
+The apps-operator serves the standard controller-runtime metrics at `/metrics` on the
+`<release>-operator-metrics` Service, port `8443`: reconcile counts, durations and errors
+for the `app` controller, work-queue depth, client request rates, and Go runtime stats. The
+endpoint is HTTPS only, with a self-signed certificate. Each scrape's bearer token is checked
+with a `TokenReview` and a `SubjectAccessReview`, so it must belong to a ServiceAccount
+bound to the `<release>-metrics-reader` ClusterRole (`get` on the `/metrics` URL). Anything
+else gets `401` or `403`.
+
+| Value | Default | Purpose |
+|---|---|---|
+| `telemetry.enabled` | `false` | Render a `ServiceMonitor` for the operator (needs the Prometheus Operator CRDs) and `prometheus.io/*` scrape annotations on the metrics Service. |
+| `telemetry.serviceMonitor.labels` | `{}` | Extra labels on the ServiceMonitor, e.g. the `release` label your Prometheus selects on. |
+| `telemetry.serviceMonitor.interval` | `30s` | Scrape interval. |
+| `telemetry.metricsReaders` | `[]` | ServiceAccounts (`{name, namespace}`) bound to the metrics-reader ClusterRole: list your Prometheus or Alloy account here. |
+
+The ServiceMonitor scrapes with Prometheus's own ServiceAccount token and skips certificate
+verification, since the certificate is regenerated on every operator start. To check the
+endpoint by hand:
+
+```bash
+kubectl -n nebari-apps port-forward svc/nebari-apps-operator-metrics 8443 &
+curl -sk -H "Authorization: Bearer $(kubectl -n monitoring create token <reader-sa>)" \
+  https://127.0.0.1:8443/metrics | grep controller_runtime_reconcile_total
+```
+
 ## Overrides
 
 | Value | Default | Purpose |

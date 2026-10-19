@@ -252,6 +252,25 @@ keycloak:
   internalUrl: ""
 
 # =============================================================================
+# Telemetry
+# =============================================================================
+# The operator always serves controller-runtime metrics over HTTPS on the
+# <release>-operator-metrics Service (port 8443). A scrape must present a
+# bearer token whose ServiceAccount holds the <release>-metrics-reader
+# ClusterRole; the certificate is self-signed.
+telemetry:
+  # Render a ServiceMonitor (needs the Prometheus Operator CRDs) and the
+  # prometheus.io/* scrape annotations on the metrics Service.
+  enabled: false
+  serviceMonitor:
+    # Extra labels, e.g. the release label your Prometheus selects on.
+    labels: {}
+    interval: 30s
+  # ServiceAccounts allowed to scrape, bound to the metrics-reader ClusterRole.
+  # e.g. - { name: prometheus-k8s, namespace: monitoring }
+  metricsReaders: []
+
+# =============================================================================
 # App runtime images
 # =============================================================================
 # Image serving static app content. Must listen on 8080 as a non-root user.
