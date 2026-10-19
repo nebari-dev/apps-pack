@@ -1,5 +1,6 @@
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { Banner } from "@/components/banner";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { Header } from "@/components/header";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useTheme } from "@/hooks/theme-provider";
@@ -10,6 +11,7 @@ export function Layout() {
   const user = getUser();
   const { themeMode, isDarkMode, setThemeMode } = useTheme();
   const { banners } = getBranding();
+  const { pathname } = useLocation();
 
   return (
     <TooltipProvider>
@@ -27,7 +29,10 @@ export function Layout() {
         />
 
         <main className="min-w-0 flex-1 bg-canvas px-10 py-8">
-          <Outlet />
+          {/* Keyed by route: a page that threw is retried when the user navigates. */}
+          <ErrorBoundary key={pathname}>
+            <Outlet />
+          </ErrorBoundary>
         </main>
 
         <Banner position="bottom" config={banners?.bottom} />

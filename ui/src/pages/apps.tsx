@@ -16,6 +16,7 @@ import { type ReactNode, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { AppThumbnail, ConfirmDeleteDialog, PhaseBadge, SourceBadge } from "@/components/app-bits";
 import { Onboarding } from "@/components/onboarding";
+import { errorMessage, QueryError } from "@/components/query-error";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -45,7 +46,7 @@ import { cn } from "@/lib/utils";
 
 const appLabel = (app: App) => app.displayName || app.name;
 const appKey = (app: App) => `${app.namespace}/${app.name}`;
-const errMessage = (err: unknown) => (err instanceof Error ? err.message : String(err));
+const errMessage = errorMessage;
 const isStopped = (app: App) => (app.status.replicas?.desired ?? app.runtime?.replicas ?? 1) === 0;
 
 const PHASES = ["Running", "Deploying", "Pending", "Stopped", "Failed"] as const;
@@ -175,10 +176,12 @@ export function AppsPage() {
     });
   };
 
+  // Each app is acted on independently: one failure (a 403, an app deleted
+  // meanwhile) must not hide that the others succeeded.
   const bulkAction = useMutation({
     mutationFn: async (action: "start" | "stop" | "delete") => {
       const targets = selectedApps;
-      await Promise.all(
+      const results = await Promise.allSettled(
         targets.map((a) =>
           action === "start"
             ? api.startApp(a.namespace, a.name)
@@ -187,16 +190,27 @@ export function AppsPage() {
               : api.deleteApp(a.namespace, a.name),
         ),
       );
-      return action;
+      const failed = targets.flatMap((app, i) => {
+        const r = results[i];
+        return r.status === "rejected" ? [{ app, reason: errMessage(r.reason) }] : [];
+      });
+      return { action, total: targets.length, failed };
     },
-    onSuccess: (action) => {
+    onSuccess: ({ action, total, failed }) => {
       invalidate();
       setBulkDeleteOpen(false);
       setBulkConfirm("");
-      setSelected(new Set());
+      // Keep the failures selected so they can be retried.
+      setSelected(new Set(failed.map(({ app }) => appKey(app))));
+      const verb = action === "delete" ? "Deleted" : action === "stop" ? "Stopped" : "Started";
+      if (failed.length === 0) {
+        toast.add({ type: "success", title: `${verb} ${total} app(s)` });
+        return;
+      }
       toast.add({
-        type: "success",
-        title: `${action === "delete" ? "Deleted" : action === "stop" ? "Stopped" : "Started"} ${selectedApps.length} app(s)`,
+        type: "error",
+        title: `${total - failed.length} of ${total} succeeded`,
+        description: failed.map(({ app, reason }) => `${appLabel(app)}: ${reason}`).join("; "),
       });
     },
     onError: (err) =>
@@ -296,6 +310,12 @@ export function AppsPage() {
         <div className="flex h-40 items-center justify-center">
           <Spinner className="size-6" />
         </div>
+      ) : apps.isError ? (
+        <QueryError
+          title="Could not load apps"
+          error={apps.error}
+          onRetry={() => void apps.refetch()}
+        />
       ) : list.length === 0 ? (
         <Onboarding />
       ) : rows.length === 0 ? (

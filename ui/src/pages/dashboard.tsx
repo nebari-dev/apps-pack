@@ -10,6 +10,7 @@ import {
   StatCard,
 } from "@/components/app-bits";
 import { Onboarding } from "@/components/onboarding";
+import { QueryError } from "@/components/query-error";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
@@ -23,6 +24,19 @@ export function DashboardPage() {
     return (
       <div className="flex h-64 items-center justify-center">
         <Spinner className="size-6" />
+      </div>
+    );
+  }
+
+  if (analytics.isError) {
+    return (
+      <div className="space-y-6">
+        <h1 className="font-semibold text-2xl">Dashboard</h1>
+        <QueryError
+          title="Could not load the dashboard"
+          error={analytics.error}
+          onRetry={() => void analytics.refetch()}
+        />
       </div>
     );
   }

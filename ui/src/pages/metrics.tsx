@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { QueryError } from "@/components/query-error";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
@@ -27,6 +28,19 @@ export function MetricsPage() {
     return (
       <div className="flex h-64 items-center justify-center">
         <Spinner className="size-6" />
+      </div>
+    );
+  }
+
+  if (metrics.isError) {
+    return (
+      <div className="space-y-6">
+        <h1 className="font-semibold text-2xl">Metrics</h1>
+        <QueryError
+          title="Could not load metrics"
+          error={metrics.error}
+          onRetry={() => void metrics.refetch()}
+        />
       </div>
     );
   }
