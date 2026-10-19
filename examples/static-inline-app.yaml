@@ -24,3 +24,6 @@ spec:
   access:
     public: true
     subdomain: docs-site
+  # Apps are hidden from the Nebari landing page unless they opt in.
+  landingPage:
+    enabled: true

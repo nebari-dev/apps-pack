@@ -152,6 +152,10 @@ async def launch_app(
         str,
         Field(description="Run the app as a Python/pixi service: the pixi task to execute (e.g. 'start'). The task must start a server on 0.0.0.0:8080. Empty = static app served by nginx"),
     ] = "",
+    landing_page: Annotated[
+        bool | None,
+        Field(description="Show the app as a tile on the Nebari landing page. Omit to use the cluster default (off unless the operator enables it); the app is reachable at its URL either way"),
+    ] = None,
 ) -> dict[str, Any]:
     """Create and launch an app: static (HTML/CSS/JS served by nginx) or, with pixi_task set,
     a Python/pixi service whose source includes a pixi manifest. Idempotent on
@@ -179,6 +183,8 @@ async def launch_app(
         },
         "access": {"public": public, "groups": groups or [], "subdomain": subdomain},
     }
+    if landing_page is not None:
+        body["landingPage"] = {"enabled": landing_page}
     try:
         async with await _api(ctx) as api:
             try:
@@ -187,7 +193,7 @@ async def launch_app(
                 if exc.status != 409:
                     raise
                 # Already exists: update in place (idempotent launch).
-                patch = {k: body[k] for k in ("displayName", "description", "source", "runtime", "access")}
+                patch = {k: body[k] for k in ("displayName", "description", "source", "runtime", "access", "landingPage") if k in body}
                 return await api.patch(f"/apps/{namespace}/{name}", json=patch)
     except ApiError as exc:
         return _error(exc)
@@ -238,7 +244,7 @@ async def update_app(
     name: str,
     patch: Annotated[
         dict[str, Any],
-        Field(description="Fields to change: any of displayName, description, source, runtime, access (same shapes as launch_app)"),
+        Field(description="Fields to change: any of displayName, description, source, runtime, access, landingPage ({enabled: bool}; {} = cluster default)"),
     ],
 ) -> Any:
     """Update an existing app's spec. The operator rolls the workload automatically."""

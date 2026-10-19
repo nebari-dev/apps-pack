@@ -34,7 +34,7 @@ Open `https://apps.<cluster-domain>`:
 2. **Source** — **Upload** (a `.zip` of your app, or a single `.html` file for static
    sites), **Git**, or **PVC**.
 3. **Runtime** — replicas, CPU/memory requests, environment variables.
-4. **Access** — public toggle, allowed groups, and the subdomain.
+4. **Access** — public toggle, intended groups, the subdomain, and the landing-page switch.
 
 The dashboard tracks the rollout; the app's detail page shows conditions, live pod logs,
 and Kubernetes events, plus stop/start/delete.
@@ -162,6 +162,17 @@ natural language through the **apps-mcp** server — `launch_app` is idempotent 
 - **Private (default)** — the app's `NebariApp` creates a gateway `SecurityPolicy`: users
   are redirected to Keycloak, and only `access.groups` members are authorized (empty
   groups = any signed-in user). The app itself never sees or handles auth.
+
+## Landing page
+
+Launched apps are **not** shown on the Nebari landing page unless they opt in — the
+landing page stays a curated list of platform services. Opt in per app with
+`spec.landingPage.enabled: true` (the "Show on the landing page" switch in the launch form,
+`landing_page: true` in the MCP tool, or `landingPage.enabled` in `nebari-app.yaml`); the
+tile uses the app's `displayName`, `description` and `thumbnail`. An operator can flip the
+cluster default with the chart value `apps.landingPage.enabled: true`, after which apps opt
+*out* with `enabled: false`. Either way the app is reachable at its URL and listed in the
+Apps UI.
 
 ## Day-2 operations
 

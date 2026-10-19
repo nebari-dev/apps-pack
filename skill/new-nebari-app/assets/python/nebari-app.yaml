@@ -12,3 +12,5 @@ runtime:
 access:
   public: true
   subdomain: APP_NAME
+# landingPage:
+#   enabled: true      # uncomment to add a tile on the Nebari landing page (off by default)

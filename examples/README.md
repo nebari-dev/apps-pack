@@ -21,5 +21,5 @@ kubectl get apps -n apps -w
 | `static/` | The content `static-git-app.yaml` points at (`subdir: examples/static`). |
 
 The operator reconciles each `App` into a Deployment, a Service, and a
-`NebariApp` (routing + TLS + auth + landing-page tile). Delete the `App` and
-everything cascades.
+`NebariApp` (routing + TLS + auth, plus a landing-page tile when the App sets
+`spec.landingPage.enabled: true`). Delete the `App` and everything cascades.

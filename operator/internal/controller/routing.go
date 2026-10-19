@@ -43,16 +43,20 @@ func (r *AppReconciler) buildNebariApp(app *appsv1alpha1.App) *unstructured.Unst
 		}
 	}
 
-	landing := map[string]any{
-		"enabled":     true,
-		"displayName": app.Spec.DisplayName,
-		"category":    "Apps",
-	}
-	if app.Spec.Description != "" {
-		landing["description"] = app.Spec.Description
-	}
-	if app.Spec.Thumbnail != "" {
-		landing["icon"] = app.Spec.Thumbnail
+	// Landing-page registration is opt-in (spec.landingPage.enabled, falling
+	// back to the operator's cluster default). A disabled tile carries only
+	// enabled=false so nebari-landing never lists it.
+	landing := map[string]any{"enabled": false}
+	if r.Config.LandingPageEnabled(app) {
+		landing["enabled"] = true
+		landing["displayName"] = app.Spec.DisplayName
+		landing["category"] = "Apps"
+		if app.Spec.Description != "" {
+			landing["description"] = app.Spec.Description
+		}
+		if app.Spec.Thumbnail != "" {
+			landing["icon"] = app.Spec.Thumbnail
+		}
 	}
 
 	obj := &unstructured.Unstructured{

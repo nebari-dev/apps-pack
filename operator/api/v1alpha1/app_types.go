@@ -107,6 +107,16 @@ type AppAccess struct {
 	Subdomain string `json:"subdomain"`
 }
 
+// AppLandingPage controls whether the app is registered as a tile on the
+// Nebari landing page. Apps are always reachable at their URL regardless.
+type AppLandingPage struct {
+	// Enabled shows the app on the landing page. Unset means "use the
+	// cluster default" (the operator's --landing-page flag, off unless the
+	// chart sets apps.landingPage.enabled=true).
+	// +optional
+	Enabled *bool `json:"enabled,omitempty"`
+}
+
 // AppSpec defines the desired state of an App.
 type AppSpec struct {
 	// +kubebuilder:validation:MinLength=1
@@ -129,6 +139,10 @@ type AppSpec struct {
 
 	// +optional
 	Runtime AppRuntime `json:"runtime,omitempty"`
+
+	// LandingPage controls the app's tile on the Nebari landing page.
+	// +optional
+	LandingPage *AppLandingPage `json:"landingPage,omitempty"`
 
 	Access AppAccess `json:"access"`
 }

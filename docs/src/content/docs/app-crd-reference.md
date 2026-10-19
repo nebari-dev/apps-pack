@@ -42,6 +42,8 @@ spec:
     groups: ["analytics"]
     users: ["alice"]
     subdomain: team-site
+  landingPage:
+    enabled: true          # optional; omit to follow the cluster default (off)
 status:
   phase: Running
   url: https://team-site.apps.example.ai
@@ -61,6 +63,7 @@ status:
 | `source` | [AppSource](#specsource) | Yes | Where the app's content comes from. |
 | `runtime` | [AppRuntime](#specruntime) | No | Process configuration: env, resources, replicas. |
 | `access` | [AppAccess](#specaccess) | Yes | Who can reach the app and at which subdomain. |
+| `landingPage` | [AppLandingPage](#speclandingpage) | No | Whether the app gets a tile on the Nebari landing page. |
 
 ## spec.source
 
@@ -117,6 +120,12 @@ current state of the ref.
 | `users` | []string | No | Additional individual users. |
 | `subdomain` | string | Yes | Lowercase DNS label. The app is served at `https://<subdomain>.<appsDomain>`. |
 
+## spec.landingPage
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `enabled` | bool | No | `true` registers the app as a tile on the Nebari landing page (name, description and thumbnail come from the spec); `false` hides it. **Unset follows the cluster default** — the chart's `apps.landingPage.enabled`, which is `false` out of the box. The app is reachable at its URL and listed in the Apps UI regardless. |
+
 ## status
 
 | Field | Type | Description |
@@ -145,6 +154,6 @@ For each `App` the operator creates (and owns, via `ownerReferences`):
 | ConfigMap | `app-<name>-content` | Inline source files (inline apps only). |
 | Deployment | `app-<name>` | The app workload (hardened: non-root, no privilege escalation, seccomp `RuntimeDefault`). |
 | Service | `app-<name>` | ClusterIP on port 8080. |
-| NebariApp | `app-<name>` | Routing + TLS + auth + landing-page tile, reconciled by the nebari-operator (contract pinned to `v0.1.0-alpha.19`). |
+| NebariApp | `app-<name>` | Routing + TLS + auth + (opt-in) landing-page tile, reconciled by the nebari-operator (contract pinned to `v0.1.0-alpha.19`). |
 
 Deleting the `App` cascades through all of them.

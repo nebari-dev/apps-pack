@@ -86,6 +86,17 @@ spec:
                 maxLength: 64
                 minLength: 1
                 type: string
+              landingPage:
+                description: LandingPage controls the app's tile on the Nebari landing
+                  page.
+                properties:
+                  enabled:
+                    description: |-
+                      Enabled shows the app on the landing page. Unset means "use the
+                      cluster default" (the operator's --landing-page flag, off unless the
+                      chart sets apps.landingPage.enabled=true).
+                    type: boolean
+                type: object
               owner:
                 description: Owner is the Keycloak sub / preferred_username that manages
                   the app.

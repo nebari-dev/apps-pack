@@ -64,6 +64,16 @@ class AppAccess(BaseModel):
     subdomain: str
 
 
+class AppLandingPage(BaseModel):
+    """Whether the app is registered as a tile on the Nebari landing page.
+
+    Unset (None) means "use the cluster default" (chart value
+    apps.landingPage.enabled, off unless the operator enables it).
+    """
+
+    enabled: bool | None = None
+
+
 class AppCreate(BaseModel):
     """Request body for POST /apps (mirrors App.spec plus name/namespace)."""
 
@@ -77,6 +87,7 @@ class AppCreate(BaseModel):
     source: AppSource
     runtime: AppRuntime = Field(default_factory=AppRuntime)
     access: AppAccess
+    landingPage: AppLandingPage | None = None
 
 
 class AppPatch(BaseModel):
@@ -90,6 +101,7 @@ class AppPatch(BaseModel):
     source: AppSource | None = None
     runtime: AppRuntime | None = None
     access: AppAccess | None = None
+    landingPage: AppLandingPage | None = None
 
 
 class AppReplicas(BaseModel):
@@ -126,6 +138,7 @@ class AppOut(BaseModel):
     source: AppSource | None = None
     runtime: AppRuntime | None = None
     access: AppAccess | None = None
+    landingPage: AppLandingPage | None = None
     status: AppStatus = Field(default_factory=AppStatus)
 
 

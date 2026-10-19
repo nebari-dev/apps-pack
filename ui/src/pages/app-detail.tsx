@@ -224,6 +224,13 @@ export function AppDetailPage() {
                 ? 'Public - no authentication'
                 : `Keycloak SSO at the gateway${a.access?.groups?.length ? ` · groups: ${a.access.groups.join(', ')}` : ''}`}
             </p>
+            <p className="mt-1 text-muted-foreground text-xs">
+              {a.landingPage?.enabled === true
+                ? 'Shown on the landing page'
+                : a.landingPage?.enabled === false
+                  ? 'Hidden from the landing page'
+                  : 'Landing page: cluster default'}
+            </p>
           </CardContent>
         </Card>
         <Card>

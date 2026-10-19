@@ -44,6 +44,7 @@ Every app launched afterwards gets `https://<subdomain>.apps.example.ai`.
 | `keycloak.internalUrl` | — | Optional in-cluster Keycloak URL (split horizon) for JWKS. |
 | `api.auth.enabled` | `true` | Keycloak JWT auth for the API + keycloak-js login in the UI. |
 | `api.allowedNamespaces` | `["apps"]` | Namespaces users may launch into via the API/UI/MCP. Empty list = every namespace labeled `nebari.dev/managed=true`. |
+| `apps.landingPage.enabled` | `false` | Cluster default for landing-page tiles of launched apps; apps override with `spec.landingPage.enabled`. |
 | `ui.hostname` | `<appsDomain>` | Where the UI itself is served. |
 | `ui.title`, `ui.branding.*` | — | Rebrand the UI (title, logos, favicon, theme, banners) — see [Branding](/branding/). |
 | `ui.landingPage.*` | "Apps" tile | Landing-page tile label, description, category, icon, and health check — see [Branding](/branding/). |

@@ -20,6 +20,19 @@ tls:
   enabled: true
 
 # =============================================================================
+# Launched apps
+# =============================================================================
+apps:
+  landingPage:
+    # Cluster default for registering launched apps as tiles on the Nebari
+    # landing page. Off: apps are reachable at their URL and listed in the
+    # Apps UI, but do not appear on the landing page unless the App sets
+    # spec.landingPage.enabled=true. On: every app gets a tile unless it sets
+    # spec.landingPage.enabled=false. The UI's own "Apps" tile is separate
+    # (ui.landingPage).
+    enabled: false
+
+# =============================================================================
 # apps-operator
 # =============================================================================
 operator:

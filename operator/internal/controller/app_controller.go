@@ -45,6 +45,18 @@ type OperatorConfig struct {
 	// TLSDisabled serves apps over plain HTTP: emitted NebariApps set
 	// routing.tls.enabled=false and status URLs use http://.
 	TLSDisabled bool
+	// LandingPage is the cluster default for registering apps as tiles on
+	// the Nebari landing page. An App's spec.landingPage.enabled overrides it.
+	LandingPage bool
+}
+
+// LandingPageEnabled reports whether an App should appear on the landing page:
+// its own spec.landingPage.enabled when set, else the cluster default.
+func (c OperatorConfig) LandingPageEnabled(app *appsv1alpha1.App) bool {
+	if app.Spec.LandingPage != nil && app.Spec.LandingPage.Enabled != nil {
+		return *app.Spec.LandingPage.Enabled
+	}
+	return c.LandingPage
 }
 
 // Scheme returns the URL scheme apps are served with.

@@ -77,7 +77,8 @@ Every tool returns structured JSON. Errors carry the API's human-readable `detai
 
 1. `describe_cluster` → namespaces `["apps", ...]`, appsDomain `apps.example.ai`
 2. `launch_app` with `source_type: inline`, the directory's files as
-   `inline_files`, `public: true`, `subdomain: docs-site`
+   `inline_files`, `public: true`, `subdomain: docs-site` (add `landing_page: true` to get a
+   tile on the Nebari landing page; apps are hidden from it by default)
 3. `get_app_status` until `phase: Running`
 4. Report `https://docs-site.apps.example.ai` back to the user
 

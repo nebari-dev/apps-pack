@@ -35,6 +35,9 @@ def to_cr(req: AppCreate, owner: str) -> dict[str, Any]:
             "subdomain": req.access.subdomain,
         },
     }
+    if req.landingPage is not None and req.landingPage.enabled is not None:
+        # Written explicitly (not _clean'ed) so enabled=false survives.
+        spec["landingPage"] = {"enabled": req.landingPage.enabled}
     return {
         "apiVersion": API_VERSION,
         "kind": "App",
@@ -61,6 +64,11 @@ def apply_patch(cr: dict[str, Any], patch: AppPatch) -> dict[str, Any]:
         spec["runtime"] = _clean(patch.runtime.model_dump())
     if patch.access is not None:
         spec["access"] = _clean(patch.access.model_dump()) | {"public": patch.access.public}
+    if patch.landingPage is not None:
+        if patch.landingPage.enabled is None:
+            spec.pop("landingPage", None)  # back to the cluster default
+        else:
+            spec["landingPage"] = {"enabled": patch.landingPage.enabled}
     return cr
 
 
@@ -79,6 +87,7 @@ def from_cr(cr: dict[str, Any]) -> AppOut:
         source=spec.get("source"),
         runtime=spec.get("runtime"),
         access=spec.get("access"),
+        landingPage=spec.get("landingPage"),
         status={
             "phase": status.get("phase", "Pending"),
             "url": status.get("url", ""),
