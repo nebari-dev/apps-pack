@@ -22,7 +22,7 @@ served statically.
 |---|---|---|
 | `inline` | small apps (text files, ~900KB) | Files carried in the `App` resource, mounted from a ConfigMap. |
 | `git` | version-controlled apps | A non-root init container clones the repo at pod start. |
-| `pvc` | larger apps, existing volumes | An existing PersistentVolumeClaim mounted (static) or copied into the workspace (Python). |
+| `pvc` | larger apps, existing volumes | An existing PersistentVolumeClaim mounted (static) or copied into the workspace (Python). The claim must be labeled `apps.nebari.dev/mountable=true`. |
 
 ## From the UI
 

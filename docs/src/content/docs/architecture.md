@@ -110,11 +110,15 @@ The zone is configurable via the `appsDomain` value (default `apps.<clusterDomai
 - Git init containers receive user input via environment variables — never interpolated
   into shell — and subdirectories are validated against path traversal.
 - Uploads are size-capped, text-only, and rejected on unsafe archive paths.
-- The API acts with a dedicated ServiceAccount limited to `App` CRUD, read-only
-  observability (pods, logs, events, and `metrics.k8s.io`), and a single narrow write —
-  patching child Deployments to roll pods for restart. That grant is a `ClusterRole`
-  (apps may live in any managed namespace), so `api.allowedNamespaces` is the tenancy
-  boundary between users and the cluster, and the API's owner-or-admin check is the
-  boundary between users. The operator's RBAC covers only the resources it reconciles.
+- The API acts with a dedicated ServiceAccount. Inside each namespace in
+  `api.allowedNamespaces` it gets a `RoleBinding` for `App` CRUD, read-only observability
+  (pods, logs, events), and one narrow write: patching child Deployments to roll pods for
+  restart. Cluster-wide it can only list namespaces and read `metrics.k8s.io` pod usage.
+  Only when `api.allowedNamespaces` is empty (namespaces discovered by label) is the
+  namespaced grant bound cluster-wide. On top of that, the API's owner-or-admin check is
+  the boundary between users. The operator's RBAC covers only the resources it reconciles,
+  plus read-only access to PersistentVolumeClaims.
+- A `pvc` source mounts a claim only if the claim is labeled `apps.nebari.dev/mountable=true`,
+  so a shared or team volume cannot be published by anyone who can create an App.
 - Treat every app as untrusted user code: tenancy is per-namespace, and only opted-in
   namespaces (`nebari.dev/managed=true`) can host apps.
