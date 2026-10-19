@@ -1,66 +1,35 @@
-export type SourceType = "git" | "inline" | "pvc";
+/*
+ * The App's own types come from its CRD: crd.gen.ts is generated from
+ * charts/nebari-apps/crds/apps.nebari.dev_apps.yaml by
+ * .github/scripts/gen_crd_types.py, and CI fails when it is stale. This file
+ * adds the API's wire shapes on top (the flattened App it returns, the create
+ * and patch bodies) and says where the wire differs from the CRD.
+ */
+import type * as Crd from "./crd.gen";
 
-export interface GitSource {
-  url: string;
-  ref?: string;
-  subdir?: string;
-}
+export type SourceType = Crd.AppSource["type"];
+export type GitSource = Crd.GitSource;
+export type AppSource = Crd.AppSource;
+export type EnvVar = Crd.EnvVar;
+export type AppAccess = Crd.AppAccess;
+/** Landing-page tile. `enabled` unset = follow the cluster default. */
+export type AppLandingPage = Crd.AppLandingPage;
+export type AppCondition = Crd.AppCondition;
 
-export interface AppSource {
-  type: SourceType;
-  git?: GitSource;
-  inline?: { files: Record<string, string> };
-  pvc?: { claimName: string; subPath?: string };
-}
-
-export interface EnvVar {
-  name: string;
-  value?: string;
-  /** A Secret, ConfigMap or field reference set with kubectl; kept as is. */
-  valueFrom?: Record<string, unknown>;
-}
-
-/** Resource name (cpu, memory, ephemeral-storage, nvidia.com/gpu, ...) -> quantity. */
+/** Resource name (cpu, memory, ephemeral-storage, nvidia.com/gpu, ...) -> quantity, as the API returns it. */
 export type ResourceAmounts = Record<string, string | undefined>;
 
-export interface AppRuntime {
-  env?: EnvVar[];
-  replicas?: number;
-  /** null in a PATCH clears it; an omitted field keeps the stored value. */
+export type AppRuntime = Omit<Crd.AppRuntime, "resources"> & {
+  /** Requests and limits only. null in a PATCH clears them; an omitted field keeps the stored value. */
   resources?: { requests?: ResourceAmounts; limits?: ResourceAmounts } | null;
-  /** Reserved (scale-to-zero); only round-tripped. */
-  keepAlive?: boolean;
-  /** When set, the app runs as a Python/pixi service via `pixi run <task>`. */
-  pixiTask?: string;
-}
+};
 
-export interface AppAccess {
-  public: boolean;
-  groups?: string[];
-  users?: string[];
-  subdomain: string;
-}
-
-/** Landing-page tile. `enabled` unset = follow the cluster default. */
-export interface AppLandingPage {
-  enabled?: boolean;
-}
-
-export interface AppCondition {
-  type: string;
-  status: string;
-  reason?: string;
-  message?: string;
-  lastTransitionTime?: string;
-}
-
-export interface AppStatus {
-  phase: string;
-  url: string;
-  replicas?: { desired: number; ready: number } | null;
-  conditions: AppCondition[];
-  message: string;
-}
+/** The API always returns these status fields; the CRD leaves them optional. */
+export type AppStatus = Required<Pick<Crd.AppStatus, "conditions" | "message" | "url">> & {
+  /** Empty until the operator first reconciles the App. */
+  phase: NonNullable<Crd.AppStatus["phase"]> | "";
+  replicas?: Crd.AppReplicas | null;
+};
 
 export interface App {
   name: string;

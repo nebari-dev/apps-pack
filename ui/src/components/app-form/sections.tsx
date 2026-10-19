@@ -1,0 +1,495 @@
+import { Plus, Trash2, UploadCloud } from "lucide-react";
+import type { Dispatch } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
+import type { App } from "@/lib/types";
+import {
+  type AppKind,
+  describeValueFrom,
+  type FormAction,
+  type FormState,
+  PRESETS,
+  type Preset,
+  type SourceTab,
+} from "./state";
+
+/** What every section needs from the form. */
+export interface FormContext {
+  state: FormState;
+  set: <K extends keyof FormState>(field: K, value: FormState[K]) => void;
+  dispatch: Dispatch<FormAction>;
+  /** Marks the control the validation message is about. */
+  errorProps: (field: string) => { "aria-invalid"?: true; "aria-describedby"?: string };
+  isEdit: boolean;
+  initial?: App;
+  namespaces: string[];
+  appsDomain: string;
+}
+
+/** Name, display name, namespace and what kind of app it is. */
+export function BasicsSection({ form }: { form: FormContext }) {
+  const { nameInput, displayName, description, thumbnail, namespace, kind, pixiTask } = form.state;
+  const { set, dispatch, errorProps, isEdit, namespaces } = form;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Basics</CardTitle>
+      </CardHeader>
+      <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="name">Name</Label>
+          <Input
+            id="name"
+            {...errorProps("name")}
+            placeholder="sales-dashboard"
+            value={nameInput}
+            disabled={isEdit}
+            onChange={(e) => dispatch({ type: "name", value: e.target.value })}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="displayName">Display name</Label>
+          <Input
+            id="displayName"
+            {...errorProps("displayName")}
+            placeholder="Sales Dashboard"
+            value={displayName}
+            onChange={(e) => set("displayName", e.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5 sm:col-span-2">
+          <Label htmlFor="description">Description</Label>
+          <Input
+            id="description"
+            placeholder="Optional short description"
+            value={description}
+            onChange={(e) => set("description", e.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="thumbnail">Thumbnail URL</Label>
+          <Input
+            id="thumbnail"
+            placeholder="https://…/icon.png (optional)"
+            value={thumbnail}
+            onChange={(e) => set("thumbnail", e.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label id="namespace-label">Namespace</Label>
+          <Select
+            value={namespace}
+            onValueChange={(v) => set("namespace", v as string)}
+            disabled={isEdit}
+          >
+            <SelectTrigger
+              id="namespace"
+              aria-labelledby="namespace-label"
+              {...errorProps("namespace")}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {namespaces.map((ns) => (
+                <SelectItem key={ns} value={ns}>
+                  {ns}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label id="kind-label">App type</Label>
+          <Select
+            value={kind}
+            onValueChange={(v) => set("kind", v as AppKind)}
+            items={{ static: "Static site (HTML/CSS/JS)", pixi: "Python app (pixi)" }}
+          >
+            <SelectTrigger aria-labelledby="kind-label">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="static">Static site (HTML/CSS/JS)</SelectItem>
+              <SelectItem value="pixi">Python app (pixi)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {kind === "pixi" ? (
+          <div className="space-y-1.5">
+            <Label htmlFor="pixiTask">Launch task</Label>
+            <Input
+              id="pixiTask"
+              {...errorProps("pixiTask")}
+              className="font-mono"
+              placeholder="start"
+              value={pixiTask}
+              onChange={(e) => set("pixiTask", e.target.value)}
+            />
+            <p className="text-muted-foreground text-xs">
+              Runs <span className="font-mono">pixi run {pixiTask || "<task>"}</span>; the task must
+              serve on <span className="font-mono">0.0.0.0:8080</span>.
+            </p>
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Where the content comes from: an upload, git or a PVC (or, on an edit, unchanged). */
+export function SourceSection({ form }: { form: FormContext }) {
+  const { sourceTab, kind, file, gitUrl, gitRef, gitSubdir, pvcClaim, pvcSubPath } = form.state;
+  const { set, errorProps, isEdit, initial } = form;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Source</CardTitle>
+        <CardDescription>
+          {isEdit
+            ? "Keep the current source, or point the app at a new one."
+            : "Upload files directly, point at a git repository, or mount a PVC."}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Tabs value={sourceTab} onValueChange={(v) => set("sourceTab", v as SourceTab)}>
+          <TabsList>
+            {isEdit ? (
+              <TabsTab value="keep">Keep current</TabsTab>
+            ) : (
+              <TabsTab value="upload">Upload</TabsTab>
+            )}
+            <TabsTab value="git">Git</TabsTab>
+            <TabsTab value="pvc">PVC</TabsTab>
+          </TabsList>
+
+          {isEdit ? (
+            <TabsPanel value="keep" className="mt-4">
+              <p className="text-muted-foreground text-sm">
+                Current source:{" "}
+                <span className="font-mono">{initial?.source?.type ?? "unknown"}</span>. Uploaded
+                (inline) content can't be edited here — switch to Git or PVC, or relaunch to replace
+                files.
+              </p>
+            </TabsPanel>
+          ) : (
+            <TabsPanel value="upload" className="mt-4">
+              <label
+                htmlFor="file-upload"
+                className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-border border-dashed p-8 text-center hover:bg-accent"
+              >
+                <UploadCloud className="size-6 text-muted-foreground" />
+                {file ? (
+                  <p className="font-medium text-sm">{file.name}</p>
+                ) : kind === "pixi" ? (
+                  <>
+                    <p className="font-medium text-sm">Drop a .zip of your pixi project</p>
+                    <p className="text-muted-foreground text-xs">
+                      Needs a pixi.toml (or pyproject.toml) at the root · text files only · up to
+                      ~900KB
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-medium text-sm">
+                      Drop a .zip of your site, or a single .html file
+                    </p>
+                    <p className="text-muted-foreground text-xs">
+                      Needs an index.html at the root · text assets only · up to ~900KB
+                    </p>
+                  </>
+                )}
+                <input
+                  id="file-upload"
+                  {...errorProps("file")}
+                  type="file"
+                  accept={kind === "pixi" ? ".zip" : ".zip,.html,.htm"}
+                  className="hidden"
+                  onChange={(e) => set("file", e.target.files?.[0] ?? null)}
+                />
+              </label>
+            </TabsPanel>
+          )}
+
+          <TabsPanel value="git" className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="space-y-1.5 sm:col-span-3">
+              <Label htmlFor="gitUrl">Repository URL</Label>
+              <Input
+                id="gitUrl"
+                {...errorProps("gitUrl")}
+                placeholder="https://github.com/org/site"
+                value={gitUrl}
+                onChange={(e) => set("gitUrl", e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="gitRef">Branch / tag</Label>
+              <Input id="gitRef" value={gitRef} onChange={(e) => set("gitRef", e.target.value)} />
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="gitSubdir">Subdirectory</Label>
+              <Input
+                id="gitSubdir"
+                placeholder="e.g. public (optional)"
+                value={gitSubdir}
+                onChange={(e) => set("gitSubdir", e.target.value)}
+              />
+            </div>
+          </TabsPanel>
+
+          <TabsPanel value="pvc" className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="pvcClaim">Claim name</Label>
+              <Input
+                id="pvcClaim"
+                {...errorProps("pvcClaim")}
+                placeholder="shared-sites"
+                value={pvcClaim}
+                onChange={(e) => set("pvcClaim", e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="pvcSubPath">Sub-path</Label>
+              <Input
+                id="pvcSubPath"
+                placeholder="site/ (optional)"
+                value={pvcSubPath}
+                onChange={(e) => set("pvcSubPath", e.target.value)}
+              />
+            </div>
+          </TabsPanel>
+        </Tabs>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Replicas, resources and environment variables. */
+export function RuntimeSection({ form }: { form: FormContext }) {
+  const { replicas, cpuReq, memReq, cpuLim, memLim, envVars } = form.state;
+  const { set, dispatch } = form;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Runtime</CardTitle>
+        <CardDescription>
+          Presets fill requests and limits; tweak any field afterwards.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-muted-foreground text-sm">Preset:</span>
+          {Object.keys(PRESETS).map((p) => (
+            <Button
+              key={p}
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => dispatch({ type: "preset", preset: p as Preset })}
+            >
+              {p}
+            </Button>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="replicas">Replicas</Label>
+            <Input
+              id="replicas"
+              type="number"
+              min={0}
+              max={10}
+              value={replicas}
+              onChange={(e) => set("replicas", Number(e.target.value))}
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="cpuReq">CPU request</Label>
+            <Input
+              id="cpuReq"
+              placeholder="250m"
+              value={cpuReq}
+              onChange={(e) => set("cpuReq", e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="memReq">Memory request</Label>
+            <Input
+              id="memReq"
+              placeholder="512Mi"
+              value={memReq}
+              onChange={(e) => set("memReq", e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="cpuLim">CPU limit</Label>
+            <Input
+              id="cpuLim"
+              placeholder="500m"
+              value={cpuLim}
+              onChange={(e) => set("cpuLim", e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="memLim">Memory limit</Label>
+            <Input
+              id="memLim"
+              placeholder="1Gi"
+              value={memLim}
+              onChange={(e) => set("memLim", e.target.value)}
+            />
+          </div>
+        </div>
+
+        <fieldset className="flex flex-col items-start gap-2">
+          <legend className="mb-2 font-medium text-sm leading-none">Environment variables</legend>
+          {envVars.map((env, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: positional editor rows
+            <div key={i} className="flex w-full items-center gap-2">
+              <Input
+                aria-label={`Variable ${i + 1} name`}
+                placeholder="NAME"
+                className="font-mono"
+                value={env.name}
+                onChange={(e) =>
+                  set(
+                    "envVars",
+                    envVars.map((v, j) => (j === i ? { ...v, name: e.target.value } : v)),
+                  )
+                }
+              />
+              <Input
+                aria-label={`Value of ${env.name || `variable ${i + 1}`}`}
+                placeholder="value"
+                className="font-mono"
+                // A valueFrom reference (set with kubectl) is kept but not editable here.
+                value={env.valueFrom ? describeValueFrom(env.valueFrom) : (env.value ?? "")}
+                disabled={Boolean(env.valueFrom)}
+                onChange={(e) =>
+                  set(
+                    "envVars",
+                    envVars.map((v, j) => (j === i ? { ...v, value: e.target.value } : v)),
+                  )
+                }
+              />
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`Remove ${env.name || `variable ${i + 1}`}`}
+                onClick={() =>
+                  set(
+                    "envVars",
+                    envVars.filter((_, j) => j !== i),
+                  )
+                }
+              >
+                <Trash2 aria-hidden="true" />
+              </Button>
+            </div>
+          ))}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => set("envVars", [...envVars, { name: "", value: "" }])}
+          >
+            <Plus /> Add variable
+          </Button>
+        </fieldset>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Public or signed-in access, the subdomain, and the landing-page tile. */
+export function AccessSection({ form }: { form: FormContext }) {
+  const { isPublic, groups, subdomain, onLandingPage } = form.state;
+  const { set, errorProps, isEdit, appsDomain } = form;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Access</CardTitle>
+        <CardDescription>
+          Apps are served behind the shared gateway. Private apps require a Keycloak sign-in at the
+          gateway - the app itself needs no auth code. Sign-in is authentication only: every user in
+          the realm can open a private app.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center justify-between rounded-md border border-border p-3">
+          <div>
+            <p id="public-label" className="font-medium text-sm">
+              Public app
+            </p>
+            <p id="public-help" className="text-muted-foreground text-xs">
+              Anyone with the URL can use it - no login required.
+            </p>
+          </div>
+          <Switch
+            checked={isPublic}
+            onCheckedChange={(v) => set("isPublic", v)}
+            aria-labelledby="public-label"
+            aria-describedby="public-help"
+          />
+        </div>
+        {!isPublic ? (
+          <div className="space-y-1.5">
+            <Label htmlFor="groups">Intended groups</Label>
+            <Input
+              id="groups"
+              placeholder="comma-separated"
+              aria-describedby="groups-help"
+              value={groups}
+              onChange={(e) => set("groups", e.target.value)}
+            />
+            <p id="groups-help" className="text-muted-foreground text-xs">
+              Not enforced yet: any signed-in user can open a private app, whatever groups you list.
+            </p>
+          </div>
+        ) : null}
+        <div className="space-y-1.5">
+          <Label htmlFor="subdomain">Subdomain</Label>
+          <div className="flex items-center gap-2">
+            <Input
+              id="subdomain"
+              {...errorProps("subdomain")}
+              className="max-w-56 font-mono"
+              value={subdomain}
+              disabled={isEdit}
+              onChange={(e) => set("subdomain", e.target.value)}
+            />
+            <span className="text-muted-foreground text-sm">.{appsDomain}</span>
+          </div>
+          {isEdit ? (
+            <p className="text-muted-foreground text-xs">Subdomain is fixed after launch.</p>
+          ) : null}
+        </div>
+        <div className="flex items-center justify-between rounded-md border border-border p-3">
+          <div>
+            <p className="font-medium text-sm">Show on the landing page</p>
+            <p className="text-muted-foreground text-xs">
+              Add a tile for this app to the Nebari landing page. Off by default - the app is
+              reachable at its URL and listed here either way.
+            </p>
+          </div>
+          <Switch
+            checked={onLandingPage}
+            onCheckedChange={(v) => set("onLandingPage", v)}
+            aria-label="Show on the landing page"
+          />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

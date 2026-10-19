@@ -1,24 +1,12 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  ArrowDown,
-  ArrowUp,
-  ChevronsUpDown,
-  ExternalLink,
-  Eye,
-  Pause,
-  Pencil,
-  Play,
-  Search,
-  Trash2,
-  X,
-} from "lucide-react";
-import { type ReactNode, useMemo, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Pause, Play, Search, Trash2, X } from "lucide-react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { AppThumbnail, ConfirmDeleteDialog, PhaseBadge, SourceBadge } from "@/components/app-bits";
+import { ConfirmDeleteDialog } from "@/components/app-bits";
+import { AppsTable, appType, type Sort, type SortCol } from "@/components/apps-table";
 import { Onboarding } from "@/components/onboarding";
 import { errorMessage, QueryError } from "@/components/query-error";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogClose,
@@ -30,38 +18,26 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { toast } from "@/components/ui/toast";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  appKey,
+  appLabel,
+  runAppAction,
+  useAppActions,
+  useInvalidateApps,
+} from "@/hooks/use-app-actions";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { api } from "@/lib/api";
 import { listInterval } from "@/lib/polling";
 import type { App } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const appLabel = (app: App) => app.displayName || app.name;
-const appKey = (app: App) => `${app.namespace}/${app.name}`;
 const errMessage = errorMessage;
-const isStopped = (app: App) => (app.status.replicas?.desired ?? app.runtime?.replicas ?? 1) === 0;
 
 const PHASES = ["Running", "Deploying", "Pending", "Stopped", "Failed"] as const;
 
-type SortCol = "name" | "namespace" | "type" | "source" | "status" | "owner";
-
-/** App kind shown in the Type column: pixi-launched apps are python, the rest static. */
-const appType = (app: App) => (app.runtime?.pixiTask ? "python" : "static");
-type SortDir = "asc" | "desc";
-
 export function AppsPage() {
   const heading = usePageTitle("Apps");
-  const queryClient = useQueryClient();
   const apps = useQuery({
     queryKey: ["apps"],
     queryFn: () => api.listApps(),
@@ -69,57 +45,14 @@ export function AppsPage() {
   });
   const [filter, setFilter] = useState("");
   const [phaseFilter, setPhaseFilter] = useState<string | null>(null);
-  const [sort, setSort] = useState<{ col: SortCol; dir: SortDir }>({ col: "name", dir: "asc" });
+  const [sort, setSort] = useState<Sort>({ col: "name", dir: "asc" });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<App | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkConfirm, setBulkConfirm] = useState("");
 
-  const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: ["apps"] });
-    void queryClient.invalidateQueries({ queryKey: ["analytics"] });
-  };
-
-  const stop = useMutation({
-    mutationFn: (app: App) => api.stopApp(app.namespace, app.name),
-    onSuccess: (_d, app) => {
-      invalidate();
-      toast.add({ type: "success", title: `Stopped ${appLabel(app)}` });
-    },
-    onError: (err, app) =>
-      toast.add({
-        type: "error",
-        title: `Failed to stop ${appLabel(app)}`,
-        description: errMessage(err),
-      }),
-  });
-  const start = useMutation({
-    mutationFn: (app: App) => api.startApp(app.namespace, app.name),
-    onSuccess: (_d, app) => {
-      invalidate();
-      toast.add({ type: "success", title: `Started ${appLabel(app)}` });
-    },
-    onError: (err, app) =>
-      toast.add({
-        type: "error",
-        title: `Failed to start ${appLabel(app)}`,
-        description: errMessage(err),
-      }),
-  });
-  const remove = useMutation({
-    mutationFn: (app: App) => api.deleteApp(app.namespace, app.name),
-    onSuccess: (_d, app) => {
-      invalidate();
-      setDeleteTarget(null);
-      toast.add({ type: "success", title: `Deleted ${appLabel(app)}` });
-    },
-    onError: (err, app) =>
-      toast.add({
-        type: "error",
-        title: `Failed to delete ${appLabel(app)}`,
-        description: errMessage(err),
-      }),
-  });
+  const invalidate = useInvalidateApps();
+  const actions = useAppActions({ onDeleted: () => setDeleteTarget(null) });
 
   const list = apps.data ?? [];
   const phaseCounts = useMemo(() => {
@@ -188,15 +121,7 @@ export function AppsPage() {
   const bulkAction = useMutation({
     mutationFn: async (action: "start" | "stop" | "delete") => {
       const targets = selectedApps;
-      const results = await Promise.allSettled(
-        targets.map((a) =>
-          action === "start"
-            ? api.startApp(a.namespace, a.name)
-            : action === "stop"
-              ? api.stopApp(a.namespace, a.name)
-              : api.deleteApp(a.namespace, a.name),
-        ),
-      );
+      const results = await Promise.allSettled(targets.map((a) => runAppAction(action, a)));
       const failed = targets.flatMap((app, i) => {
         const r = results[i];
         return r.status === "rejected" ? [{ app, reason: errMessage(r.reason) }] : [];
@@ -228,9 +153,6 @@ export function AppsPage() {
     setSort((s) =>
       s.col === col ? { col, dir: s.dir === "asc" ? "desc" : "asc" } : { col, dir: "asc" },
     );
-
-  const isPendingFor = (m: { isPending: boolean; variables?: App }, app: App) =>
-    m.isPending && m.variables?.namespace === app.namespace && m.variables?.name === app.name;
 
   return (
     <div className="space-y-4">
@@ -332,164 +254,18 @@ export function AppsPage() {
           No apps match your filter.
         </p>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-10">
-                <Checkbox
-                  aria-label="Select all"
-                  checked={allSelected}
-                  indeterminate={someSelected}
-                  onCheckedChange={toggleAll}
-                />
-              </TableHead>
-              <SortableHead label="App" col="name" sort={sort} onToggle={toggleSort} />
-              <SortableHead label="Namespace" col="namespace" sort={sort} onToggle={toggleSort} />
-              <SortableHead label="Type" col="type" sort={sort} onToggle={toggleSort} />
-              <SortableHead label="Source" col="source" sort={sort} onToggle={toggleSort} />
-              <SortableHead label="Status" col="status" sort={sort} onToggle={toggleSort} />
-              <TableHead>Replicas</TableHead>
-              <SortableHead label="Owner" col="owner" sort={sort} onToggle={toggleSort} />
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((app) => {
-              const stopped = isStopped(app);
-              const checked = selected.has(appKey(app));
-              return (
-                <TableRow key={appKey(app)} data-selected={checked || undefined}>
-                  <TableCell>
-                    <Checkbox
-                      aria-label={`Select ${appLabel(app)}`}
-                      checked={checked}
-                      onCheckedChange={() => toggleOne(app)}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <AppThumbnail
-                        name={app.name}
-                        displayName={app.displayName}
-                        thumbnail={app.thumbnail}
-                        className="size-9"
-                      />
-                      <div className="min-w-0">
-                        <Link
-                          to={`/apps/${app.namespace}/${app.name}`}
-                          className="font-medium hover:underline"
-                        >
-                          {app.displayName || app.name}
-                        </Link>
-                        <p className="text-muted-foreground text-xs">{app.name}</p>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{app.namespace}</TableCell>
-                  <TableCell>
-                    <SourceBadge source={appType(app)} />
-                  </TableCell>
-                  <TableCell>
-                    <SourceBadge source={app.source?.type ?? "—"} />
-                  </TableCell>
-                  <TableCell>
-                    <PhaseBadge phase={app.status.phase} />
-                  </TableCell>
-                  <TableCell className="tabular-nums">
-                    {app.status.replicas
-                      ? `${app.status.replicas.ready}/${app.status.replicas.desired}`
-                      : "—"}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{app.owner || "—"}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <IconLink to={`/apps/${app.namespace}/${app.name}`} label="View">
-                        <Eye />
-                      </IconLink>
-                      <IconLink to={`/apps/${app.namespace}/${app.name}/edit`} label="Edit">
-                        <Pencil />
-                      </IconLink>
-                      {app.status.url && app.status.phase === "Running" ? (
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                render={
-                                  <a
-                                    href={app.status.url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    aria-label="Open app"
-                                  />
-                                }
-                              >
-                                <ExternalLink />
-                              </Button>
-                            }
-                          />
-                          <TooltipContent>Open</TooltipContent>
-                        </Tooltip>
-                      ) : null}
-                      {stopped ? (
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label="Start app"
-                                loading={isPendingFor(start, app)}
-                                onClick={() => start.mutate(app)}
-                              >
-                                <Play />
-                              </Button>
-                            }
-                          />
-                          <TooltipContent>Start</TooltipContent>
-                        </Tooltip>
-                      ) : (
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label="Stop app"
-                                loading={isPendingFor(stop, app)}
-                                onClick={() => stop.mutate(app)}
-                              >
-                                <Pause />
-                              </Button>
-                            }
-                          />
-                          <TooltipContent>Stop</TooltipContent>
-                        </Tooltip>
-                      )}
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              aria-label="Delete app"
-                              className="text-destructive-foreground hover:bg-destructive hover:text-destructive-foreground"
-                              onClick={() => setDeleteTarget(app)}
-                            >
-                              <Trash2 />
-                            </Button>
-                          }
-                        />
-                        <TooltipContent>Delete</TooltipContent>
-                      </Tooltip>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+        <AppsTable
+          rows={rows}
+          sort={sort}
+          onToggleSort={toggleSort}
+          selected={selected}
+          allSelected={allSelected}
+          someSelected={someSelected}
+          onToggleAll={toggleAll}
+          onToggleOne={toggleOne}
+          actions={actions}
+          onDelete={setDeleteTarget}
+        />
       )}
 
       <ConfirmDeleteDialog
@@ -497,8 +273,8 @@ export function AppsPage() {
         onOpenChange={(open) => !open && setDeleteTarget(null)}
         appName={deleteTarget?.name ?? ""}
         displayName={deleteTarget?.displayName}
-        loading={remove.isPending}
-        onConfirm={() => deleteTarget && remove.mutate(deleteTarget)}
+        loading={actions.remove.isPending}
+        onConfirm={() => deleteTarget && actions.remove.mutate(deleteTarget)}
       />
 
       <Dialog
@@ -570,54 +346,5 @@ function FilterChip({
       {label}
       <span className="tabular-nums opacity-70">{count}</span>
     </button>
-  );
-}
-
-function SortableHead({
-  label,
-  col,
-  sort,
-  onToggle,
-}: {
-  label: string;
-  col: SortCol;
-  sort: { col: SortCol; dir: SortDir };
-  onToggle: (c: SortCol) => void;
-}) {
-  const active = sort.col === col;
-  return (
-    <TableHead aria-sort={active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}>
-      <button
-        type="button"
-        className="inline-flex items-center gap-1 hover:text-foreground"
-        onClick={() => onToggle(col)}
-      >
-        {label}
-        {active ? (
-          sort.dir === "asc" ? (
-            <ArrowUp className="size-3.5" />
-          ) : (
-            <ArrowDown className="size-3.5" />
-          )
-        ) : (
-          <ChevronsUpDown className="size-3.5 opacity-40" />
-        )}
-      </button>
-    </TableHead>
-  );
-}
-
-function IconLink({ to, label, children }: { to: string; label: string; children: ReactNode }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button variant="ghost" size="icon-sm" render={<Link to={to} aria-label={label} />}>
-            {children}
-          </Button>
-        }
-      />
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
   );
 }

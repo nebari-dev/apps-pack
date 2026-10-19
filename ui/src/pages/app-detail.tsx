@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -31,19 +31,17 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
-import { toast } from "@/components/ui/toast";
+import { useAppActions } from "@/hooks/use-app-actions";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { api } from "@/lib/api";
 import { pollFor } from "@/lib/polling";
 import type { App } from "@/lib/types";
 
 const MAX_SAMPLES = 30;
-const errMessage = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
 export function AppDetailPage() {
   const { namespace = "", name = "" } = useParams();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [logFollow, setLogFollow] = useState(true);
@@ -87,69 +85,8 @@ export function AppDetailPage() {
     setMemHistory((h) => [...h, mem].slice(-MAX_SAMPLES));
   }, [sample]);
 
-  const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: ["app", namespace, name] });
-    void queryClient.invalidateQueries({ queryKey: ["apps"] });
-    void queryClient.invalidateQueries({ queryKey: ["analytics"] });
-  };
-  const label = () => app.data?.displayName || name;
-
-  const stop = useMutation({
-    mutationFn: () => api.stopApp(namespace, name),
-    onSuccess: () => {
-      invalidate();
-      toast.add({ type: "success", title: `Stopped ${label()}` });
-    },
-    onError: (err) =>
-      toast.add({
-        type: "error",
-        title: `Failed to stop ${label()}`,
-        description: errMessage(err),
-      }),
-  });
-  const start = useMutation({
-    mutationFn: () => api.startApp(namespace, name),
-    onSuccess: () => {
-      invalidate();
-      toast.add({ type: "success", title: `Started ${label()}` });
-    },
-    onError: (err) =>
-      toast.add({
-        type: "error",
-        title: `Failed to start ${label()}`,
-        description: errMessage(err),
-      }),
-  });
-  const restart = useMutation({
-    mutationFn: () => api.restartApp(namespace, name),
-    onSuccess: () => {
-      invalidate();
-      toast.add({
-        type: "success",
-        title: `Restarting ${label()}`,
-        description: "Pods are rolling now.",
-      });
-    },
-    onError: (err) =>
-      toast.add({
-        type: "error",
-        title: `Failed to restart ${label()}`,
-        description: errMessage(err),
-      }),
-  });
-  const remove = useMutation({
-    mutationFn: () => api.deleteApp(namespace, name),
-    onSuccess: () => {
-      invalidate();
-      toast.add({ type: "success", title: `Deleted ${label()}` });
-      void navigate("/apps");
-    },
-    onError: (err) =>
-      toast.add({
-        type: "error",
-        title: `Failed to delete ${label()}`,
-        description: errMessage(err),
-      }),
+  const { start, stop, restart, remove } = useAppActions({
+    onDeleted: () => void navigate("/apps"),
   });
 
   if (app.isLoading) {
@@ -244,11 +181,11 @@ export function AppDetailPage() {
             }
           />
           {stopped ? (
-            <Button variant="secondary" loading={start.isPending} onClick={() => start.mutate()}>
+            <Button variant="secondary" loading={start.isPending} onClick={() => start.mutate(a)}>
               <Play /> Start
             </Button>
           ) : (
-            <Button variant="secondary" loading={stop.isPending} onClick={() => stop.mutate()}>
+            <Button variant="secondary" loading={stop.isPending} onClick={() => stop.mutate(a)}>
               <Pause /> Stop
             </Button>
           )}
@@ -256,7 +193,7 @@ export function AppDetailPage() {
             variant="secondary"
             disabled={stopped}
             loading={restart.isPending}
-            onClick={() => restart.mutate()}
+            onClick={() => restart.mutate(a)}
           >
             <RotateCw /> Restart
           </Button>
@@ -505,7 +442,7 @@ export function AppDetailPage() {
         appName={a.name}
         displayName={a.displayName}
         loading={remove.isPending}
-        onConfirm={() => remove.mutate()}
+        onConfirm={() => remove.mutate(a)}
       />
     </div>
   );

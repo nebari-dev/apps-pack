@@ -1,0 +1,9 @@
+# The image builds from a clean `npm ci`; a host node_modules (other OS or
+# arch) must not be copied over it by `COPY ./ ./`.
+node_modules
+dist
+coverage
+*.tsbuildinfo
+.DS_Store
+.claude
+tests

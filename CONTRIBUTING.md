@@ -91,7 +91,12 @@ cd operator
 go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.21.0
 controller-gen object paths="./api/..."
 controller-gen crd paths="./api/..." output:crd:artifacts:config=../charts/nebari-apps/crds
+cd .. && python3 .github/scripts/gen_crd_types.py   # ui/src/lib/crd.gen.ts
 ```
+
+The UI's App types (`ui/src/lib/types.ts`) derive from the generated `crd.gen.ts`; apps-api's
+Pydantic models stay hand-written, because they carry request rules the CRD cannot express, and
+`api/tests/test_crd_conformance.py` holds their fields and bounds to the CRD.
 
 Python dependencies are managed with [uv](https://docs.astral.sh/uv/), and `uv.lock` is the
 source of truth. Change a dependency in `pyproject.toml`, then run `uv lock` and commit both.
