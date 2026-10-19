@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from .k8s import GROUP, VERSION
-from .models import AppCreate, AppOut, AppPatch
+from .models import AppCreate, AppOut, AppPatch, AppStatus
 
 API_VERSION = f"{GROUP}/{VERSION}"
 
@@ -89,11 +89,13 @@ def from_cr(cr: dict[str, Any]) -> AppOut:
         runtime=spec.get("runtime"),
         access=spec.get("access"),
         landingPage=spec.get("landingPage"),
-        status={
-            "phase": status.get("phase", "Pending"),
-            "url": status.get("url", ""),
-            "replicas": status.get("replicas"),
-            "conditions": status.get("conditions", []),
-            "message": status.get("message", ""),
-        },
+        status=AppStatus.model_validate(
+            {
+                "phase": status.get("phase", "Pending"),
+                "url": status.get("url", ""),
+                "replicas": status.get("replicas"),
+                "conditions": status.get("conditions", []),
+                "message": status.get("message", ""),
+            }
+        ),
     )

@@ -1,4 +1,4 @@
-import { Menu as MenuPrimitive } from '@base-ui/react/menu';
+import { Menu as MenuPrimitive } from "@base-ui/react/menu";
 import {
   BarChart3,
   ChevronDown,
@@ -8,15 +8,12 @@ import {
   Moon,
   Rocket,
   Sun,
-} from 'lucide-react';
-import type { ReactNode } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import nebariLogo from '@/assets/nebari-logo.svg';
-import nebariLogoDark from '@/assets/nebari-logo_dark.svg';
-import { isThemeMode, type ThemeMode } from '@/hooks/use-theme-preference';
-import { getBranding } from '@/lib/branding';
-import { cn } from '@/lib/utils';
-import { Avatar, AvatarFallback } from '@/components/avatar';
+} from "lucide-react";
+import type { ReactNode } from "react";
+import { Link, useLocation } from "react-router-dom";
+import nebariLogo from "@/assets/nebari-logo.svg";
+import nebariLogoDark from "@/assets/nebari-logo_dark.svg";
+import { Avatar, AvatarFallback } from "@/components/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,19 +21,22 @@ import {
   DropdownMenuPortal,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from "@/components/ui/dropdown-menu";
 import {
   MenuBarActions,
   MenuBarBrand,
   MenuBarNav,
   NavigationMenu,
   NavLink,
-} from '@/components/ui/navigation-menu';
+} from "@/components/ui/navigation-menu";
+import { isThemeMode, type ThemeMode } from "@/hooks/use-theme-preference";
+import { getBranding } from "@/lib/branding";
+import { cn } from "@/lib/utils";
 
 const NAV = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { to: '/apps', label: 'Apps', icon: Rocket, end: false },
-  { to: '/metrics', label: 'Metrics', icon: BarChart3, end: false },
+  { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
+  { to: "/apps", label: "Apps", icon: Rocket, end: false },
+  { to: "/metrics", label: "Metrics", icon: BarChart3, end: false },
 ];
 
 type User = {
@@ -64,7 +64,7 @@ export type HeaderProps = {
  */
 export function Header({
   user,
-  themeMode = 'system',
+  themeMode = "system",
   isDarkMode = false,
   onThemeChange,
   onSignOut,
@@ -81,7 +81,7 @@ export function Header({
     <NavigationMenu className="h-14 justify-between border-header-border bg-header pl-4 text-header-foreground">
       <MenuBarBrand href="/" aria-label="Go to homepage">
         {brandedLogo ? (
-          <img src={brandedLogo} alt={title || 'Nebari'} className="h-8 w-auto" />
+          <img src={brandedLogo} alt={title || "Nebari"} className="h-8 w-auto" />
         ) : (
           <>
             <img src={nebariLogo} alt="Nebari" className="h-8 w-auto dark:hidden" />
@@ -116,7 +116,7 @@ export function Header({
               </AvatarFallback>
             </Avatar>
 
-            <span>{user?.name || user?.email || 'Account'}</span>
+            <span>{user?.name || user?.email || "Account"}</span>
 
             <ChevronDown />
           </DropdownMenuTrigger>
@@ -125,11 +125,9 @@ export function Header({
             <DropdownMenuContent align="end" className="w-[248px] p-2">
               <div className="border-b px-1.5 pb-2">
                 <p className="font-medium text-foreground text-sm">
-                  {user?.name || 'Authentication disabled'}
+                  {user?.name || "Authentication disabled"}
                 </p>
-                {user?.email ? (
-                  <p className="text-muted-foreground text-xs">{user.email}</p>
-                ) : null}
+                {user?.email ? <p className="text-muted-foreground text-xs">{user.email}</p> : null}
               </div>
 
               <div className="py-2">
@@ -137,7 +135,7 @@ export function Header({
                   aria-label="Theme"
                   value={themeMode}
                   onValueChange={(value) => {
-                    if (typeof value === 'string' && isThemeMode(value)) onThemeChange?.(value);
+                    if (typeof value === "string" && isThemeMode(value)) onThemeChange?.(value);
                   }}
                   className="flex h-[34px] items-center gap-1 rounded-md bg-muted p-1"
                 >
@@ -195,9 +193,9 @@ function ThemeOption({
       // Keep the menu open after switching themes so the change is visible.
       closeOnClick={false}
       className={cn(
-        'flex h-auto flex-1 cursor-pointer items-center justify-center gap-1 rounded-sm border border-transparent px-1.5 py-0.5 font-medium text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        'text-muted-foreground-strong hover:text-foreground',
-        'data-checked:border-border-strong data-checked:bg-card data-checked:text-foreground data-checked:shadow-[0_1px_3px_0_rgba(0,0,0,0.10)]',
+        "flex h-auto flex-1 cursor-pointer items-center justify-center gap-1 rounded-sm border border-transparent px-1.5 py-0.5 font-medium text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "text-muted-foreground-strong hover:text-foreground",
+        "data-checked:border-border-strong data-checked:bg-card data-checked:text-foreground data-checked:shadow-[0_1px_3px_0_rgba(0,0,0,0.10)]",
       )}
     >
       {children}
@@ -219,5 +217,5 @@ function getUserInitials(name?: string, email?: string) {
   if (email) {
     return email.slice(0, 2).toUpperCase();
   }
-  return 'U';
+  return "U";
 }

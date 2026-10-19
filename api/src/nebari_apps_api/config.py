@@ -33,11 +33,7 @@ class Settings:
     # Namespaces users may launch apps into (comma-separated). Empty means
     # "any namespace labeled nebari.dev/managed=true".
     allowed_namespaces: list[str] = field(
-        default_factory=lambda: [
-            ns.strip()
-            for ns in os.environ.get("APPS_NAMESPACES", "").split(",")
-            if ns.strip()
-        ]
+        default_factory=lambda: [ns.strip() for ns in os.environ.get("APPS_NAMESPACES", "").split(",") if ns.strip()]
     )
 
     # Keycloak groups whose members may see and manage every App. Everyone
@@ -45,9 +41,7 @@ class Settings:
     # are compared without a leading "/" (Keycloak full-path groups).
     admin_groups: list[str] = field(
         default_factory=lambda: [
-            g.strip().lstrip("/")
-            for g in os.environ.get("APPS_ADMIN_GROUPS", "admin").split(",")
-            if g.strip()
+            g.strip().lstrip("/") for g in os.environ.get("APPS_ADMIN_GROUPS", "admin").split(",") if g.strip()
         ]
     )
 
@@ -67,9 +61,7 @@ class Settings:
     # only if its azp (the client it was issued to) or one of its aud values
     # is listed. Keycloak puts the SPA client in azp (aud is just "account"),
     # so a plain audience check cannot do this. Unset disables the check.
-    oidc_allowed_clients: list[str] | None = field(
-        default_factory=lambda: _client_list("OIDC_ALLOWED_CLIENTS")
-    )
+    oidc_allowed_clients: list[str] | None = field(default_factory=lambda: _client_list("OIDC_ALLOWED_CLIENTS"))
 
     # Values surfaced to the UI via /api/v1/config so keycloak-js can boot.
     ui_keycloak_url: str = field(default_factory=lambda: os.environ.get("UI_KEYCLOAK_URL", ""))
@@ -80,9 +72,7 @@ class Settings:
     tls_disabled: bool = field(default_factory=lambda: _env_bool("TLS_DISABLED", False))
 
     # Upload limits for the inline (ConfigMap-backed) source path.
-    max_upload_bytes: int = field(
-        default_factory=lambda: int(os.environ.get("MAX_UPLOAD_BYTES", str(900 * 1024)))
-    )
+    max_upload_bytes: int = field(default_factory=lambda: int(os.environ.get("MAX_UPLOAD_BYTES", str(900 * 1024))))
     # Hard ceiling on any request body, enforced while it streams in (before
     # parsing), so no request can make the API buffer more than this. Matches
     # the UI nginx client_max_body_size (2m) and leaves room for multipart

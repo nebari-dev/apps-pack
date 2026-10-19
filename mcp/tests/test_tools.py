@@ -169,9 +169,9 @@ async def test_launch_landing_page_opt_in(store):
 
 async def test_launch_refuses_to_overwrite_another_users_app(store, monkeypatch):
     """With API authorization on, the 409 -> PATCH upsert must not take over
-    an app someone else owns."""
+    an app someone else owns.
+    """
     import httpx
-
     from nebari_apps_api.auth import User, current_user
     from nebari_apps_api.config import settings as api_settings
     from nebari_apps_api.main import create_app
@@ -205,6 +205,7 @@ async def test_launch_reports_taken_subdomain(store):
     assert result["status"] == 409
     assert "subdomain" in result["error"]
     assert ("apps", "other-site") not in store.apps
+
 
 async def test_launch_passes_resources(store):
     res = {"requests": {"cpu": "250m", "memory": "512Mi"}, "limits": {"memory": "1Gi"}}

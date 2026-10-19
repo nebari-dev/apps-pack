@@ -1,6 +1,6 @@
-import { Switch as SwitchPrimitive } from '@base-ui/react/switch';
-import type { ComponentProps } from 'react';
-import { cn } from '@/lib/utils';
+import { Switch as SwitchPrimitive } from "@base-ui/react/switch";
+import type { ComponentProps } from "react";
+import { cn } from "@/lib/utils";
 
 type SwitchProps = ComponentProps<typeof SwitchPrimitive.Root>;
 

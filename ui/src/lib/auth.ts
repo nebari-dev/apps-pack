@@ -6,17 +6,17 @@
  * PKCE flow against the public client the NebariApp provisioned
  * (auth.spaClient), and every API request carries the bearer token.
  */
-import Keycloak from 'keycloak-js';
-import type { UiConfig } from './types';
+import Keycloak from "keycloak-js";
+import type { UiConfig } from "./types";
 
 const nativeFetch = window.fetch.bind(window);
 
 let keycloak: Keycloak | null = null;
 let config: UiConfig = {
   authEnabled: false,
-  keycloak: { url: '', realm: '', clientId: '' },
-  appsDomain: '',
-  appsScheme: 'https',
+  keycloak: { url: "", realm: "", clientId: "" },
+  appsDomain: "",
+  appsScheme: "https",
 };
 
 export class FetchError extends Error {
@@ -25,7 +25,7 @@ export class FetchError extends Error {
 
   constructor(status: number, statusText: string, detail: string) {
     super(detail || `${status} ${statusText}`);
-    this.name = 'FetchError';
+    this.name = "FetchError";
     this.status = status;
     this.detail = detail;
   }
@@ -34,7 +34,7 @@ export class FetchError extends Error {
 /** Load runtime config and, if auth is enabled, initialize Keycloak. */
 export async function initAuth(): Promise<UiConfig> {
   try {
-    const resp = await nativeFetch('/api/v1/config');
+    const resp = await nativeFetch("/api/v1/config");
     if (resp.ok) {
       config = (await resp.json()) as UiConfig;
     }
@@ -49,8 +49,8 @@ export async function initAuth(): Promise<UiConfig> {
       clientId: config.keycloak.clientId,
     });
     await keycloak.init({
-      onLoad: 'login-required',
-      pkceMethod: 'S256',
+      onLoad: "login-required",
+      pkceMethod: "S256",
       checkLoginIframe: false,
     });
   }
@@ -67,8 +67,8 @@ export function getUser(): { name: string; email: string } | null {
     name:
       (keycloak.tokenParsed?.preferred_username as string) ??
       (keycloak.tokenParsed?.name as string) ??
-      '',
-    email: (keycloak.tokenParsed?.email as string) ?? '',
+      "",
+    email: (keycloak.tokenParsed?.email as string) ?? "",
   };
 }
 
@@ -85,16 +85,16 @@ export async function apiFetch(url: string, init: RequestInit = {}): Promise<Res
   };
   if (keycloak) {
     await keycloak.updateToken(30).catch(() => keycloak?.login());
-    headers.Authorization = `Bearer ${keycloak.token ?? ''}`;
+    headers.Authorization = `Bearer ${keycloak.token ?? ""}`;
   }
   const resp = await nativeFetch(url, { ...init, headers });
   if (!resp.ok) {
-    let detail = '';
+    let detail = "";
     try {
       const body = await resp.clone().json();
-      detail = typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail ?? body);
+      detail = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail ?? body);
     } catch {
-      detail = await resp.text().catch(() => '');
+      detail = await resp.text().catch(() => "");
     }
     throw new FetchError(resp.status, resp.statusText, detail);
   }

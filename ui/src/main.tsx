@@ -1,19 +1,19 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
-import { Layout } from '@/components/layout';
-import { ThemeProvider } from '@/hooks/theme-provider';
-import { initAuth } from '@/lib/auth';
-import { applyBranding, loadBranding } from '@/lib/branding';
-import { AppDetailPage } from '@/pages/app-detail';
-import { AppsPage } from '@/pages/apps';
-import { DashboardPage } from '@/pages/dashboard';
-import { EditPage } from '@/pages/edit';
-import { LaunchPage } from '@/pages/launch';
-import { MetricsPage } from '@/pages/metrics';
-import { Toaster } from '@/components/ui/toast';
-import '@/index.css';
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { Layout } from "@/components/layout";
+import { Toaster } from "@/components/ui/toast";
+import { ThemeProvider } from "@/hooks/theme-provider";
+import { initAuth } from "@/lib/auth";
+import { applyBranding, loadBranding } from "@/lib/branding";
+import { AppDetailPage } from "@/pages/app-detail";
+import { AppsPage } from "@/pages/apps";
+import { DashboardPage } from "@/pages/dashboard";
+import { EditPage } from "@/pages/edit";
+import { LaunchPage } from "@/pages/launch";
+import { MetricsPage } from "@/pages/metrics";
+import "@/index.css";
 
 // Branding comes from /config.json (ui.branding.* in the chart). Start the
 // fetch before the auth round trip so the two overlap, and treat it as
@@ -33,7 +33,7 @@ if (branding) {
 
 // localStorage key for the theme preference. Must stay in sync with the
 // pre-paint bootstrap script inlined in index.html.
-const THEME_STORAGE_KEY = 'nebari-apps:themeMode';
+const THEME_STORAGE_KEY = "nebari-apps:themeMode";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -41,7 +41,10 @@ const queryClient = new QueryClient({
   },
 });
 
-createRoot(document.getElementById('root')!).render(
+const container = document.getElementById("root");
+if (!container) throw new Error("index.html is missing the #root element");
+
+createRoot(container).render(
   <StrictMode>
     <ThemeProvider storageKey={THEME_STORAGE_KEY}>
       <QueryClientProvider client={queryClient}>

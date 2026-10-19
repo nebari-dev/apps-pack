@@ -40,7 +40,8 @@ def test_create_rejects_unmanaged_namespace(client):
 
 def test_allowed_namespaces_restricts_managed_namespaces(client, monkeypatch):
     """APPS_NAMESPACES wins over the managed-namespace label: even a managed
-    namespace (team-a) is rejected when it is not in the allowlist."""
+    namespace (team-a) is rejected when it is not in the allowlist.
+    """
     from nebari_apps_api.config import settings
 
     monkeypatch.setattr(settings, "allowed_namespaces", ["apps"])
@@ -55,7 +56,8 @@ def test_allowed_namespaces_restricts_managed_namespaces(client, monkeypatch):
 
 def test_reserved_namespaces_never_offered(client, store):
     """The nebari-operator rejects apps in "default" and kube-* namespaces, so
-    the API filters them out even when they carry the managed label."""
+    the API filters them out even when they carry the managed label.
+    """
     store.namespaces = ["apps", "default", "kube-system"]
 
     caps = client.get("/api/v1/capabilities").json()
@@ -226,8 +228,7 @@ def test_upload_single_html(client, store):
 
 def test_upload_rejects_traversal(client):
     manifest = (
-        '{"name": "evil", "namespace": "apps", "displayName": "Evil",'
-        ' "access": {"public": true, "subdomain": "evil"}}'
+        '{"name": "evil", "namespace": "apps", "displayName": "Evil", "access": {"public": true, "subdomain": "evil"}}'
     )
     data = _zip_bytes({"../escape.html": "<h1>bad</h1>", "index.html": "<h1>x</h1>"})
     resp = client.post(
@@ -259,11 +260,13 @@ def test_upload_pixi_zip(client, store):
         ' "runtime": {"pixiTask": "start"},'
         ' "access": {"public": true, "subdomain": "py-app"}}'
     )
-    data = _zip_bytes({
-        "app/pixi.toml": '[project]\nname = "py-app"',
-        "app/main.py": "print('hi')",
-        "app/pkg/util.py": "X = 1",
-    })
+    data = _zip_bytes(
+        {
+            "app/pixi.toml": '[project]\nname = "py-app"',
+            "app/main.py": "print('hi')",
+            "app/pkg/util.py": "X = 1",
+        }
+    )
     resp = client.post(
         "/api/v1/apps/upload",
         data={"manifest": manifest},
@@ -342,10 +345,8 @@ def test_create_pixi_inline_requires_manifest(client):
 
 def test_upload_rejects_binary(client):
     manifest = (
-        '{"name": "bin", "namespace": "apps", "displayName": "Bin",'
-        ' "access": {"public": true, "subdomain": "bin"}}'
+        '{"name": "bin", "namespace": "apps", "displayName": "Bin", "access": {"public": true, "subdomain": "bin"}}'
     )
-    data = _zip_bytes({"index.html": "<h1>x</h1>"})
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as zf:
         zf.writestr("index.html", "<h1>x</h1>")

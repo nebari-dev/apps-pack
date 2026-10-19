@@ -47,7 +47,8 @@ class GitSource(BaseModel):
 
     def check(self) -> None:
         """Raise ValueError if this source is unsafe to clone. Applied to
-        requests only, so Apps created with kubectl stay readable."""
+        requests only, so Apps created with kubectl stay readable.
+        """
         _check_git_url(self.url)
         if self.ref.startswith("-"):
             raise ValueError("ref must not start with '-'")

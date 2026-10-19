@@ -1,19 +1,27 @@
-import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, Cpu, Gauge, LineChart, MemoryStick, Network, TrendingUp } from 'lucide-react';
-import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
-import { api } from '@/lib/api';
-import type { App } from '@/lib/types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Spinner } from '@/components/ui/spinner';
+import { useQuery } from "@tanstack/react-query";
+import {
+  AlertTriangle,
+  Cpu,
+  Gauge,
+  LineChart,
+  MemoryStick,
+  Network,
+  TrendingUp,
+} from "lucide-react";
+import type { ReactNode } from "react";
+import { Link } from "react-router-dom";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Spinner } from "@/components/ui/spinner";
+import { api } from "@/lib/api";
+import type { App } from "@/lib/types";
 
 export function MetricsPage() {
   const metrics = useQuery({
-    queryKey: ['cluster-metrics'],
+    queryKey: ["cluster-metrics"],
     queryFn: api.clusterMetrics,
     refetchInterval: 10_000,
   });
-  const apps = useQuery({ queryKey: ['apps'], queryFn: () => api.listApps() });
+  const apps = useQuery({ queryKey: ["apps"], queryFn: () => api.listApps() });
 
   if (metrics.isLoading) {
     return (
@@ -26,9 +34,14 @@ export function MetricsPage() {
   const data = metrics.data;
   const usage = data?.usageAvailable ?? false;
   const topCpu = (data?.apps ?? []).filter((a) => a.cpu > 0).slice(0, 8);
-  const topMem = [...(data?.apps ?? [])].filter((a) => a.memory > 0).sort((a, b) => b.memory - a.memory).slice(0, 8);
+  const topMem = [...(data?.apps ?? [])]
+    .filter((a) => a.memory > 0)
+    .sort((a, b) => b.memory - a.memory)
+    .slice(0, 8);
   const nsUsage = data?.byNamespace ?? [];
-  const restarts = [...(data?.apps ?? [])].filter((a) => a.restarts > 0).sort((a, b) => b.restarts - a.restarts);
+  const restarts = [...(data?.apps ?? [])]
+    .filter((a) => a.restarts > 0)
+    .sort((a, b) => b.restarts - a.restarts);
 
   return (
     <div className="space-y-6">
@@ -48,7 +61,10 @@ export function MetricsPage() {
               <CardTitle>Top apps by CPU</CardTitle>
             </CardHeader>
             <CardContent>
-              <MetricBars items={topCpu.map((a) => ({ key: appKey(a), label: a.name, value: a.cpu }))} unit="m" />
+              <MetricBars
+                items={topCpu.map((a) => ({ key: appKey(a), label: a.name, value: a.cpu }))}
+                unit="m"
+              />
             </CardContent>
           </Card>
           <Card>
@@ -57,7 +73,10 @@ export function MetricsPage() {
               <CardTitle>Top apps by memory</CardTitle>
             </CardHeader>
             <CardContent>
-              <MetricBars items={topMem.map((a) => ({ key: appKey(a), label: a.name, value: a.memory }))} unit="Mi" />
+              <MetricBars
+                items={topMem.map((a) => ({ key: appKey(a), label: a.name, value: a.memory }))}
+                unit="Mi"
+              />
             </CardContent>
           </Card>
           <Card>
@@ -66,7 +85,15 @@ export function MetricsPage() {
               <CardTitle>By namespace (CPU)</CardTitle>
             </CardHeader>
             <CardContent>
-              <MetricBars items={nsUsage.map((n) => ({ key: n.namespace, label: n.namespace, value: n.cpu, hint: `${n.memory}Mi` }))} unit="m" />
+              <MetricBars
+                items={nsUsage.map((n) => ({
+                  key: n.namespace,
+                  label: n.namespace,
+                  value: n.cpu,
+                  hint: `${n.memory}Mi`,
+                }))}
+                unit="m"
+              />
             </CardContent>
           </Card>
         </div>
@@ -86,7 +113,9 @@ export function MetricsPage() {
         </CardHeader>
         <CardContent>
           {restarts.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No container restarts — every app is stable.</p>
+            <p className="text-muted-foreground text-sm">
+              No container restarts — every app is stable.
+            </p>
           ) : (
             <ul className="divide-y divide-border">
               {restarts.map((a) => {
@@ -94,17 +123,22 @@ export function MetricsPage() {
                 return (
                   <li key={appKey(a)} className="flex items-center justify-between gap-3 py-2">
                     <div className="min-w-0">
-                      <Link to={`/apps/${a.namespace}/${a.name}`} className="font-medium text-sm hover:underline">
+                      <Link
+                        to={`/apps/${a.namespace}/${a.name}`}
+                        className="font-medium text-sm hover:underline"
+                      >
                         {a.name}
                       </Link>
                       <p className="text-muted-foreground text-xs">{a.namespace}</p>
                     </div>
                     <span
                       className={`shrink-0 rounded-full px-2 py-0.5 font-medium text-xs tabular-nums ${
-                        hot ? 'bg-destructive/15 text-destructive-foreground' : 'bg-muted text-muted-foreground'
+                        hot
+                          ? "bg-destructive/15 text-destructive-foreground"
+                          : "bg-muted text-muted-foreground"
                       }`}
                     >
-                      {a.restarts} restart{a.restarts === 1 ? '' : 's'}
+                      {a.restarts} restart{a.restarts === 1 ? "" : "s"}
                     </span>
                   </li>
                 );
@@ -170,11 +204,14 @@ function MetricBars({ items, unit }: { items: BarItem[]; unit: string }) {
             <span className="shrink-0 text-muted-foreground tabular-nums">
               {i.value}
               {unit}
-              {i.hint ? ` · ${i.hint}` : ''}
+              {i.hint ? ` · ${i.hint}` : ""}
             </span>
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-muted">
-            <div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(4, (i.value / max) * 100)}%` }} />
+            <div
+              className="h-full rounded-full bg-primary"
+              style={{ width: `${Math.max(4, (i.value / max) * 100)}%` }}
+            />
           </div>
         </li>
       ))}
@@ -198,9 +235,7 @@ function Placeholder({ icon, title, body }: { icon: ReactNode; title: string; bo
 
 /** Bucket app creation timestamps into ISO weeks (Monday-anchored), gap-filled. */
 function launchBuckets(apps: App[]): BarItem[] {
-  const dates = apps
-    .map((a) => new Date(a.createdAt))
-    .filter((d) => !Number.isNaN(d.getTime()));
+  const dates = apps.map((a) => new Date(a.createdAt)).filter((d) => !Number.isNaN(d.getTime()));
   if (dates.length === 0) return [];
 
   const monday = (d: Date) => {
@@ -222,7 +257,7 @@ function launchBuckets(apps: App[]): BarItem[] {
   const week = 7 * 24 * 60 * 60 * 1000;
   const out: BarItem[] = [];
   for (let t = min; t <= max; t += week) {
-    const label = new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    const label = new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" });
     out.push({ key: String(t), label, value: counts.get(t) ?? 0 });
   }
   return out;

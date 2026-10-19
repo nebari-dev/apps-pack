@@ -46,13 +46,9 @@ def test_label_written(client, store):
 
 def test_subdomain_immutable_on_patch(client, store):
     client.post("/api/v1/apps", json=with_subdomain("first", "apps", "shared"))
-    resp = client.patch(
-        "/api/v1/apps/apps/first", json={"access": {"public": True, "subdomain": "moved"}}
-    )
+    resp = client.patch("/api/v1/apps/apps/first", json={"access": {"public": True, "subdomain": "moved"}})
     assert resp.status_code == 422
-    resp = client.patch(
-        "/api/v1/apps/apps/first", json={"access": {"public": False, "subdomain": "shared"}}
-    )
+    resp = client.patch("/api/v1/apps/apps/first", json={"access": {"public": False, "subdomain": "shared"}})
     assert resp.status_code == 200
 
 

@@ -45,14 +45,14 @@
   --primary-magenta-600: oklch(55.06% 0.1886 311.45); /* #9547c0 */
   --primary-magenta-700: oklch(47.01% 0.1577 311.26); /* #77399a */
   --primary-magenta-800: oklch(39.93% 0.1238 311.55); /* #5d2f77 */
-  --primary-magenta-900: oklch(32.97% 0.0867 312.00); /* #442655 */
+  --primary-magenta-900: oklch(32.97% 0.0867 312); /* #442655 */
   --primary-magenta-950: oklch(27.03% 0.0852 311.77); /* #341744 */
 
   /* ── Primitives: Accent Teal ─────────────────────────────────────────── */
-  --accent-teal-50: oklch(97.94% 0.0160 187.35); /* #edfcfa */
+  --accent-teal-50: oklch(97.94% 0.016 187.35); /* #edfcfa */
   --accent-teal-100: oklch(95.02% 0.0407 187.03); /* #d1f8f3 */
   --accent-teal-200: oklch(86.97% 0.0671 187.76); /* #a1e3dc */
-  --accent-teal-300: oklch(77.96% 0.0893 187.30); /* #6ecac1 */
+  --accent-teal-300: oklch(77.96% 0.0893 187.3); /* #6ecac1 */
   --accent-teal-400: oklch(69.9% 0.0995 187.56); /* #45b2a9 */
   --accent-teal-500: oklch(61.96% 0.0932 187.62); /* #319890 */
   --accent-teal-600: oklch(55.09% 0.0808 187.38); /* #2c817a */
@@ -69,14 +69,14 @@
   --highlight-yellow-400: oklch(70.05% 0.1417 86.43); /* #c59709 */
   --highlight-yellow-500: oklch(62.04% 0.1267 87.01); /* #a78001 */
   --highlight-yellow-600: oklch(55.01% 0.1117 86.53); /* #8e6c03 */
-  --highlight-yellow-700: oklch(46.93% 0.0960 86.63); /* #725600 */
-  --highlight-yellow-800: oklch(40.14% 0.0731 87.00); /* #594510 */
+  --highlight-yellow-700: oklch(46.93% 0.096 86.63); /* #725600 */
+  --highlight-yellow-800: oklch(40.14% 0.0731 87); /* #594510 */
   --highlight-yellow-900: oklch(32.9% 0.0514 85.56); /* #413313 */
   --highlight-yellow-950: oklch(26.86% 0.0514 86.55); /* #312403 */
 
   /* ── Primitives: Neutral ─────────────────────────────────────────────── */
   --neutral-50: oklch(97.94% 0.0013 286.38); /* #f8f8f9 */
-  --neutral-100: oklch(95.04% 0.0042 236.50); /* #eceff1 */
+  --neutral-100: oklch(95.04% 0.0042 236.5); /* #eceff1 */
   --neutral-200: oklch(87.02% 0.0106 247.95); /* #cfd5db */
   --neutral-300: oklch(77.94% 0.0168 253.93); /* #b0b8c2 */
   --neutral-400: oklch(70% 0.0253 250.17); /* #93a0ae */
@@ -85,18 +85,18 @@
   --neutral-700: oklch(46.94% 0.0327 253.44); /* #4e5c6d */
   --neutral-800: oklch(40% 0.0269 250.57); /* #3d4956 */
   --neutral-900: oklch(32.95% 0.0209 254.12); /* #2e3640 */
-  --neutral-950: oklch(26.95% 0.0219 254.20); /* #1f2731 */
+  --neutral-950: oklch(26.95% 0.0219 254.2); /* #1f2731 */
 
   /* ── Primitives: Zinc ────────────────────────────────────────────────── */
   --zinc-50: oklch(97.91% 0 0); /* #f8f8f8 */
   --zinc-100: oklch(94.94% 0.0013 286.37); /* #eeeeef */
   --zinc-200: oklch(87.08% 0.0041 286.31); /* #d4d4d7 */
   --zinc-300: oklch(78.06% 0.0056 286.27); /* #b7b7bb */
-  --zinc-400: oklch(69.88% 0.0130 286.06); /* #9d9da6 */
-  --zinc-500: oklch(61.96% 0.0134 286.00); /* #85858e */
+  --zinc-400: oklch(69.88% 0.013 286.06); /* #9d9da6 */
+  --zinc-500: oklch(61.96% 0.0134 286); /* #85858e */
   --zinc-600: oklch(54.86% 0.0154 285.88); /* #70707a */
   --zinc-700: oklch(47.01% 0.0112 285.96); /* #5a5a61 */
-  --zinc-800: oklch(39.94% 0.0066 286.10); /* #47474b */
+  --zinc-800: oklch(39.94% 0.0066 286.1); /* #47474b */
   --zinc-900: oklch(33.01% 0.0052 286.11); /* #353538 */
   --zinc-950: oklch(26.94% 0.0037 286.15); /* #262628 */
   --zinc-975: oklch(21.86% 0.0039 286.08); /* #1a1a1c */
@@ -105,13 +105,13 @@
   --blue-50: oklch(97.93% 0.0083 271.33); /* #f6f8fe */
   --blue-100: oklch(95.08% 0.0232 264.46); /* #e7efff */
   --blue-200: oklch(87.12% 0.0567 264.22); /* #c2d5fb */
-  --blue-300: oklch(78.02% 0.0950 264.35); /* #99b7f5 */
+  --blue-300: oklch(78.02% 0.095 264.35); /* #99b7f5 */
   --blue-400: oklch(69.95% 0.1433 264.44); /* #719bf7 */
-  --blue-500: oklch(62.1% 0.1880 264.30); /* #4b7ef6 */
+  --blue-500: oklch(62.1% 0.188 264.3); /* #4b7ef6 */
   --blue-600: oklch(55.04% 0.2158 264.34); /* #2e63ed */
   --blue-700: oklch(47.06% 0.2174 264.33); /* #1848d2 */
   --blue-800: oklch(40.02% 0.1811 264.47); /* #1339a7 */
-  --blue-900: oklch(33.01% 0.1387 264.40); /* #0f2c7b */
+  --blue-900: oklch(33.01% 0.1387 264.4); /* #0f2c7b */
   --blue-950: oklch(27.02% 0.0864 264.19); /* #102350 */
 
   /* ── Primitives: Green ───────────────────────────────────────────────── */
@@ -120,7 +120,7 @@
   --green-200: oklch(87.04% 0.0814 149.55); /* #afe4b8 */
   --green-300: oklch(78.09% 0.1374 149.53); /* #72d087 */
   --green-400: oklch(69.96% 0.1814 149.67); /* #28bc5c */
-  --green-500: oklch(61.95% 0.1718 149.70); /* #00a148 */
+  --green-500: oklch(61.95% 0.1718 149.7); /* #00a148 */
   --green-600: oklch(55.08% 0.1525 149.53); /* #03893c */
   --green-700: oklch(47.01% 0.1313 149.41); /* #006e2e */
   --green-800: oklch(40.02% 0.1082 149.72); /* #055725 */
@@ -132,13 +132,13 @@
   --red-100: oklch(95.06% 0.0247 29.93); /* #ffe9e5 */
   --red-200: oklch(86.96% 0.0594 27.38); /* #f9c6bf */
   --red-300: oklch(78.02% 0.1024 27.78); /* #f29e93 */
-  --red-400: oklch(69.96% 0.1660 27.34); /* #f46f63 */
+  --red-400: oklch(69.96% 0.166 27.34); /* #f46f63 */
   --red-500: oklch(62.07% 0.2077 27.48); /* #e93f38 */
   --red-600: oklch(54.97% 0.2151 27.33); /* #d2161c */
-  --red-700: oklch(46.91% 0.1900 27.40); /* #ac030f */
+  --red-700: oklch(46.91% 0.19 27.4); /* #ac030f */
   --red-800: oklch(39.97% 0.1611 27.26); /* #8a030b */
   --red-900: oklch(33.1% 0.1332 27.42); /* #6a0206 */
-  --red-950: oklch(27.06% 0.0890 26.98); /* #490e0c */
+  --red-950: oklch(27.06% 0.089 26.98); /* #490e0c */
 
   /* ── Primitives: Yellow ──────────────────────────────────────────────── */
   --yellow-50: oklch(97.95% 0.0179 89.36); /* #fdf8eb */
@@ -148,9 +148,9 @@
   --yellow-400: oklch(69.92% 0.1414 91.77); /* #be9a09 */
   --yellow-500: oklch(62.13% 0.1269 92.02); /* #a28301 */
   --yellow-600: oklch(54.88% 0.1114 91.56); /* #896e03 */
-  --yellow-700: oklch(46.91% 0.0960 91.90); /* #6e5800 */
+  --yellow-700: oklch(46.91% 0.096 91.9); /* #6e5800 */
   --yellow-800: oklch(40.15% 0.0821 92.02); /* #584600 */
-  --yellow-900: oklch(33.09% 0.0677 92.20); /* #423400 */
+  --yellow-900: oklch(33.09% 0.0677 92.2); /* #423400 */
   --yellow-950: oklch(26.96% 0.0539 91.43); /* #302501 */
 
   /* ── Primitives: Foundation ──────────────────────────────────────────── */
@@ -406,8 +406,8 @@
 }
 
 @theme inline {
-  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -484,7 +484,8 @@
   --animate-fade-out: nebari-fade-out var(--duration-base) var(--ease-standard) both;
   --animate-slide-up-fade: nebari-slide-up-fade var(--duration-base) var(--ease-emphasized) both;
   --animate-slide-down-fade: nebari-slide-down-fade var(--duration-base) var(--ease-emphasized) both;
-  --animate-skeleton-pulse: nebari-skeleton-pulse var(--duration-loading) var(--ease-standard) infinite;
+  --animate-skeleton-pulse: nebari-skeleton-pulse var(--duration-loading) var(--ease-standard)
+    infinite;
 }
 
 @layer base {

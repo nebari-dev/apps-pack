@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
+from typing import Any
 
 import httpx
 
@@ -40,7 +41,7 @@ class DeviceFlowAuth:
     def state(self, session_id: str) -> TokenState:
         return self._sessions.setdefault(session_id or "anonymous", TokenState())
 
-    async def authenticate(self, session_id: str) -> dict:
+    async def authenticate(self, session_id: str) -> dict[str, Any]:
         """Start, poll, or confirm a device-flow login for this session."""
         if not settings.auth_enabled:
             return {
@@ -92,7 +93,7 @@ class DeviceFlowAuth:
             ),
         }
 
-    async def _poll(self, client: httpx.AsyncClient, state: TokenState) -> dict | None:
+    async def _poll(self, client: httpx.AsyncClient, state: TokenState) -> dict[str, Any] | None:
         """One token-endpoint poll. None means the flow is dead - restart it."""
         resp = await client.post(
             settings.token_endpoint,
@@ -138,7 +139,7 @@ class DeviceFlowAuth:
         except httpx.HTTPError:
             return False
 
-    def _store(self, state: TokenState, data: dict) -> None:
+    def _store(self, state: TokenState, data: dict[str, Any]) -> None:
         state.access_token = data["access_token"]
         state.refresh_token = data.get("refresh_token", state.refresh_token)
         state.expires_at = time.time() + float(data.get("expires_in", 300))
@@ -163,18 +164,17 @@ class TokenVerificationError(Exception):
     pass
 
 
-def check_client(claims: dict, allowed: list[str] | None) -> None:
+def check_client(claims: dict[str, Any], allowed: list[str] | None) -> None:
     """Raise ValueError unless the token was issued to (azp) or for (aud) one
-    of the allowed clients. None disables the check."""
+    of the allowed clients. None disables the check.
+    """
     if allowed is None:
         return
     aud = claims.get("aud") or []
     auds = [aud] if isinstance(aud, str) else list(aud)
     if claims.get("azp") in allowed or any(a in allowed for a in auds):
         return
-    raise ValueError(
-        f"token was issued to client {claims.get('azp')!r}, which is not allowed here"
-    )
+    raise ValueError(f"token was issued to client {claims.get('azp')!r}, which is not allowed here")
 
 
 class JWTValidator:
@@ -184,9 +184,7 @@ class JWTValidator:
     here rejects bad tokens before any tool logic runs.
     """
 
-    def __init__(
-        self, jwks_url: str, issuer: str, audience: str, allowed_clients: list[str] | None = None
-    ) -> None:
+    def __init__(self, jwks_url: str, issuer: str, audience: str, allowed_clients: list[str] | None = None) -> None:
         import jwt
 
         self._issuer = issuer
@@ -194,7 +192,7 @@ class JWTValidator:
         self._allowed_clients = allowed_clients
         self._jwks = jwt.PyJWKClient(jwks_url, cache_keys=True, lifespan=300)
 
-    def validate(self, token: str) -> dict:
+    def validate(self, token: str) -> dict[str, Any]:
         import jwt
 
         try:
@@ -209,7 +207,7 @@ class JWTValidator:
             )
             check_client(claims, self._allowed_clients)
             return claims
-        except Exception as exc:  # noqa: BLE001 - any failure is a rejection
+        except Exception as exc:  # any failure is a rejection
             raise TokenVerificationError(str(exc)) from exc
 
 

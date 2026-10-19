@@ -17,6 +17,8 @@ dependencies = [
 dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
+    "ruff>=0.17,<0.18",
+    "mypy>=2.4,<2.5",
 ]
 
 [build-system]
@@ -28,3 +30,31 @@ packages = ["src/nebari_apps_api"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+pydocstyle = { convention = "google" }
+select = ["E", "F", "I001", "B", "C4", "ISC", "RET", "SIM", "PTH", "D2", "UP", "ASYNC", "RUF"]
+ignore = [
+    # Conflicts with the ruff formatter
+    "ISC001",
+    # Only strings can exceed the line length once the formatter has run
+    "E501",
+    # Docstrings wrap their opening sentence; in apps-mcp they are the tool
+    # descriptions agents read, so they are not split into summary + body.
+    "D205",
+    # Mutually exclusive with D211 / D212
+    "D203",
+    "D213",
+]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.File", "fastapi.Form", "fastapi.Query"]
+
+[tool.mypy]
+strict = true
+python_version = "3.12"
+files = ["src"]

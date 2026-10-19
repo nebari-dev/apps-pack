@@ -5,7 +5,6 @@ from __future__ import annotations
 import time
 
 import pytest
-
 from fastmcp import Client
 from fastmcp.exceptions import ToolError
 

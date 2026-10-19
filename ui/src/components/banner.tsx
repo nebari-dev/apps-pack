@@ -1,6 +1,6 @@
-import { type ReactNode, useEffect, useRef } from 'react';
-import { type BannerConfig, safeCssValue } from '@/lib/branding';
-import { cn } from '@/lib/utils';
+import { type ReactNode, useEffect, useRef } from "react";
+import { type BannerConfig, safeCssValue } from "@/lib/branding";
+import { cn } from "@/lib/utils";
 
 export type BannerProps = {
   /**
@@ -8,7 +8,7 @@ export type BannerProps = {
    * variable (--top-banner-height / --bottom-banner-height) the layout uses to
    * make room for it.
    */
-  position: 'top' | 'bottom';
+  position: "top" | "bottom";
   config?: BannerConfig;
 };
 
@@ -29,6 +29,7 @@ export function Banner({ position, config }: BannerProps): ReactNode {
   // Publish the rendered height so the page offsets (which consume the variable
   // with a 0px fallback) shift to make room. ResizeObserver keeps it accurate
   // when the text wraps on resize.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: hasText mounts and unmounts the banner element the ref points at
   useEffect(() => {
     const element = bannerRef.current;
     const root = document.documentElement;
@@ -58,10 +59,10 @@ export function Banner({ position, config }: BannerProps): ReactNode {
       ref={bannerRef}
       role="note"
       className={cn(
-        'fixed inset-x-0 z-60 w-full py-1 text-center font-semibold text-sm',
-        position === 'top' ? 'top-0' : 'bottom-0',
-        !background && 'bg-foreground',
-        !foreground && 'text-background',
+        "fixed inset-x-0 z-60 w-full py-1 text-center font-semibold text-sm",
+        position === "top" ? "top-0" : "bottom-0",
+        !background && "bg-foreground",
+        !foreground && "text-background",
       )}
       style={{ backgroundColor: background, color: foreground }}
     >

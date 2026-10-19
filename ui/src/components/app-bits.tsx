@@ -1,8 +1,8 @@
-import { CheckCircle2, CircleDashed, Loader2, PauseCircle, XCircle } from 'lucide-react';
-import { type ReactNode, useState } from 'react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { CheckCircle2, CircleDashed, Loader2, PauseCircle, XCircle } from "lucide-react";
+import { type ReactNode, useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogClose,
@@ -11,50 +11,65 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { cn } from '@/lib/utils';
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 
 export function PhaseBadge({ phase }: { phase: string }) {
-  const map: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: ReactNode; className?: string }> = {
+  const map: Record<
+    string,
+    {
+      variant: "default" | "secondary" | "destructive" | "outline";
+      icon: ReactNode;
+      className?: string;
+    }
+  > = {
     Running: {
-      variant: 'outline',
+      variant: "outline",
       icon: <CheckCircle2 className="size-3.5 text-success-foreground" />,
-      className: 'border-success-border bg-success text-success-foreground',
+      className: "border-success-border bg-success text-success-foreground",
     },
-    Failed: { variant: 'destructive', icon: <XCircle className="size-3.5" /> },
-    Stopped: { variant: 'secondary', icon: <PauseCircle className="size-3.5" /> },
-    Deploying: { variant: 'outline', icon: <Loader2 className="size-3.5 animate-spin" /> },
-    Pending: { variant: 'outline', icon: <CircleDashed className="size-3.5" /> },
+    Failed: { variant: "destructive", icon: <XCircle className="size-3.5" /> },
+    Stopped: { variant: "secondary", icon: <PauseCircle className="size-3.5" /> },
+    Deploying: { variant: "outline", icon: <Loader2 className="size-3.5 animate-spin" /> },
+    Pending: { variant: "outline", icon: <CircleDashed className="size-3.5" /> },
   };
   const cfg = map[phase] ?? map.Pending;
   return (
-    <Badge variant={cfg.variant} className={cn('gap-1', cfg.className)}>
+    <Badge variant={cfg.variant} className={cn("gap-1", cfg.className)}>
       {cfg.icon}
-      {phase || 'Pending'}
+      {phase || "Pending"}
     </Badge>
   );
 }
 
 export function SourceBadge({ source }: { source: string }) {
-  return <Badge variant="ghost" className="border border-border font-mono text-xs">{source}</Badge>;
+  return (
+    <Badge variant="ghost" className="border border-border font-mono text-xs">
+      {source}
+    </Badge>
+  );
 }
 
 /** Shown for Python/pixi apps (runtime.pixiTask set); static apps get no extra badge. */
 export function KindBadge({ pixiTask }: { pixiTask?: string }) {
   if (!pixiTask) return null;
-  return <Badge variant="ghost" className="border border-border font-mono text-xs">python</Badge>;
+  return (
+    <Badge variant="ghost" className="border border-border font-mono text-xs">
+      python
+    </Badge>
+  );
 }
 
 /** Deterministic accent color from a string so fallback tiles stay stable. */
 const TILE_COLORS = [
-  'bg-blue-500/15 text-blue-600 dark:text-blue-300',
-  'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300',
-  'bg-violet-500/15 text-violet-600 dark:text-violet-300',
-  'bg-amber-500/15 text-amber-600 dark:text-amber-300',
-  'bg-rose-500/15 text-rose-600 dark:text-rose-300',
-  'bg-cyan-500/15 text-cyan-600 dark:text-cyan-300',
+  "bg-blue-500/15 text-blue-600 dark:text-blue-300",
+  "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300",
+  "bg-violet-500/15 text-violet-600 dark:text-violet-300",
+  "bg-amber-500/15 text-amber-600 dark:text-amber-300",
+  "bg-rose-500/15 text-rose-600 dark:text-rose-300",
+  "bg-cyan-500/15 text-cyan-600 dark:text-cyan-300",
 ];
 
 function hashIndex(seed: string, mod: number) {
@@ -82,7 +97,7 @@ export function AppThumbnail({
       <img
         src={thumbnail}
         alt=""
-        className={cn('shrink-0 rounded-md border border-border object-cover', className)}
+        className={cn("shrink-0 rounded-md border border-border object-cover", className)}
       />
     );
   }
@@ -90,7 +105,7 @@ export function AppThumbnail({
     <div
       aria-hidden
       className={cn(
-        'flex shrink-0 items-center justify-center rounded-md border border-border font-semibold text-xs',
+        "flex shrink-0 items-center justify-center rounded-md border border-border font-semibold text-xs",
         TILE_COLORS[hashIndex(name, TILE_COLORS.length)],
         className,
       )}
@@ -113,7 +128,7 @@ export function Sparkline({
   height?: number;
 }) {
   if (data.length < 2) {
-    return <div className={cn('text-muted-foreground text-xs', className)}>collecting…</div>;
+    return <div className={cn("text-muted-foreground text-xs", className)}>collecting…</div>;
   }
   const max = Math.max(...data, 1);
   const min = Math.min(...data, 0);
@@ -121,10 +136,10 @@ export function Sparkline({
   const step = width / (data.length - 1);
   const points = data
     .map((v, i) => `${(i * step).toFixed(1)},${(height - ((v - min) / span) * height).toFixed(1)}`)
-    .join(' ');
+    .join(" ");
   return (
     <svg
-      className={cn('text-primary', className)}
+      className={cn("text-primary", className)}
       width={width}
       height={height}
       viewBox={`0 0 ${width} ${height}`}
@@ -164,13 +179,13 @@ export function ConfirmDeleteDialog({
   loading?: boolean;
   onConfirm: () => void;
 }) {
-  const [typed, setTyped] = useState('');
+  const [typed, setTyped] = useState("");
   const matches = typed.trim() === appName;
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!next) setTyped('');
+        if (!next) setTyped("");
         onOpenChange(next);
       }}
     >
@@ -193,7 +208,7 @@ export function ConfirmDeleteDialog({
             value={typed}
             onChange={(e) => setTyped(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && matches && !loading) onConfirm();
+              if (e.key === "Enter" && matches && !loading) onConfirm();
             }}
           />
         </div>
@@ -233,7 +248,9 @@ export function StatCard({
           <p className="mt-1 font-semibold text-2xl tabular-nums">{value}</p>
           {hint ? <p className="mt-1 text-muted-foreground text-xs">{hint}</p> : null}
         </div>
-        {icon ? <div className="rounded-md bg-accent p-2 text-accent-foreground">{icon}</div> : null}
+        {icon ? (
+          <div className="rounded-md bg-accent p-2 text-accent-foreground">{icon}</div>
+        ) : null}
       </CardContent>
     </Card>
   );

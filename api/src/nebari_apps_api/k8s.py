@@ -6,7 +6,11 @@ an in-memory fake.
 
 from __future__ import annotations
 
-from typing import Any, Protocol
+from datetime import UTC
+from typing import TYPE_CHECKING, Any, Protocol, cast
+
+if TYPE_CHECKING:
+    from kubernetes.client import V1Pod
 
 GROUP = "apps.nebari.dev"
 VERSION = "v1alpha1"
@@ -57,22 +61,24 @@ class KubernetesAppStore:
     def __init__(self, namespaces: list[str] | None = None) -> None:
         """`namespaces` scopes every multi-namespace read to those namespaces
         (the chart grants the API RoleBindings only there). None means the API
-        has cluster-wide access (app namespaces discovered by label)."""
+        has cluster-wide access (app namespaces discovered by label).
+        """
         from kubernetes import client, config
 
         self._namespaces = list(namespaces) if namespaces else None
 
+        # The config loaders are the client's only unannotated entry points.
         try:
-            config.load_incluster_config()
+            config.load_incluster_config()  # type: ignore[no-untyped-call]
         except config.ConfigException:
-            config.load_kube_config()
+            config.load_kube_config()  # type: ignore[no-untyped-call]
 
         self._custom = client.CustomObjectsApi()
         self._core = client.CoreV1Api()
         self._apps = client.AppsV1Api()
 
     def _wrap(self, exc: Exception) -> Exception:
-        from kubernetes.client.rest import ApiException
+        from kubernetes.client import ApiException
 
         if isinstance(exc, ApiException):
             if exc.status == 404:
@@ -84,74 +90,76 @@ class KubernetesAppStore:
     def list_apps(self, namespace: str | None) -> list[dict[str, Any]]:
         try:
             if namespace:
-                return self._custom.list_namespaced_custom_object(GROUP, VERSION, namespace, PLURAL).get("items", [])
+                return _items(self._custom.list_namespaced_custom_object(GROUP, VERSION, namespace, PLURAL))
             if self._namespaces is not None:
                 items: list[dict[str, Any]] = []
                 for ns in self._namespaces:
-                    items += self._custom.list_namespaced_custom_object(GROUP, VERSION, ns, PLURAL).get("items", [])
+                    items += _items(self._custom.list_namespaced_custom_object(GROUP, VERSION, ns, PLURAL))
                 return items
-            return self._custom.list_cluster_custom_object(GROUP, VERSION, PLURAL).get("items", [])
-        except Exception as exc:  # noqa: BLE001
+            return _items(self._custom.list_cluster_custom_object(GROUP, VERSION, PLURAL))
+        except Exception as exc:
             raise self._wrap(exc) from exc
 
     def get_app(self, namespace: str, name: str) -> dict[str, Any]:
         try:
-            return self._custom.get_namespaced_custom_object(GROUP, VERSION, namespace, PLURAL, name)
-        except Exception as exc:  # noqa: BLE001
+            return _obj(self._custom.get_namespaced_custom_object(GROUP, VERSION, namespace, PLURAL, name))
+        except Exception as exc:
             raise self._wrap(exc) from exc
 
     def create_app(self, namespace: str, body: dict[str, Any]) -> dict[str, Any]:
         try:
-            return self._custom.create_namespaced_custom_object(GROUP, VERSION, namespace, PLURAL, body)
-        except Exception as exc:  # noqa: BLE001
+            return _obj(self._custom.create_namespaced_custom_object(GROUP, VERSION, namespace, PLURAL, body))
+        except Exception as exc:
             raise self._wrap(exc) from exc
 
     def replace_app(self, namespace: str, name: str, body: dict[str, Any]) -> dict[str, Any]:
         try:
-            return self._custom.replace_namespaced_custom_object(GROUP, VERSION, namespace, PLURAL, name, body)
-        except Exception as exc:  # noqa: BLE001
+            return _obj(self._custom.replace_namespaced_custom_object(GROUP, VERSION, namespace, PLURAL, name, body))
+        except Exception as exc:
             raise self._wrap(exc) from exc
 
     def delete_app(self, namespace: str, name: str) -> None:
         try:
             self._custom.delete_namespaced_custom_object(GROUP, VERSION, namespace, PLURAL, name)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise self._wrap(exc) from exc
 
     def list_managed_namespaces(self) -> list[str]:
         namespaces = self._core.list_namespace(label_selector=f"{MANAGED_LABEL}=true")
-        return sorted(ns.metadata.name for ns in namespaces.items)
+        return sorted(ns.metadata.name for ns in namespaces.items if ns.metadata and ns.metadata.name)
 
     def pod_logs(self, namespace: str, app_name: str, lines: int, container: str | None) -> str:
-        pods = self._core.list_namespaced_pod(
-            namespace, label_selector=f"apps.nebari.dev/app={app_name}"
-        )
+        pods = self._core.list_namespaced_pod(namespace, label_selector=f"apps.nebari.dev/app={app_name}")
         if not pods.items:
             raise NotFoundError(f"no pods found for app {app_name}")
-        pod = pods.items[0]
+        pod_name = pods.items[0].metadata.name if pods.items[0].metadata else None
+        if not pod_name:
+            raise NotFoundError(f"no pods found for app {app_name}")
         try:
             # Skip the client's deserializer: it str()s the raw bytes, which
             # mangles the log text into a Python bytes repr.
-            resp = self._core.read_namespaced_pod_log(
-                pod.metadata.name,
+            # With _preload_content=False the call returns the raw urllib3
+            # response, not the str its annotation promises.
+            resp: Any = self._core.read_namespaced_pod_log(
+                pod_name,
                 namespace,
                 container=container,
                 tail_lines=lines,
                 _preload_content=False,
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise self._wrap(exc) from exc
         data = resp.data
         return data.decode("utf-8", errors="replace") if isinstance(data, bytes) else str(data)
 
     def app_events(self, namespace: str, app_name: str) -> list[dict[str, Any]]:
         events = self._core.list_namespaced_event(namespace)
-        related = []
+        related: list[dict[str, Any]] = []
         prefix = f"app-{app_name}"
         for ev in events.items:
             involved = ev.involved_object
             name = involved.name or ""
-            if involved.kind == "App" and name == app_name or name.startswith(prefix):
+            if (involved.kind == "App" and name == app_name) or name.startswith(prefix):
                 related.append(
                     {
                         "type": ev.type or "",
@@ -168,21 +176,13 @@ class KubernetesAppStore:
 
     def restart_app(self, namespace: str, app_name: str) -> None:
         """Roll the app's pods, like `kubectl rollout restart`."""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
-        stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        patch = {
-            "spec": {
-                "template": {
-                    "metadata": {
-                        "annotations": {"kubectl.kubernetes.io/restartedAt": stamp}
-                    }
-                }
-            }
-        }
+        stamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        patch = {"spec": {"template": {"metadata": {"annotations": {"kubectl.kubernetes.io/restartedAt": stamp}}}}}
         try:
             self._apps.patch_namespaced_deployment(f"app-{app_name}", namespace, patch)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise self._wrap(exc) from exc
 
     def pod_metrics(self, namespace: str, app_name: str) -> list[dict[str, Any]]:
@@ -194,10 +194,10 @@ class KubernetesAppStore:
                 "pods",
                 label_selector=f"apps.nebari.dev/app={app_name}",
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise self._wrap(exc) from exc
         out: list[dict[str, Any]] = []
-        for item in res.get("items", []):
+        for item in _items(res):
             cpu_milli = 0
             mem_mi = 0.0
             for container in item.get("containers", []):
@@ -220,13 +220,11 @@ class KubernetesAppStore:
         report usage as unavailable rather than failing.
         """
         try:
-            res = self._custom.list_cluster_custom_object(
-                "metrics.k8s.io", "v1beta1", "pods", label_selector=APP_LABEL
-            )
-        except Exception as exc:  # noqa: BLE001
+            res = self._custom.list_cluster_custom_object("metrics.k8s.io", "v1beta1", "pods", label_selector=APP_LABEL)
+        except Exception as exc:
             raise self._wrap(exc) from exc
         out: list[dict[str, Any]] = []
-        for item in res.get("items", []):
+        for item in _items(res):
             meta = item.get("metadata", {})
             app = meta.get("labels", {}).get(APP_LABEL)
             if not app:
@@ -240,21 +238,32 @@ class KubernetesAppStore:
         """Total container restarts per app pod across the cluster (from pod status)."""
         try:
             if self._namespaces is not None:
-                items = []
+                items: list[V1Pod] = []
                 for ns in self._namespaces:
                     items += self._core.list_namespaced_pod(ns, label_selector=APP_LABEL).items
             else:
                 items = self._core.list_pod_for_all_namespaces(label_selector=APP_LABEL).items
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise self._wrap(exc) from exc
         out: list[dict[str, Any]] = []
         for pod in items:
-            app = (pod.metadata.labels or {}).get(APP_LABEL)
-            if not app:
+            meta = pod.metadata
+            app = (meta.labels or {}).get(APP_LABEL) if meta else None
+            if not meta or not app:
                 continue
-            restarts = sum(cs.restart_count for cs in (pod.status.container_statuses or []))
-            out.append({"namespace": pod.metadata.namespace or "", "app": app, "restarts": restarts})
+            statuses = (pod.status.container_statuses if pod.status else None) or []
+            restarts = sum(cs.restart_count or 0 for cs in statuses)
+            out.append({"namespace": meta.namespace or "", "app": app, "restarts": restarts})
         return out
+
+
+def _obj(res: object) -> dict[str, Any]:
+    """Custom-object calls return the decoded JSON body, typed as object."""
+    return cast("dict[str, Any]", res)
+
+
+def _items(res: object) -> list[dict[str, Any]]:
+    return cast("list[dict[str, Any]]", _obj(res).get("items", []))
 
 
 def _cpu_to_milli(value: str) -> int:

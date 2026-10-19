@@ -1,16 +1,23 @@
-import { useQuery } from '@tanstack/react-query';
-import { Activity, Boxes, Layers, Rocket } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { AppThumbnail, BarList, KindBadge, PhaseBadge, SourceBadge, StatCard } from '@/components/app-bits';
-import { Onboarding } from '@/components/onboarding';
-import { api } from '@/lib/api';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Spinner } from '@/components/ui/spinner';
+import { useQuery } from "@tanstack/react-query";
+import { Activity, Boxes, Layers, Rocket } from "lucide-react";
+import { Link } from "react-router-dom";
+import {
+  AppThumbnail,
+  BarList,
+  KindBadge,
+  PhaseBadge,
+  SourceBadge,
+  StatCard,
+} from "@/components/app-bits";
+import { Onboarding } from "@/components/onboarding";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Spinner } from "@/components/ui/spinner";
+import { api } from "@/lib/api";
 
 export function DashboardPage() {
-  const analytics = useQuery({ queryKey: ['analytics'], queryFn: api.analytics });
-  const apps = useQuery({ queryKey: ['apps'], queryFn: () => api.listApps() });
+  const analytics = useQuery({ queryKey: ["analytics"], queryFn: api.analytics });
+  const apps = useQuery({ queryKey: ["apps"], queryFn: () => api.listApps() });
 
   if (analytics.isLoading) {
     return (
@@ -22,7 +29,7 @@ export function DashboardPage() {
 
   const summary = analytics.data;
   const recent = [...(apps.data ?? [])]
-    .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+    .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))
     .slice(0, 5);
   const running = summary?.byPhase.Running ?? 0;
 
@@ -31,7 +38,9 @@ export function DashboardPage() {
       <div className="space-y-6">
         <div>
           <h1 className="font-semibold text-2xl">Dashboard</h1>
-          <p className="text-muted-foreground text-sm">Web applications running on this Nebari cluster.</p>
+          <p className="text-muted-foreground text-sm">
+            Web applications running on this Nebari cluster.
+          </p>
         </div>
         <Onboarding />
       </div>
@@ -51,7 +60,11 @@ export function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Total apps" value={summary?.total ?? 0} icon={<Rocket className="size-5" />} />
+        <StatCard
+          label="Total apps"
+          value={summary?.total ?? 0}
+          icon={<Rocket className="size-5" />}
+        />
         <StatCard
           label="Running"
           value={running}
@@ -104,25 +117,40 @@ export function DashboardPage() {
         <CardContent>
           {recent.length === 0 ? (
             <p className="text-muted-foreground text-sm">
-              Nothing yet - <Link className="underline" to="/launch">launch your first app</Link>.
+              Nothing yet -{" "}
+              <Link className="underline" to="/launch">
+                launch your first app
+              </Link>
+              .
             </p>
           ) : (
             <ul className="divide-y divide-border">
               {recent.map((app) => (
-                <li key={`${app.namespace}/${app.name}`} className="flex items-center justify-between gap-3 py-2">
+                <li
+                  key={`${app.namespace}/${app.name}`}
+                  className="flex items-center justify-between gap-3 py-2"
+                >
                   <div className="flex min-w-0 items-center gap-3">
-                    <AppThumbnail name={app.name} displayName={app.displayName} thumbnail={app.thumbnail} className="size-8" />
+                    <AppThumbnail
+                      name={app.name}
+                      displayName={app.displayName}
+                      thumbnail={app.thumbnail}
+                      className="size-8"
+                    />
                     <div className="min-w-0">
-                      <Link to={`/apps/${app.namespace}/${app.name}`} className="font-medium text-sm hover:underline">
+                      <Link
+                        to={`/apps/${app.namespace}/${app.name}`}
+                        className="font-medium text-sm hover:underline"
+                      >
                         {app.displayName || app.name}
                       </Link>
                       <p className="truncate text-muted-foreground text-xs">
-                        {app.namespace} · {app.owner || 'unknown owner'}
+                        {app.namespace} · {app.owner || "unknown owner"}
                       </p>
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
-                    <SourceBadge source={app.source?.type ?? '—'} />
+                    <SourceBadge source={app.source?.type ?? "—"} />
                     <KindBadge pixiTask={app.runtime?.pixiTask} />
                     <PhaseBadge phase={app.status.phase} />
                   </div>

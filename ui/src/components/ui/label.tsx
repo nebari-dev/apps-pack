@@ -1,7 +1,7 @@
-import type { ComponentProps } from 'react';
-import { cn } from '@/lib/utils';
+import type { ComponentProps } from "react";
+import { cn } from "@/lib/utils";
 
-type LabelProps = ComponentProps<'label'>;
+type LabelProps = ComponentProps<"label">;
 
 /**
  * Label is the standalone accessible label for a form control, styled from the
@@ -17,7 +17,7 @@ function Label({ className, ...props }: LabelProps) {
     <label
       data-slot="label"
       className={cn(
-        'select-none font-medium text-foreground text-sm peer-disabled:cursor-not-allowed peer-disabled:opacity-50',
+        "select-none font-medium text-foreground text-sm peer-disabled:cursor-not-allowed peer-disabled:opacity-50",
         className,
       )}
       {...props}

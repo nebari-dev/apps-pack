@@ -121,7 +121,8 @@ def test_list_and_analytics_filtered(as_user, alice_app):
 
 def test_path_namespace_checked(as_user, store):
     """A namespace outside the launchable set is refused on every route, not
-    only on create, even for an admin and even if an App exists there."""
+    only on create, even for an admin and even if an App exists there.
+    """
     store.apps[("kube-system", "x")] = {"metadata": {"name": "x", "namespace": "kube-system"}, "spec": {}}
     admin = as_user(ADMIN)
     assert admin.get(f"{PREFIX}/apps/kube-system/x").status_code == 403

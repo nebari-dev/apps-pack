@@ -1,4 +1,4 @@
-export type SourceType = 'git' | 'inline' | 'pvc';
+export type SourceType = "git" | "inline" | "pvc";
 
 export interface GitSource {
   url: string;

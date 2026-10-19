@@ -1,36 +1,44 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft } from 'lucide-react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import { AppForm, type SubmitPayload } from '@/components/app-form';
-import { api } from '@/lib/api';
-import { getConfig } from '@/lib/auth';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Spinner } from '@/components/ui/spinner';
-import { toast } from '@/components/ui/toast';
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft } from "lucide-react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { AppForm, type SubmitPayload } from "@/components/app-form";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Spinner } from "@/components/ui/spinner";
+import { toast } from "@/components/ui/toast";
+import { api } from "@/lib/api";
+import { getConfig } from "@/lib/auth";
 
 export function EditPage() {
-  const { namespace = '', name = '' } = useParams();
+  const { namespace = "", name = "" } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const app = useQuery({ queryKey: ['app', namespace, name], queryFn: () => api.getApp(namespace, name) });
-  const capabilities = useQuery({ queryKey: ['capabilities'], queryFn: api.capabilities });
+  const app = useQuery({
+    queryKey: ["app", namespace, name],
+    queryFn: () => api.getApp(namespace, name),
+  });
+  const capabilities = useQuery({ queryKey: ["capabilities"], queryFn: api.capabilities });
 
   const appsDomain = capabilities.data?.appsDomain || getConfig().appsDomain;
-  const appsScheme = getConfig().appsScheme ?? 'https';
+  const appsScheme = getConfig().appsScheme ?? "https";
 
   const save = useMutation({
     mutationFn: (payload: SubmitPayload) => {
-      if (payload.kind !== 'patch') throw new Error('unexpected payload for edit');
+      if (payload.kind !== "patch") throw new Error("unexpected payload for edit");
       return api.patchApp(namespace, name, payload.body);
     },
     onSuccess: (updated) => {
-      void queryClient.invalidateQueries({ queryKey: ['app', namespace, name] });
-      void queryClient.invalidateQueries({ queryKey: ['apps'] });
-      toast.add({ type: 'success', title: `Saved ${updated.displayName || updated.name}` });
+      void queryClient.invalidateQueries({ queryKey: ["app", namespace, name] });
+      void queryClient.invalidateQueries({ queryKey: ["apps"] });
+      toast.add({ type: "success", title: `Saved ${updated.displayName || updated.name}` });
       void navigate(`/apps/${namespace}/${name}`);
     },
-    onError: (err) => toast.add({ type: 'error', title: 'Save failed', description: err instanceof Error ? err.message : String(err) }),
+    onError: (err) =>
+      toast.add({
+        type: "error",
+        title: "Save failed",
+        description: err instanceof Error ? err.message : String(err),
+      }),
   });
 
   if (app.isLoading) {
@@ -44,7 +52,7 @@ export function EditPage() {
     return (
       <Alert variant="destructive">
         <AlertTitle>Could not load app</AlertTitle>
-        <AlertDescription>{String(app.error ?? 'not found')}</AlertDescription>
+        <AlertDescription>{String(app.error ?? "not found")}</AlertDescription>
       </Alert>
     );
   }

@@ -1,6 +1,6 @@
-import { Tooltip as TooltipPrimitive } from '@base-ui/react/tooltip';
-import { createContext, useContext, useId } from 'react';
-import { cn } from '@/lib/utils';
+import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
+import { createContext, useContext, useId } from "react";
+import { cn } from "@/lib/utils";
 
 type TooltipContextValue = {
   contentId: string;
@@ -8,10 +8,7 @@ type TooltipContextValue = {
 };
 
 type TooltipContentProps = TooltipPrimitive.Popup.Props &
-  Pick<
-    TooltipPrimitive.Positioner.Props,
-    'align' | 'alignOffset' | 'side' | 'sideOffset'
-  > & {
+  Pick<TooltipPrimitive.Positioner.Props, "align" | "alignOffset" | "side" | "sideOffset"> & {
     /** Props forwarded to the Base UI Portal. */
     portalProps?: TooltipPrimitive.Portal.Props;
     /** Renders the small arrow anchored to the trigger. */
@@ -49,9 +46,7 @@ function Tooltip({
   const generatedId = useId();
 
   return (
-    <TooltipContext.Provider
-      value={{ contentId: `${generatedId}-tooltip`, disabled }}
-    >
+    <TooltipContext.Provider value={{ contentId: `${generatedId}-tooltip`, disabled }}>
       <TooltipPrimitive.Root
         disabled={disabled}
         disableHoverablePopup={disableHoverablePopup}
@@ -65,14 +60,13 @@ function Tooltip({
 
 /** Element that opens the tooltip on hover or keyboard focus. */
 function TooltipTrigger({
-  'aria-describedby': ariaDescribedBy,
+  "aria-describedby": ariaDescribedBy,
   disabled,
   ...props
 }: TooltipPrimitive.Trigger.Props) {
   const context = useContext(TooltipContext);
-  const contentId =
-    context?.disabled || disabled ? undefined : context?.contentId;
-  const describedBy = [ariaDescribedBy, contentId].filter(Boolean).join(' ');
+  const contentId = context?.disabled || disabled ? undefined : context?.contentId;
+  const describedBy = [ariaDescribedBy, contentId].filter(Boolean).join(" ");
 
   return (
     <TooltipPrimitive.Trigger
@@ -87,9 +81,9 @@ function TooltipTrigger({
 /** Portaled tooltip surface positioned against its trigger. */
 function TooltipContent({
   className,
-  side = 'top',
+  side = "top",
   sideOffset = 8,
-  align = 'center',
+  align = "center",
   alignOffset = 0,
   portalProps,
   showArrow = true,
@@ -115,13 +109,13 @@ function TooltipContent({
           role="tooltip"
           className={(state) =>
             cn(
-              'pointer-events-auto relative z-50 w-max max-w-xs origin-(--transform-origin) rounded-sm bg-foreground px-2.5 py-1.5 text-background text-xs leading-4 shadow-md outline-none data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 motion-safe:transition-[opacity,transform] motion-safe:duration-(--duration-fast) motion-safe:ease-(--ease-emphasized) has-data-[slot=kbd]:pr-1.5 **:data-[slot=kbd]:ml-1.5 **:data-[slot=kbd]:rounded-sm **:data-[slot=kbd]:bg-background/10 **:data-[slot=kbd]:px-1.5 **:data-[slot=kbd]:py-0.5 **:data-[slot=kbd]:font-mono **:data-[slot=kbd]:text-[0.6875rem] **:data-[slot=kbd]:leading-3',
-              typeof className === 'function' ? className(state) : className,
+              "pointer-events-auto relative z-50 w-max max-w-xs origin-(--transform-origin) rounded-sm bg-foreground px-2.5 py-1.5 text-background text-xs leading-4 shadow-md outline-none data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 motion-safe:transition-[opacity,transform] motion-safe:duration-(--duration-fast) motion-safe:ease-(--ease-emphasized) has-data-[slot=kbd]:pr-1.5 **:data-[slot=kbd]:ml-1.5 **:data-[slot=kbd]:rounded-sm **:data-[slot=kbd]:bg-background/10 **:data-[slot=kbd]:px-1.5 **:data-[slot=kbd]:py-0.5 **:data-[slot=kbd]:font-mono **:data-[slot=kbd]:text-[0.6875rem] **:data-[slot=kbd]:leading-3",
+              typeof className === "function" ? className(state) : className,
             )
           }
           style={(state) => ({
-            ...(typeof style === 'function' ? style(state) : style),
-            pointerEvents: 'auto',
+            ...(typeof style === "function" ? style(state) : style),
+            pointerEvents: "auto",
           })}
         >
           {children}
@@ -137,10 +131,4 @@ function TooltipContent({
   );
 }
 
-export {
-  Tooltip,
-  TooltipContent,
-  type TooltipContentProps,
-  TooltipProvider,
-  TooltipTrigger,
-};
+export { Tooltip, TooltipContent, type TooltipContentProps, TooltipProvider, TooltipTrigger };

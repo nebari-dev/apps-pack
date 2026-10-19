@@ -93,6 +93,12 @@ jobs:
         working-directory: operator
         run: go build ./...
 
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.14.0
+          working-directory: operator
+
       - name: Verify generated code is up to date
         working-directory: operator
         run: |
@@ -100,3 +106,55 @@ jobs:
           controller-gen object paths="./api/..."
           controller-gen crd paths="./api/..." output:crd:artifacts:config=../charts/nebari-apps/crds
           git diff --exit-code || (echo "::error::Generated code is stale; run controller-gen" && exit 1)
+
+  python:
+    name: Python lint (${{ matrix.package }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [api, mcp]
+    defaults:
+      run:
+        working-directory: ${{ matrix.package }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.10.11"
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: ${{ matrix.package }}/uv.lock
+
+      - name: Install from the lockfile
+        run: uv sync --frozen --extra dev
+
+      - name: ruff check
+        run: uv run --frozen --no-sync ruff check --output-format=github .
+
+      - name: ruff format
+        run: uv run --frozen --no-sync ruff format --check .
+
+      - name: mypy (strict)
+        run: uv run --frozen --no-sync mypy
+
+  ui:
+    name: UI lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - run: npm ci
+
+      - name: Biome
+        run: npm run check:ci
