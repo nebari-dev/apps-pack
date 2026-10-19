@@ -1,0 +1,1003 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "nebari-apps values",
+  "type": "object",
+  "properties": {
+    "clusterDomain": {
+      "type": "string",
+      "pattern": "^$|^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$",
+      "description": "The cluster's base domain (required)."
+    },
+    "appsDomain": {
+      "type": "string",
+      "pattern": "^$|^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"
+    },
+    "gateway": {
+      "enum": [
+        "public",
+        "internal"
+      ]
+    },
+    "tls": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "apps": {
+      "type": "object",
+      "properties": {
+        "landingPage": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        },
+        "defaultResources": {
+          "type": "object",
+          "properties": {
+            "static": {
+              "type": "object",
+              "properties": {
+                "requests": {
+                  "type": "object",
+                  "properties": {
+                    "cpu": {
+                      "type": [
+                        "string",
+                        "integer",
+                        "number"
+                      ],
+                      "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+                    },
+                    "memory": {
+                      "type": [
+                        "string",
+                        "integer",
+                        "number"
+                      ],
+                      "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+                    }
+                  },
+                  "additionalProperties": {
+                    "type": [
+                      "string",
+                      "integer",
+                      "number"
+                    ],
+                    "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+                  }
+                },
+                "limits": {
+                  "type": "object",
+                  "properties": {
+                    "cpu": {
+                      "type": [
+                        "string",
+                        "integer",
+                        "number"
+                      ],
+                      "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+                    },
+                    "memory": {
+                      "type": [
+                        "string",
+                        "integer",
+                        "number"
+                      ],
+                      "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+                    }
+                  },
+                  "additionalProperties": {
+                    "type": [
+                      "string",
+                      "integer",
+                      "number"
+                    ],
+                    "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+                  }
+                }
+              },
+              "additionalProperties": false,
+              "description": "Kubernetes container resources."
+            },
+            "python": {
+              "type": "object",
+              "properties": {
+                "requests": {
+                  "type": "object",
+                  "properties": {
+                    "cpu": {
+                      "type": [
+                        "string",
+                        "integer",
+                        "number"
+                      ],
+                      "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+                    },
+                    "memory": {
+                      "type": [
+                        "string",
+                        "integer",
+                        "number"
+                      ],
+                      "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+                    }
+                  },
+                  "additionalProperties": {
+                    "type": [
+                      "string",
+                      "integer",
+                      "number"
+                    ],
+                    "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+                  }
+                },
+                "limits": {
+                  "type": "object",
+                  "properties": {
+                    "cpu": {
+                      "type": [
+                        "string",
+                        "integer",
+                        "number"
+                      ],
+                      "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+                    },
+                    "memory": {
+                      "type": [
+                        "string",
+                        "integer",
+                        "number"
+                      ],
+                      "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+                    }
+                  },
+                  "additionalProperties": {
+                    "type": [
+                      "string",
+                      "integer",
+                      "number"
+                    ],
+                    "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+                  }
+                }
+              },
+              "additionalProperties": false,
+              "description": "Kubernetes container resources."
+            }
+          },
+          "additionalProperties": false
+        },
+        "limitRange": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "default": {
+              "type": "object",
+              "properties": {
+                "cpu": {
+                  "type": [
+                    "string",
+                    "integer",
+                    "number"
+                  ],
+                  "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+                },
+                "memory": {
+                  "type": [
+                    "string",
+                    "integer",
+                    "number"
+                  ],
+                  "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+                }
+              },
+              "additionalProperties": {
+                "type": [
+                  "string",
+                  "integer",
+                  "number"
+                ],
+                "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+              }
+            },
+            "defaultRequest": {
+              "type": "object",
+              "properties": {
+                "cpu": {
+                  "type": [
+                    "string",
+                    "integer",
+                    "number"
+                  ],
+                  "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+                },
+                "memory": {
+                  "type": [
+                    "string",
+                    "integer",
+                    "number"
+                  ],
+                  "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+                }
+              },
+              "additionalProperties": {
+                "type": [
+                  "string",
+                  "integer",
+                  "number"
+                ],
+                "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+              }
+            },
+            "max": {
+              "type": "object",
+              "properties": {
+                "cpu": {
+                  "type": [
+                    "string",
+                    "integer",
+                    "number"
+                  ],
+                  "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+                },
+                "memory": {
+                  "type": [
+                    "string",
+                    "integer",
+                    "number"
+                  ],
+                  "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+                }
+              },
+              "additionalProperties": {
+                "type": [
+                  "string",
+                  "integer",
+                  "number"
+                ],
+                "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "networkPolicy": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "gatewayNamespace": {
+              "type": "string",
+              "minLength": 1
+            },
+            "blockedCIDRs": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F:.]+/[0-9]{1,3}$"
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "operator": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "type": "object",
+          "properties": {
+            "repository": {
+              "type": "string",
+              "minLength": 1
+            },
+            "tag": {
+              "type": "string"
+            },
+            "pullPolicy": {
+              "enum": [
+                "Always",
+                "IfNotPresent",
+                "Never"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "replicaCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "leaderElection": {
+          "type": "boolean"
+        },
+        "resources": {
+          "type": "object",
+          "properties": {
+            "requests": {
+              "type": "object",
+              "properties": {
+                "cpu": {
+                  "type": [
+                    "string",
+                    "integer",
+                    "number"
+                  ],
+                  "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+                },
+                "memory": {
+                  "type": [
+                    "string",
+                    "integer",
+                    "number"
+                  ],
+                  "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+                }
+              },
+              "additionalProperties": {
+                "type": [
+                  "string",
+                  "integer",
+                  "number"
+                ],
+                "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+              }
+            },
+            "limits": {
+              "type": "object",
+              "properties": {
+                "cpu": {
+                  "type": [
+                    "string",
+                    "integer",
+                    "number"
+                  ],
+                  "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+                },
+                "memory": {
+                  "type": [
+                    "string",
+                    "integer",
+                    "number"
+                  ],
+                  "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+                }
+              },
+              "additionalProperties": {
+                "type": [
+                  "string",
+                  "integer",
+                  "number"
+                ],
+                "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+              }
+            }
+          },
+          "additionalProperties": false,
+          "description": "Kubernetes container resources."
+        },
+        "extraEnv": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "value": {
+                "type": "string"
+              },
+              "valueFrom": {
+                "type": "object"
+              }
+            },
+            "additionalProperties": false
+          },
+          "description": "Extra container env vars (Kubernetes EnvVar)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "api": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "image": {
+          "type": "object",
+          "properties": {
+            "repository": {
+              "type": "string",
+              "minLength": 1
+            },
+            "tag": {
+              "type": "string"
+            },
+            "pullPolicy": {
+              "enum": [
+                "Always",
+                "IfNotPresent",
+                "Never"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "replicaCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "auth": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "insecureAllowAnonymous": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        },
+        "allowedNamespaces": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+          }
+        },
+        "adminGroups": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "resources": {
+          "type": "object",
+          "properties": {
+            "requests": {
+              "type": "object",
+              "properties": {
+                "cpu": {
+                  "type": [
+                    "string",
+                    "integer",
+                    "number"
+                  ],
+                  "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+                },
+                "memory": {
+                  "type": [
+                    "string",
+                    "integer",
+                    "number"
+                  ],
+                  "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+                }
+              },
+              "additionalProperties": {
+                "type": [
+                  "string",
+                  "integer",
+                  "number"
+                ],
+                "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+              }
+            },
+            "limits": {
+              "type": "object",
+              "properties": {
+                "cpu": {
+                  "type": [
+                    "string",
+                    "integer",
+                    "number"
+                  ],
+                  "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+                },
+                "memory": {
+                  "type": [
+                    "string",
+                    "integer",
+                    "number"
+                  ],
+                  "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+                }
+              },
+              "additionalProperties": {
+                "type": [
+                  "string",
+                  "integer",
+                  "number"
+                ],
+                "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+              }
+            }
+          },
+          "additionalProperties": false,
+          "description": "Kubernetes container resources."
+        },
+        "extraEnv": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "value": {
+                "type": "string"
+              },
+              "valueFrom": {
+                "type": "object"
+              }
+            },
+            "additionalProperties": false
+          },
+          "description": "Extra container env vars (Kubernetes EnvVar)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ui": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "image": {
+          "type": "object",
+          "properties": {
+            "repository": {
+              "type": "string",
+              "minLength": 1
+            },
+            "tag": {
+              "type": "string"
+            },
+            "pullPolicy": {
+              "enum": [
+                "Always",
+                "IfNotPresent",
+                "Never"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "replicaCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "hostname": {
+          "type": "string",
+          "pattern": "^$|^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"
+        },
+        "title": {
+          "type": "string"
+        },
+        "existingConfigMap": {
+          "type": "string"
+        },
+        "branding": {
+          "type": "object",
+          "properties": {
+            "logoUrl": {
+              "type": "string"
+            },
+            "logoUrlDark": {
+              "type": "string"
+            },
+            "faviconUrl": {
+              "type": "string"
+            },
+            "theme": {
+              "type": "object",
+              "properties": {
+                "light": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "dark": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              },
+              "additionalProperties": false
+            },
+            "banners": {
+              "type": "object",
+              "properties": {
+                "top": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": "string"
+                    },
+                    "background": {
+                      "type": "string"
+                    },
+                    "foreground": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "bottom": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": "string"
+                    },
+                    "background": {
+                      "type": "string"
+                    },
+                    "foreground": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "landingPage": {
+          "type": "object",
+          "properties": {
+            "displayName": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "category": {
+              "type": "string"
+            },
+            "icon": {
+              "type": "string"
+            },
+            "healthCheck": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "intervalSeconds": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "timeoutSeconds": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "resources": {
+          "type": "object",
+          "properties": {
+            "requests": {
+              "type": "object",
+              "properties": {
+                "cpu": {
+                  "type": [
+                    "string",
+                    "integer",
+                    "number"
+                  ],
+                  "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+                },
+                "memory": {
+                  "type": [
+                    "string",
+                    "integer",
+                    "number"
+                  ],
+                  "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+                }
+              },
+              "additionalProperties": {
+                "type": [
+                  "string",
+                  "integer",
+                  "number"
+                ],
+                "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+              }
+            },
+            "limits": {
+              "type": "object",
+              "properties": {
+                "cpu": {
+                  "type": [
+                    "string",
+                    "integer",
+                    "number"
+                  ],
+                  "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+                },
+                "memory": {
+                  "type": [
+                    "string",
+                    "integer",
+                    "number"
+                  ],
+                  "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+                }
+              },
+              "additionalProperties": {
+                "type": [
+                  "string",
+                  "integer",
+                  "number"
+                ],
+                "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+              }
+            }
+          },
+          "additionalProperties": false,
+          "description": "Kubernetes container resources."
+        },
+        "extraEnv": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "value": {
+                "type": "string"
+              },
+              "valueFrom": {
+                "type": "object"
+              }
+            },
+            "additionalProperties": false
+          },
+          "description": "Extra container env vars (Kubernetes EnvVar)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "mcp": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "image": {
+          "type": "object",
+          "properties": {
+            "repository": {
+              "type": "string",
+              "minLength": 1
+            },
+            "tag": {
+              "type": "string"
+            },
+            "pullPolicy": {
+              "enum": [
+                "Always",
+                "IfNotPresent",
+                "Never"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "replicaCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "resources": {
+          "type": "object",
+          "properties": {
+            "requests": {
+              "type": "object",
+              "properties": {
+                "cpu": {
+                  "type": [
+                    "string",
+                    "integer",
+                    "number"
+                  ],
+                  "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+                },
+                "memory": {
+                  "type": [
+                    "string",
+                    "integer",
+                    "number"
+                  ],
+                  "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+                }
+              },
+              "additionalProperties": {
+                "type": [
+                  "string",
+                  "integer",
+                  "number"
+                ],
+                "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+              }
+            },
+            "limits": {
+              "type": "object",
+              "properties": {
+                "cpu": {
+                  "type": [
+                    "string",
+                    "integer",
+                    "number"
+                  ],
+                  "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+                },
+                "memory": {
+                  "type": [
+                    "string",
+                    "integer",
+                    "number"
+                  ],
+                  "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+                }
+              },
+              "additionalProperties": {
+                "type": [
+                  "string",
+                  "integer",
+                  "number"
+                ],
+                "description": "A Kubernetes quantity, e.g. 500m or 256Mi."
+              }
+            }
+          },
+          "additionalProperties": false,
+          "description": "Kubernetes container resources."
+        },
+        "extraEnv": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "value": {
+                "type": "string"
+              },
+              "valueFrom": {
+                "type": "object"
+              }
+            },
+            "additionalProperties": false
+          },
+          "description": "Extra container env vars (Kubernetes EnvVar)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "keycloak": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "pattern": "^$|^https?://"
+        },
+        "realm": {
+          "type": "string",
+          "minLength": 1
+        },
+        "internalUrl": {
+          "type": "string",
+          "pattern": "^$|^https?://"
+        }
+      },
+      "additionalProperties": false
+    },
+    "telemetry": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "serviceMonitor": {
+          "type": "object",
+          "properties": {
+            "labels": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "interval": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "metricsReaders": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "namespace": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "staticImage": {
+      "type": "string",
+      "minLength": 1
+    },
+    "gitImage": {
+      "type": "string",
+      "minLength": 1
+    },
+    "pythonImage": {
+      "type": "string",
+      "minLength": 1
+    },
+    "nameOverride": {
+      "type": "string"
+    },
+    "fullnameOverride": {
+      "type": "string"
+    },
+    "global": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": false
+}

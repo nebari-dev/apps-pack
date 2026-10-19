@@ -53,8 +53,8 @@ roleRef:
 subjects:
   {{- range . }}
   - kind: ServiceAccount
-    name: {{ required "telemetry.metricsReaders[].name is required" .name }}
-    namespace: {{ required "telemetry.metricsReaders[].namespace is required" .namespace }}
+    name: {{ .name }}
+    namespace: {{ .namespace }}
   {{- end }}
 {{- end }}
 {{- if .Values.telemetry.enabled }}

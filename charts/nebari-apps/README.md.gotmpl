@@ -1,0 +1,21 @@
+{{ template "chart.header" . }}
+
+{{ template "chart.versionBadge" . }}{{ template "chart.typeBadge" . }}{{ template "chart.appVersionBadge" . }}
+
+{{ template "chart.description" . }}
+
+Installation, the Argo CD Application, upgrades and every setting in context are covered in the
+[Apps Pack docs](https://packs.nebari.dev/apps-pack/). This page is generated from the `# --`
+comments in [values.yaml](values.yaml) by [helm-docs](https://github.com/norwoodj/helm-docs);
+edit those and regenerate (see CONTRIBUTING.md) rather than editing it.
+
+```sh
+helm install nebari-apps oci://ghcr.io/nebari-dev/apps-pack/charts/nebari-apps \
+  --namespace nebari-apps --create-namespace \
+  --set clusterDomain=example.ai --set keycloak.url=https://keycloak.example.ai/auth
+```
+
+Every value is checked against [values.schema.json](values.schema.json): an unknown key or a
+wrong type fails the install.
+
+{{ template "chart.valuesSection" . }}

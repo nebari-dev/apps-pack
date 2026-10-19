@@ -1,0 +1,2 @@
+{{- /* Renders nothing; see _validate.tpl. */ -}}
+{{- include "nebari-apps.validate" . }}

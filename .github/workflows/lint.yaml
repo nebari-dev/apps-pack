@@ -37,6 +37,27 @@ jobs:
       - name: helm template (examples/nebari-values.yaml)
         run: helm template test charts/nebari-apps -f examples/nebari-values.yaml > /dev/null
 
+      # values.schema.json is enforced by every helm lint/template above; this
+      # proves it rejects what it should (typo'd keys, bad enums and types).
+      - name: values.schema.json rejects bad values
+        run: |
+          set -u
+          for bad in api.replicaCont=2 gateway=privat tls.enabled=yes \
+              ui.branding.banners.top.txt=CUI 'operator.extraEnv[0].value=x' keycloak.url=keycloak.example.ai; do
+            if helm template test charts/nebari-apps -f examples/nebari-values.yaml --set "$bad" > /dev/null 2>&1; then
+              echo "::error::values.schema.json accepted --set $bad"; exit 1
+            fi
+          done
+          echo "schema rejected every bad value"
+
+      - name: Chart README is generated from values.yaml (helm-docs)
+        run: |
+          docker run --rm -v "$PWD:/helm-docs" -u "$(id -u)" \
+            jnorwood/helm-docs@sha256:7e562b49ab6b1dbc50c3da8f2dd6ffa8a5c6bba327b1c6335cc15ce29267979c \
+            --chart-search-root charts
+          git diff --exit-code -- charts/nebari-apps/README.md || {
+            echo "::error::charts/nebari-apps/README.md is stale; regenerate it with helm-docs (see CONTRIBUTING.md)"; exit 1; }
+
       - name: API RBAC is namespaced when allowedNamespaces is set
         run: |
           pip install pyyaml==6.0.3
