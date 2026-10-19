@@ -69,23 +69,60 @@ jobs:
           helm template test charts/nebari-apps "${base[@]}" --set api.auth.enabled=false --set tls.enabled=false > /dev/null
           helm template test charts/nebari-apps "${base[@]}" --set api.auth.enabled=false --set api.auth.insecureAllowAnonymous=true > /dev/null
 
-      - name: Validate example App CRs against the CRD schema
+      - name: Validate the examples and the rendered chart (kubeconform)
+        env:
+          # datreeio/CRDs-catalog at a fixed commit, for third-party CRDs
+          # (Argo CD's Application). NebariApp has no published schema.
+          CRDS_CATALOG: https://raw.githubusercontent.com/datreeio/CRDs-catalog/501527ab9c40c827144c8f45945b25a023e344ce
         run: |
           curl -sSLo "$RUNNER_TEMP/kubeconform.tar.gz" \
             https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz
           echo "95f14e87aa28c09d5941f11bd024c1d02fdc0303ccaa23f61cef67bc92619d73  $RUNNER_TEMP/kubeconform.tar.gz" | sha256sum -c -
           tar xzf "$RUNNER_TEMP/kubeconform.tar.gz" -C /usr/local/bin kubeconform
-          # Convert the CRD to a kubeconform-compatible JSON schema
+          # The App CRD, converted to the schema layout kubeconform looks up.
           pip install pyyaml==6.0.3
-          python3 - <<'EOF'
-          import json, yaml
+          schemas="$RUNNER_TEMP/schemas"
+          python3 - "$schemas" <<'EOF'
+          import json, os, sys, yaml
           crd = yaml.safe_load(open("charts/nebari-apps/crds/apps.nebari.dev_apps.yaml"))
-          schema = crd["spec"]["versions"][0]["schema"]["openAPIV3Schema"]
-          json.dump(schema, open("/tmp/app-schema.json", "w"))
+          out = os.path.join(sys.argv[1], crd["spec"]["group"])
+          os.makedirs(out, exist_ok=True)
+          # The apiserver silently prunes fields the CRD does not declare, so a
+          # typo in an example would vanish; reject unknown fields instead.
+          def strict(node):
+              if isinstance(node, dict):
+                  if "properties" in node and "additionalProperties" not in node \
+                          and not node.get("x-kubernetes-preserve-unknown-fields"):
+                      node["additionalProperties"] = False
+                  for child in node.values():
+                      strict(child)
+              elif isinstance(node, list):
+                  for child in node:
+                      strict(child)
+          for v in crd["spec"]["versions"]:
+              schema = v["schema"]["openAPIV3Schema"]
+              strict(schema)
+              name = f'{crd["spec"]["names"]["kind"].lower()}_{v["name"]}.json'
+              json.dump(schema, open(os.path.join(out, name), "w"))
           EOF
-          # Only App resources are in these files, so a literal schema path works
-          kubeconform -schema-location '/tmp/app-schema.json' \
-            -summary examples/static-inline-app.yaml examples/static-git-app.yaml
+          mkdir -p "$RUNNER_TEMP/rendered"
+          base=(--set clusterDomain=nebari.example.com --set keycloak.url=https://keycloak.nebari.example.com/auth)
+          helm template test charts/nebari-apps "${base[@]}" > "$RUNNER_TEMP/rendered/default.yaml"
+          helm template test charts/nebari-apps -f examples/nebari-values.yaml > "$RUNNER_TEMP/rendered/nebari-values.yaml"
+          helm template test charts/nebari-apps "${base[@]}" --set tls.enabled=false --set api.auth.enabled=false \
+            > "$RUNNER_TEMP/rendered/local-dev.yaml"
+          # Kubernetes types from the default catalog, App from the CRD, the
+          # rest from the CRDs catalog; NebariApp is the only kind skipped.
+          # Every manifest under examples/ (nebari-values.yaml is Helm values).
+          manifests=()
+          for f in examples/*.yaml; do
+            [ "$f" = examples/nebari-values.yaml ] || manifests+=("$f")
+          done
+          kubeconform -strict -summary -ignore-missing-schemas \
+            -schema-location default \
+            -schema-location "$schemas/{{ .Group }}/{{ .ResourceKind }}_{{ .ResourceAPIVersion }}.json" \
+            -schema-location "$CRDS_CATALOG/{{ .Group }}/{{ .ResourceKind }}_{{ .ResourceAPIVersion }}.json" \
+            "${manifests[@]}" "$RUNNER_TEMP"/rendered/*.yaml
 
   versions:
     name: Version strings

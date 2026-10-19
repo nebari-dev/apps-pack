@@ -1,0 +1,55 @@
+# Argo CD Application for the Apps Pack, installed from the published chart.
+#
+#   kubectl apply -n argocd -f examples/argocd-application.yaml
+#
+# Before the first sync, create every namespace listed in api.allowedNamespaces
+# and opt it in (the chart binds the API's RBAC in each one):
+#
+#   kubectl create namespace apps
+#   kubectl label namespace apps nebari.dev/managed=true
+#
+# The chart is served from GHCR as an OCI artifact. On Argo CD older than 3.1,
+# also register the registry as a Helm OCI repository (a Secret labeled
+# argocd.argoproj.io/secret-type=repository with type: helm, enableOCI: "true",
+# url: ghcr.io/nebari-dev/apps-pack/charts).
+#
+# Releases are also published to the org Helm repository; to install from it,
+# use repoURL: https://raw.githubusercontent.com/nebari-dev/helm-repository/gh-pages/
+# (same chart name and versions, no OCI repository Secret needed).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nebari-apps
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: ghcr.io/nebari-dev/apps-pack/charts
+    chart: nebari-apps
+    targetRevision: 0.1.0 # a released chart version; see the GitHub releases
+    helm:
+      # Same values as examples/nebari-values.yaml: only the hostnames need editing.
+      valuesObject:
+        clusterDomain: example.ai
+        keycloak:
+          url: https://keycloak.example.ai/auth
+        api:
+          allowedNamespaces:
+            - apps
+        apps:
+          landingPage:
+            enabled: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: nebari-apps
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    # The nebari-operator only processes namespaces that opt in, including
+    # the pack's own (for the UI's NebariApp).
+    managedNamespaceMetadata:
+      labels:
+        nebari.dev/managed: "true"
+    syncOptions:
+      - CreateNamespace=true
