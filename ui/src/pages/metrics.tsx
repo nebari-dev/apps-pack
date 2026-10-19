@@ -37,7 +37,9 @@ export function MetricsPage() {
   if (metrics.isError) {
     return (
       <div className="space-y-6">
-        <h1 className="font-semibold text-2xl">Metrics</h1>
+        <h1 ref={heading} tabIndex={-1} className="font-semibold text-2xl outline-none">
+          Metrics
+        </h1>
         <QueryError
           title="Could not load metrics"
           error={metrics.error}

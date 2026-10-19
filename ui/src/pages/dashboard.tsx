@@ -33,7 +33,9 @@ export function DashboardPage() {
   if (analytics.isError) {
     return (
       <div className="space-y-6">
-        <h1 className="font-semibold text-2xl">Dashboard</h1>
+        <h1 ref={heading} tabIndex={-1} className="font-semibold text-2xl outline-none">
+          Dashboard
+        </h1>
         <QueryError
           title="Could not load the dashboard"
           error={analytics.error}
