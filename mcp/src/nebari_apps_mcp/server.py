@@ -138,7 +138,7 @@ async def launch_app(
         dict[str, str] | None,
         Field(description="source_type=inline: relative path -> file content; text files only, ~900KB total. Static apps must include index.html; pixi apps (pixi_task set) must include pixi.toml or pyproject.toml"),
     ] = None,
-    git_url: Annotated[str, Field(description="source_type=git: HTTPS repository URL")] = "",
+    git_url: Annotated[str, Field(description="source_type=git: public https:// repository URL (no credentials, no cluster-internal hosts)")] = "",
     git_ref: Annotated[str, Field(description="source_type=git: branch, tag, or commit")] = "main",
     git_subdir: Annotated[str, Field(description="source_type=git: path of the content root within the repo")] = "",
     pvc_claim_name: Annotated[str, Field(description="source_type=pvc: existing PersistentVolumeClaim name")] = "",

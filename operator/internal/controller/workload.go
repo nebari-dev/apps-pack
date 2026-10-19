@@ -211,7 +211,7 @@ func (r *AppReconciler) buildStaticPodSpec(app *appsv1alpha1.App, annotations ma
 			// user-controlled strings. Clone lands in /tmp because the
 			// container runs as a non-root user that cannot write /.
 			Command: []string{"sh", "-c",
-				`git clone --depth 1 --branch "$GIT_REF" "$GIT_URL" /tmp/clone && cp -r "/tmp/clone/$GIT_SUBDIR/." /content/`,
+				gitCloneScript + `cp -r "/tmp/clone/$GIT_SUBDIR/." /content/`,
 			},
 			Env: []corev1.EnvVar{
 				{Name: "GIT_URL", Value: git.URL},
@@ -387,7 +387,7 @@ func (r *AppReconciler) buildPixiPodSpec(app *appsv1alpha1.App, annotations map[
 			// user-controlled strings. Clone lands in /tmp because the
 			// container runs as a non-root user that cannot write /.
 			Command: []string{"sh", "-c",
-				`git clone --depth 1 --branch "$GIT_REF" "$GIT_URL" /tmp/clone && cp -r "/tmp/clone/$GIT_SUBDIR/." /app/`,
+				gitCloneScript + `cp -r "/tmp/clone/$GIT_SUBDIR/." /app/`,
 			},
 			Env: []corev1.EnvVar{
 				{Name: "GIT_URL", Value: git.URL},
@@ -440,6 +440,11 @@ func buildService(app *appsv1alpha1.App) *corev1.Service {
 		},
 	}
 }
+
+// gitCloneScript clones GIT_URL at GIT_REF into /tmp/clone. User values
+// arrive only through env vars, and `--` ends option parsing so a URL can
+// never be read as a git option (validate() also rejects anything but https).
+const gitCloneScript = `git clone --depth 1 --branch "$GIT_REF" -- "$GIT_URL" /tmp/clone && `
 
 // sanitizeSubdir normalizes a git subdir so it stays inside the clone.
 func sanitizeSubdir(subdir string) string {

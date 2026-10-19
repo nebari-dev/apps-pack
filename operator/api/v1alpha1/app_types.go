@@ -17,11 +17,13 @@ const (
 
 // GitSource references app content in a git repository.
 type GitSource struct {
-	// URL of the git repository (https).
+	// URL of the git repository. Only public https URLs are accepted: no
+	// embedded credentials and no cluster-internal or private hosts.
 	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:Pattern=`^https://`
 	URL string `json:"url"`
 
-	// Ref is the branch, tag, or commit to check out.
+	// Ref is the branch or tag to check out (git clone --branch).
 	// +kubebuilder:default=main
 	// +optional
 	Ref string `json:"ref,omitempty"`
