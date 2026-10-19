@@ -54,7 +54,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 Domain apps are exposed under (https://<subdomain>.<appsDomain>).
 */}}
 {{- define "nebari-apps.appsDomain" -}}
-{{- .Values.appsDomain | default (printf "apps.%s" (required "clusterDomain is required" .Values.clusterDomain)) }}
+{{- .Values.appsDomain | default (printf "apps.%s" .Values.clusterDomain) }}
 {{- end }}
 
 {{/*

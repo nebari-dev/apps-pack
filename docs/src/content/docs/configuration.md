@@ -40,7 +40,7 @@ only `clusterDomain` and `keycloak.url` need changing.
 | `operator.image.repository` / `tag` / `pullPolicy` | `ghcr.io/nebari-dev/apps-pack/apps-operator` / `""` (chart `appVersion`) / `IfNotPresent` | Operator image. |
 | `operator.replicaCount` | `1` | Replicas; more than one needs `leaderElection`. |
 | `operator.leaderElection` | `true` | Lease-based leader election in the release namespace. |
-| `operator.resources` | `100m/128Mi` requests, `500m/256Mi` limits | Pod resources. |
+| `operator.resources` | `500m/256Mi` (requests = limits) | Pod resources. |
 
 The operator reads its configuration from flags the chart renders
 (`--apps-domain`, `--gateway`, `--static-image`, `--git-image`, `--python-image`,
@@ -59,7 +59,7 @@ environment variable (`APPS_DOMAIN`, `GATEWAY`, `STATIC_IMAGE`, `GIT_IMAGE`, `PY
 | `api.auth.insecureAllowAnonymous` | `false` | Explicit opt-in to an unauthenticated API on a TLS install. Leave off. |
 | `api.adminGroups` | `["admin"]` | Keycloak groups whose members see and manage every App. Everyone else sees and manages only the Apps they launched. |
 | `api.allowedNamespaces` | `["apps"]` | Namespaces users may launch into. Empty list = every namespace labeled `nebari.dev/managed=true`. `default` and `kube-*` are never offered. The API gets a `RoleBinding` in each listed namespace (they must exist before install/upgrade); an empty list binds its namespaced role cluster-wide instead. |
-| `api.resources` | `100m/128Mi` requests, `500m/256Mi` limits | Pod resources. |
+| `api.resources` | `500m/256Mi` (requests = limits) | Pod resources. |
 
 Environment the API container receives: `APPS_DOMAIN`, `APPS_NAMESPACES`, `APPS_ADMIN_GROUPS`, `AUTH_ENABLED`,
 `TLS_DISABLED`, `OIDC_ISSUER`, `OIDC_ISSUER_INTERNAL`, `UI_KEYCLOAK_URL`, `UI_KEYCLOAK_REALM`,
@@ -82,10 +82,11 @@ in).
 | `ui.title` | `Nebari Apps` | Browser-tab title. |
 | `ui.branding.logoUrl` / `logoUrlDark` / `faviconUrl` | built-in Nebari assets | Logo and favicon overrides (http(s), root-relative, or `data:` image URI). |
 | `ui.branding.theme.light` / `dark` | `{}` | CSS token overrides, validated in the browser — see [Branding](/branding/). |
+| `ui.existingConfigMap` | `""` | Serve `config.json` (title and branding) from an existing ConfigMap instead of rendering it from `ui.title` and `ui.branding`. |
 | `ui.branding.banners.top` / `bottom` | `{}` | Classification banners (`text`, `background`, `foreground`). |
 | `ui.landingPage.displayName` / `description` / `category` / `icon` | `Apps` / `Launch and manage web applications on this cluster.` / `Platform` / built-in icon | The pack's own tile on the landing page (always registered while `ui.enabled`). |
 | `ui.landingPage.healthCheck.enabled` / `path` / `intervalSeconds` / `timeoutSeconds` | `true` / `/healthz` / `30` / `5` | Health indicator next to the tile, polled by the nebari-operator. |
-| `ui.resources` | `50m/64Mi` requests, `250m/128Mi` limits | Pod resources. |
+| `ui.resources` | `250m/128Mi` (requests = limits) | Pod resources. |
 
 ## apps-mcp
 
@@ -94,7 +95,7 @@ in).
 | `mcp.enabled` | `true` | Deploy the MCP server at `https://<ui hostname>/mcp` (proxied by the UI's nginx; no separate hostname). When off, `/mcp` returns 404. |
 | `mcp.image.repository` / `tag` / `pullPolicy` | `ghcr.io/nebari-dev/apps-pack/apps-mcp` / `""` / `IfNotPresent` | MCP image. |
 | `mcp.replicaCount` | `1` | **Keep at 1**: device-flow sessions are held in process memory. |
-| `mcp.resources` | `50m/128Mi` requests, `250m/256Mi` limits | Pod resources. |
+| `mcp.resources` | `250m/256Mi` (requests = limits) | Pod resources. |
 
 Environment: `API_URL`, `AUTH_ENABLED`, `OIDC_ISSUER`, `OIDC_ISSUER_INTERNAL`,
 `OIDC_DEVICE_CLIENT_ID` (from the UI's OIDC Secret); optional `OIDC_JWKS_URL`,
@@ -146,9 +147,16 @@ curl -sk -H "Authorization: Bearer $(kubectl -n monitoring create token <reader-
 
 ## Overrides
 
+Every value is validated against the chart's `values.schema.json`, so an unknown key, a
+typo or a wrong type fails `helm install` instead of being ignored. The full generated list of
+values is in the [chart README](https://github.com/nebari-dev/apps-pack/blob/main/charts/nebari-apps/README.md).
+All four pack pods (operator, api, ui, mcp) run with a read-only root filesystem; their only
+writable paths are `emptyDir` volumes (`/tmp` for api and mcp, `/tmp/nginx` for the UI).
+
 | Value | Default | Purpose |
 |---|---|---|
 | `nameOverride` / `fullnameOverride` | `""` | Standard Helm name overrides. |
+| `operator.extraEnv` / `api.extraEnv` / `ui.extraEnv` / `mcp.extraEnv` | `[]` | Extra container env vars (Kubernetes `EnvVar` list), added after the chart's own so a same-named entry wins. |
 
 ## NebariApp fields the chart emits
 

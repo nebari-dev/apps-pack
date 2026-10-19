@@ -22,7 +22,10 @@ RUN apk upgrade --no-cache && \
 # Includes public/config.json - the placeholder branding config, overridden
 # in-cluster by the Helm-rendered ConfigMap mounted over it.
 COPY --from=builder /app/dist /usr/share/nginx/html
-COPY nginx.conf /tmp/nginx/nginx.conf.template
+# The template lives outside /tmp/nginx: in-cluster that directory is the
+# only writable path (an emptyDir under a read-only root filesystem) and would
+# hide anything baked into it.
+COPY nginx.conf /etc/nginx/nginx.conf.template
 
 # Applies BRANDING_* env-var overrides to config.json at startup (rebranding
 # outside Kubernetes). A no-op unless one of those vars is set, so the read-only
@@ -41,4 +44,4 @@ EXPOSE 8080
 USER 1000
 
 CMD ["/bin/sh", "-c", \
-  "/usr/local/bin/apply-branding.sh; envsubst '${API_URL} ${MCP_URL} ${KEYCLOAK_ORIGIN} ${HSTS}' < /tmp/nginx/nginx.conf.template > /tmp/nginx/nginx.conf && nginx -c /tmp/nginx/nginx.conf -g 'daemon off;'"]
+  "/usr/local/bin/apply-branding.sh; envsubst '${API_URL} ${MCP_URL} ${KEYCLOAK_ORIGIN} ${HSTS}' < /etc/nginx/nginx.conf.template > /tmp/nginx/nginx.conf && nginx -c /tmp/nginx/nginx.conf -g 'daemon off;'"]

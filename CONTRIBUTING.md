@@ -45,7 +45,7 @@ pushing.
 | apps-api | `api/` | `uv lock --check`, `uv sync --frozen --extra dev`, `uv run --frozen --no-sync python -m pytest -q`, then `ruff check .`, `ruff format --check .` and `mypy` (strict) through `uv run --frozen --no-sync` |
 | apps-mcp | `mcp/` | Same as apps-api, plus `uv pip install --no-deps -e ../api` before the tests (they drive the real API in process). |
 | apps-ui | `ui/` | `npm ci`, `npm run check:ci` (Biome lint and format; `npm run check` applies fixes), `npm run build`, `npm run size` (bundle budget, below), `npm test` |
-| Helm chart | `charts/nebari-apps/` | `helm lint charts/nebari-apps --set clusterDomain=nebari.example.com`, and `helm template` with `examples/nebari-values.yaml` |
+| Helm chart | `charts/nebari-apps/` | `helm lint charts/nebari-apps --set clusterDomain=nebari.example.com`, and `helm template` with `examples/nebari-values.yaml` (both validate against `values.schema.json`); the chart README must match `values.yaml` (regenerate below) |
 | Docs | `docs/` | `bun install --frozen-lockfile`, `bun test test`, `bun run build` |
 | Dependencies | `api/`, `mcp/`, `ui/` | `pip-audit` over the locked Python deps, `npm audit --audit-level=high` |
 | Workflows | `.github/workflows/` | `actionlint` and `zizmor .github/workflows` (config in `.github/zizmor.yml`). Pin every action to a full commit SHA with a `# vX.Y.Z` comment (Dependabot keeps them current), and give each workflow `permissions: contents: read`, widening per job only where needed. |
@@ -62,6 +62,16 @@ is over `bundleBudget` in `ui/package.json` (kB, gzip; 195 initial and 240 total
 5% above the current build). Pages load on first visit (`React.lazy` in `src/main.tsx`) and
 keycloak-js only when auth is on, so new page code rarely touches the initial number. If it
 goes over, move the code out of the initial load before raising the budget.
+
+Changing a chart value: document it with a `# --` comment in `charts/nebari-apps/values.yaml`,
+add it to `values.schema.json` (unknown keys are rejected), and regenerate the chart README:
+
+```sh
+docker run --rm -v "$PWD:/helm-docs" -u "$(id -u)" jnorwood/helm-docs:v1.14.2 --chart-search-root charts
+```
+
+Install-time checks (`required`, `fail`) go in `templates/_validate.tpl`, and env shared by
+apps-api and apps-mcp in `templates/_env.tpl`.
 
 Regenerating the CRD after changing `operator/api/`:
 

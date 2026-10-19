@@ -43,6 +43,10 @@ spec:
             {{- if .Values.operator.leaderElection }}
             - --leader-elect
             {{- end }}
+          {{- with .Values.operator.extraEnv }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
             - name: probes
               containerPort: 8081
