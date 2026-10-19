@@ -1,8 +1,26 @@
 name: Build Images
 
+# Builds the four images through the org's reusable workflow, which pushes them
+# to GHCR (ghcr.io/nebari-dev/apps-pack/<image>) and quay.io/nebari, then signs
+# them keyless with cosign and attests build provenance and an SBOM. Pushes to
+# main are tagged sha-<short> and `latest`; `latest` tracks main and is for
+# development only (released charts pin sha tags). Pull requests build without
+# pushing.
+#
+# Chart.yaml is in the push paths on purpose: release.yaml pins the chart to
+# the release commit's sha, so that version-bump commit must produce images.
+
 on:
   push:
     branches: [main]
+    paths:
+      - "operator/**"
+      - "api/**"
+      - "ui/**"
+      - "mcp/**"
+      - "charts/nebari-apps/Chart.yaml"
+      - ".github/workflows/build-image.yaml"
+  pull_request:
     paths:
       - "operator/**"
       - "api/**"
@@ -13,47 +31,63 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
   build:
-    runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - name: apps-operator
+          - image: apps-operator
             context: operator
-          - name: apps-api
+          - image: apps-api
             context: api
-          - name: apps-ui
+          - image: apps-ui
             context: ui
-          - name: apps-mcp
+          - image: apps-mcp
+            context: mcp
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    # Pinned to nebari-dev/.github main (2026-07-30): signing and attestations
+    # landed after the v1 tag. Move to the next tag once one includes them.
+    uses: nebari-dev/.github/.github/workflows/pack-build-image.yaml@a6c757c72124a03542a79ac5385fd250ee9c45b7
+    with:
+      image: ${{ matrix.image }}
+      context: ${{ matrix.context }}
+      platforms: linux/amd64,linux/arm64
+      push: ${{ github.event_name != 'pull_request' }}
+    secrets:
+      QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+      QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+
+  # Fails on any HIGH or CRITICAL vulnerability that has a fix available, in
+  # the OS packages or the application's dependencies.
+  scan:
+    name: Scan ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: apps-operator
+            context: operator
+          - image: apps-api
+            context: api
+          - image: apps-ui
+            context: ui
+          - image: apps-mcp
             context: mcp
     steps:
       - uses: actions/checkout@v7
 
-      - uses: docker/setup-buildx-action@v4
+      - name: Build
+        run: docker build --pull -t "${{ matrix.image }}:scan" "${{ matrix.context }}"
 
-      - uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: docker/metadata-action@v6
-        id: meta
-        with:
-          images: ghcr.io/${{ github.repository }}/${{ matrix.name }}
-          tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=sha
-
-      - uses: docker/build-push-action@v7
-        with:
-          context: ${{ matrix.context }}
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.name }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+      - name: Trivy
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:0.75.0@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa \
+            image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 "${{ matrix.image }}:scan"

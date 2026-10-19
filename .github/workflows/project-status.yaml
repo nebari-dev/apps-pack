@@ -22,6 +22,12 @@ on:
   # Manual replay for missed events (e.g. an Actions outage): give a PR
   # number to sync its linked issues to "Merged", and/or tick the sweep
   # to move all "Merged" issues to "Released".
+  # Called by release.yaml after a chart release (see the note there).
+  workflow_call:
+    inputs:
+      release-sweep:
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       pr-number:
@@ -140,8 +146,7 @@ jobs:
 
   release-published:
     if: >-
-      github.event_name == 'release' ||
-      (github.event_name == 'workflow_dispatch' && inputs.release-sweep)
+      github.event_name == 'release' || inputs.release-sweep
     runs-on: ubuntu-latest
     steps:
       - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
