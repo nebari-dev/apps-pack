@@ -13,6 +13,7 @@ import { DashboardPage } from "@/pages/dashboard";
 import { EditPage } from "@/pages/edit";
 import { LaunchPage } from "@/pages/launch";
 import { MetricsPage } from "@/pages/metrics";
+import { NotFoundPage } from "@/pages/not-found";
 import "@/index.css";
 
 // Branding comes from /config.json (ui.branding.* in the chart). Start the
@@ -57,6 +58,7 @@ createRoot(container).render(
               <Route path="apps/:namespace/:name/edit" element={<EditPage />} />
               <Route path="metrics" element={<MetricsPage />} />
               <Route path="launch" element={<LaunchPage />} />
+              <Route path="*" element={<NotFoundPage />} />
             </Route>
           </Routes>
         </BrowserRouter>
