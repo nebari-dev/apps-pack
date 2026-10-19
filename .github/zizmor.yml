@@ -1,0 +1,5 @@
+rules:
+  # Prefers `$/...` over `./...` for local reusable workflows; `./` is the
+  # documented GitHub syntax and is what the org templates use.
+  self-repository:
+    disable: true

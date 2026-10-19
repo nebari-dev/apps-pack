@@ -45,6 +45,7 @@ pushing.
 | Helm chart | `charts/nebari-apps/` | `helm lint charts/nebari-apps --set clusterDomain=nebari.example.com`, and `helm template` with `examples/nebari-values.yaml` |
 | Docs | `docs/` | `bun install --frozen-lockfile`, `bun test test`, `bun run build` |
 | Dependencies | `api/`, `mcp/`, `ui/` | `pip-audit` over the locked Python deps, `npm audit --audit-level=high` |
+| Workflows | `.github/workflows/` | `actionlint` and `zizmor .github/workflows` (config in `.github/zizmor.yml`). Pin every action to a full commit SHA with a `# vX.Y.Z` comment (Dependabot keeps them current), and give each workflow `permissions: contents: read`, widening per job only where needed. |
 
 Regenerating the CRD after changing `operator/api/`:
 

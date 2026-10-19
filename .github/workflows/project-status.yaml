@@ -15,7 +15,8 @@ name: Project Status
 # Projects v2.
 
 on:
-  pull_request_target:
+  # Safe: no job checks out or runs the PR's code; it only reads PR metadata.
+  pull_request_target: # zizmor: ignore[dangerous-triggers]
     types: [closed]
   release:
     types: [published]
@@ -28,6 +29,11 @@ on:
       release-sweep:
         type: boolean
         default: false
+    secrets:
+      NEBARI_PROJECT_SYNC_APP_ID:
+        required: true
+      NEBARI_PROJECT_SYNC_APP_PRIVATE_KEY:
+        required: true
   workflow_dispatch:
     inputs:
       pr-number:
@@ -58,6 +64,11 @@ jobs:
           app-id: ${{ secrets.NEBARI_PROJECT_SYNC_APP_ID }}
           private-key: ${{ secrets.NEBARI_PROJECT_SYNC_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          # Only what the sync uses, not the app's whole installation grant.
+          permission-organization-projects: write
+          permission-issues: read
+          permission-pull-requests: read
 
       - name: Move linked issues to "Merged"
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -155,6 +166,11 @@ jobs:
           app-id: ${{ secrets.NEBARI_PROJECT_SYNC_APP_ID }}
           private-key: ${{ secrets.NEBARI_PROJECT_SYNC_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          # Only what the sync uses, not the app's whole installation grant.
+          permission-organization-projects: write
+          permission-issues: read
+          permission-pull-requests: read
 
       - name: Move "Merged" issues to "Released"
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
