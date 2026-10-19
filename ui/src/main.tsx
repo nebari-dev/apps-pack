@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { StrictMode } from "react";
+import { type ComponentType, lazy, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Layout } from "@/components/layout";
@@ -7,14 +7,46 @@ import { Toaster } from "@/components/ui/toast";
 import { ThemeProvider } from "@/hooks/theme-provider";
 import { initAuth } from "@/lib/auth";
 import { applyBranding, loadBranding } from "@/lib/branding";
-import { AppDetailPage } from "@/pages/app-detail";
-import { AppsPage } from "@/pages/apps";
-import { DashboardPage } from "@/pages/dashboard";
-import { EditPage } from "@/pages/edit";
-import { LaunchPage } from "@/pages/launch";
-import { MetricsPage } from "@/pages/metrics";
 import { NotFoundPage } from "@/pages/not-found";
 import "@/index.css";
+
+// A tab opened before an upgrade asks for page chunks the new image no longer
+// serves. Reload once to pick up the new index.html; if that fails too, let the
+// error boundary show it rather than reloading in a loop.
+const CHUNK_RELOAD_KEY = "nebari-apps:chunkReload";
+window.addEventListener("vite:preloadError", (event) => {
+  try {
+    if (sessionStorage.getItem(CHUNK_RELOAD_KEY)) return;
+    sessionStorage.setItem(CHUNK_RELOAD_KEY, "1");
+  } catch {
+    return;
+  }
+  event.preventDefault();
+  window.location.reload();
+});
+
+// One chunk per page, fetched on first visit (Layout suspends while it loads).
+// A page chunk that loads re-arms the reload above.
+function page<K extends string>(load: () => Promise<Record<K, ComponentType>>, name: K) {
+  return lazy(async () => {
+    const mod = await load();
+    // The handler above cancelled a failed load and is reloading the page:
+    // Vite resolves the import with nothing. Wait for the reload.
+    if (!mod) return new Promise<never>(() => {});
+    try {
+      sessionStorage.removeItem(CHUNK_RELOAD_KEY);
+    } catch {
+      // Storage blocked: the reload guard is off too.
+    }
+    return { default: mod[name] };
+  });
+}
+const AppDetailPage = page(() => import("@/pages/app-detail"), "AppDetailPage");
+const AppsPage = page(() => import("@/pages/apps"), "AppsPage");
+const DashboardPage = page(() => import("@/pages/dashboard"), "DashboardPage");
+const EditPage = page(() => import("@/pages/edit"), "EditPage");
+const LaunchPage = page(() => import("@/pages/launch"), "LaunchPage");
+const MetricsPage = page(() => import("@/pages/metrics"), "MetricsPage");
 
 // Branding comes from /config.json (ui.branding.* in the chart). Start the
 // fetch before the auth round trip so the two overlap, and treat it as
@@ -38,7 +70,8 @@ const THEME_STORAGE_KEY = "nebari-apps:themeMode";
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { retry: 1, refetchInterval: 10_000, staleTime: 5_000 },
+    // No global refetchInterval: queries showing live state poll via lib/polling.
+    queries: { retry: 1, staleTime: 5_000 },
   },
 });
 

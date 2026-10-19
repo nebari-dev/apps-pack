@@ -42,6 +42,7 @@ import { toast } from "@/components/ui/toast";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { api } from "@/lib/api";
+import { listInterval } from "@/lib/polling";
 import type { App } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -61,7 +62,11 @@ type SortDir = "asc" | "desc";
 export function AppsPage() {
   const heading = usePageTitle("Apps");
   const queryClient = useQueryClient();
-  const apps = useQuery({ queryKey: ["apps"], queryFn: () => api.listApps() });
+  const apps = useQuery({
+    queryKey: ["apps"],
+    queryFn: () => api.listApps(),
+    refetchInterval: (q) => listInterval(q.state.data),
+  });
   const [filter, setFilter] = useState("");
   const [phaseFilter, setPhaseFilter] = useState<string | null>(null);
   const [sort, setSort] = useState<{ col: SortCol; dir: SortDir }>({ col: "name", dir: "asc" });

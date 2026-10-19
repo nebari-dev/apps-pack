@@ -12,6 +12,25 @@ export default defineConfig({
       "@": path.resolve(__dirname, "src"),
     },
   },
+  build: {
+    rolldownOptions: {
+      output: {
+        // Vendor code changes far less often than ours: give it long-lived
+        // chunks of its own. Pages are split by the lazy() routes in main.tsx,
+        // and keycloak-js by its dynamic import in lib/auth.ts.
+        codeSplitting: {
+          groups: [
+            {
+              name: "react",
+              test: /node_modules[\\/](react|react-dom|react-router|scheduler)[\\/]/,
+            },
+            { name: "query", test: /node_modules[\\/]@tanstack[\\/]/ },
+            { name: "icons", test: /node_modules[\\/]lucide-react[\\/]/ },
+          ],
+        },
+      },
+    },
+  },
   test: {
     environment: "jsdom",
     // Expose vitest globals so @testing-library/react auto-cleans the DOM

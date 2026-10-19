@@ -102,6 +102,11 @@ jobs:
           npm ci
           npm run build
 
+      # Budgets are in ui/package.json "bundleBudget".
+      - name: Bundle size budget
+        working-directory: ui
+        run: npm run size
+
       - name: Unit tests
         working-directory: ui
         run: npm test

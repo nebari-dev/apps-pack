@@ -6,7 +6,7 @@
  * PKCE flow against the public client the NebariApp provisioned
  * (auth.spaClient), and every API request carries the bearer token.
  */
-import Keycloak from "keycloak-js";
+import type Keycloak from "keycloak-js";
 import type { UiConfig } from "./types";
 
 const nativeFetch = window.fetch.bind(window);
@@ -43,6 +43,8 @@ export async function initAuth(): Promise<UiConfig> {
   }
 
   if (config.authEnabled && config.keycloak.url && config.keycloak.clientId) {
+    // Loaded only when auth is on, so auth-off installs never download it.
+    const { default: Keycloak } = await import("keycloak-js");
     keycloak = new Keycloak({
       url: config.keycloak.url,
       realm: config.keycloak.realm,

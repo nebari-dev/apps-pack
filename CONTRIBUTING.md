@@ -44,7 +44,7 @@ pushing.
 | CRD / deepcopy | `operator/` | Regenerate with `controller-gen` v0.21.0 (commands below) and commit the result; CI fails on drift. |
 | apps-api | `api/` | `uv lock --check`, `uv sync --frozen --extra dev`, `uv run --frozen --no-sync python -m pytest -q`, then `ruff check .`, `ruff format --check .` and `mypy` (strict) through `uv run --frozen --no-sync` |
 | apps-mcp | `mcp/` | Same as apps-api, plus `uv pip install --no-deps -e ../api` before the tests (they drive the real API in process). |
-| apps-ui | `ui/` | `npm ci`, `npm run check:ci` (Biome lint and format; `npm run check` applies fixes), `npm run build`, `npm test` |
+| apps-ui | `ui/` | `npm ci`, `npm run check:ci` (Biome lint and format; `npm run check` applies fixes), `npm run build`, `npm run size` (bundle budget, below), `npm test` |
 | Helm chart | `charts/nebari-apps/` | `helm lint charts/nebari-apps --set clusterDomain=nebari.example.com`, and `helm template` with `examples/nebari-values.yaml` |
 | Docs | `docs/` | `bun install --frozen-lockfile`, `bun test test`, `bun run build` |
 | Dependencies | `api/`, `mcp/`, `ui/` | `pip-audit` over the locked Python deps, `npm audit --audit-level=high` |
@@ -55,6 +55,13 @@ and `mcp/.python-version` (CI's setup-node and uv read them), `docs/.bun-version
 `toolchain` line in `operator/go.mod`. Base images are pinned by digest. When you change a
 runtime version, change the pin file and the matching Dockerfile `FROM` in the same PR; the
 Runtime pins check in CI fails when they disagree.
+
+The UI has a bundle budget: `npm run size` gzips what the browser loads before first paint
+(the entry script and everything `dist/index.html` preloads) and all JS, and fails when either
+is over `bundleBudget` in `ui/package.json` (kB, gzip; 195 initial and 240 total today, about
+5% above the current build). Pages load on first visit (`React.lazy` in `src/main.tsx`) and
+keycloak-js only when auth is on, so new page code rarely touches the initial number. If it
+goes over, move the code out of the initial load before raising the budget.
 
 Regenerating the CRD after changing `operator/api/`:
 

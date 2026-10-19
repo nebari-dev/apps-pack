@@ -16,11 +16,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { api } from "@/lib/api";
+import { listInterval } from "@/lib/polling";
 
 export function DashboardPage() {
   const heading = usePageTitle("Dashboard");
-  const analytics = useQuery({ queryKey: ["analytics"], queryFn: api.analytics });
-  const apps = useQuery({ queryKey: ["apps"], queryFn: () => api.listApps() });
+  const analytics = useQuery({
+    queryKey: ["analytics"],
+    queryFn: api.analytics,
+    refetchInterval: 30_000,
+  });
+  const apps = useQuery({
+    queryKey: ["apps"],
+    queryFn: () => api.listApps(),
+    refetchInterval: (q) => listInterval(q.state.data),
+  });
 
   if (analytics.isLoading) {
     return (
