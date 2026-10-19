@@ -13,6 +13,18 @@ def _env_bool(key: str, default: bool) -> bool:
     return val.strip().lower() in ("1", "true", "yes", "on")
 
 
+def _client_list(key: str) -> list[str] | None:
+    """Comma-separated client ids, or None when the variable is unset.
+
+    Set-but-empty (or unexpanded `$(VAR)` references from a missing secret)
+    yields an empty list, which rejects every token: fail closed.
+    """
+    raw = os.environ.get(key)
+    if raw is None:
+        return None
+    return [c.strip() for c in raw.split(",") if c.strip() and not c.strip().startswith("$(")]
+
+
 @dataclass
 class Settings:
     # Domain apps are exposed under: https://<subdomain>.<apps_domain>.
@@ -51,6 +63,13 @@ class Settings:
     oidc_issuer_internal: str = field(default_factory=lambda: os.environ.get("OIDC_ISSUER_INTERNAL", ""))
     # Optional audience check (client id); empty disables the aud check.
     oidc_audience: str = field(default_factory=lambda: os.environ.get("OIDC_AUDIENCE", ""))
+    # Bind tokens to this pack's own Keycloak clients: a token is accepted
+    # only if its azp (the client it was issued to) or one of its aud values
+    # is listed. Keycloak puts the SPA client in azp (aud is just "account"),
+    # so a plain audience check cannot do this. Unset disables the check.
+    oidc_allowed_clients: list[str] | None = field(
+        default_factory=lambda: _client_list("OIDC_ALLOWED_CLIENTS")
+    )
 
     # Values surfaced to the UI via /api/v1/config so keycloak-js can boot.
     ui_keycloak_url: str = field(default_factory=lambda: os.environ.get("UI_KEYCLOAK_URL", ""))

@@ -52,15 +52,18 @@ environment variable (`APPS_DOMAIN`, `GATEWAY`, `STATIC_IMAGE`, `GIT_IMAGE`, `PY
 | `api.enabled` | `true` | Deploy the REST API (the UI and MCP are thin clients over it). |
 | `api.image.repository` / `tag` / `pullPolicy` | `ghcr.io/nebari-dev/apps-pack/apps-api` / `""` / `IfNotPresent` | API image. |
 | `api.replicaCount` | `1` | The API is stateless; more replicas are safe. |
-| `api.auth.enabled` | `true` | Keycloak JWT bearer auth for the API and keycloak-js login in the UI. **Disable only for local development**; off, every caller is anonymous with full access. |
+| `api.auth.enabled` | `true` | Keycloak JWT bearer auth for the API and keycloak-js login in the UI. **Disable only for local development**; off, every caller is anonymous with full access. Rendering fails if it is off while `tls.enabled=true`, unless `api.auth.insecureAllowAnonymous` is set. |
+| `api.auth.insecureAllowAnonymous` | `false` | Explicit opt-in to an unauthenticated API on a TLS install. Leave off. |
 | `api.adminGroups` | `["admin"]` | Keycloak groups whose members see and manage every App. Everyone else sees and manages only the Apps they launched. |
 | `api.allowedNamespaces` | `["apps"]` | Namespaces users may launch into. Empty list = every namespace labeled `nebari.dev/managed=true`. `default` and `kube-*` are never offered. |
 | `api.resources` | `100m/128Mi` requests, `500m/256Mi` limits | Pod resources. |
 
 Environment the API container receives: `APPS_DOMAIN`, `APPS_NAMESPACES`, `APPS_ADMIN_GROUPS`, `AUTH_ENABLED`,
 `TLS_DISABLED`, `OIDC_ISSUER`, `OIDC_ISSUER_INTERNAL`, `UI_KEYCLOAK_URL`, `UI_KEYCLOAK_REALM`,
-`UI_KEYCLOAK_CLIENT_ID` (from the Secret the UI's `NebariApp` provisions). Not rendered by the
-chart but honoured when set on the container: `OIDC_JWKS_URL`, `OIDC_AUDIENCE`,
+`UI_KEYCLOAK_CLIENT_ID` and `OIDC_DEVICE_CLIENT_ID` (from the Secret the UI's `NebariApp`
+provisions), and `OIDC_ALLOWED_CLIENTS` (built from those two: a token is accepted only if its
+`azp` or `aud` names one of them; if the Secret is missing every token is rejected). The MCP
+server receives the same `OIDC_ALLOWED_CLIENTS`. Not rendered by the chart but honoured when set on the container: `OIDC_JWKS_URL`, `OIDC_AUDIENCE`,
 `MAX_UPLOAD_BYTES` (default 921600, the cap on an upload and on its extracted contents) and
 `MAX_REQUEST_BYTES` (default 2097152, the cap on any request body, enforced while it streams
 in).

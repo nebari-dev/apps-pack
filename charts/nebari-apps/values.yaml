@@ -66,6 +66,10 @@ api:
   # Disable only for local development without a browser-reachable Keycloak.
   auth:
     enabled: true
+    # Rendering fails when auth is disabled on a TLS (i.e. real) install,
+    # because the API would then be anonymous with cluster-wide write RBAC.
+    # Set this only if you really mean to run an unauthenticated API.
+    insecureAllowAnonymous: false
   # Namespaces users may launch apps into. An empty list falls back to every
   # namespace labeled nebari.dev/managed=true.
   allowedNamespaces:

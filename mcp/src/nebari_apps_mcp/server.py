@@ -7,6 +7,7 @@ over; failures surface the API's human-readable detail.
 
 from __future__ import annotations
 
+import logging
 from typing import Annotated, Any, Literal
 
 from fastmcp import Context, FastMCP
@@ -326,6 +327,11 @@ async def remove_app(ctx: Context, namespace: str, name: str) -> dict[str, Any]:
 
 
 def main() -> None:
+    if not settings.auth_enabled:
+        logging.getLogger("nebari_apps_mcp").warning(
+            "AUTHENTICATION IS DISABLED (AUTH_ENABLED=false): every tool call is anonymous. "
+            "Use this for local development only."
+        )
     mcp.run(transport="http", host=settings.host, port=settings.port)
 
 

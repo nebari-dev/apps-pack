@@ -214,7 +214,8 @@ Alpha means the happy path works; these are the gaps to know about before a demo
   memory.
 - **Landing-page tiles are off by default** for launched apps (`apps.landingPage.enabled`
   / `spec.landingPage.enabled`); only the pack's own "Apps" tile is registered.
-- **Local dev disables authentication** (`api.auth.enabled=false`); never carry that flag to
+- **Local dev disables authentication** (`api.auth.enabled=false`, with `tls.enabled=false`; the
+  chart refuses to render it with TLS on unless `api.auth.insecureAllowAnonymous=true`); never carry that flag to
   a real cluster.
 
 ## Getting started

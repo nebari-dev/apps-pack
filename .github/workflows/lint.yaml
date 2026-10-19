@@ -27,6 +27,18 @@ jobs:
       - name: helm template (examples/nebari-values.yaml)
         run: helm template test charts/nebari-apps -f examples/nebari-values.yaml > /dev/null
 
+      - name: helm template refuses anonymous auth on a TLS install
+        run: |
+          set -u
+          base="--set clusterDomain=nebari.example.com --set keycloak.url=https://keycloak.nebari.example.com/auth"
+          if out=$(helm template test charts/nebari-apps $base --set api.auth.enabled=false 2>&1); then
+            echo "::error::render succeeded with api.auth.enabled=false and tls.enabled=true"; exit 1
+          fi
+          echo "$out" | grep -q "insecureAllowAnonymous" || { echo "$out"; exit 1; }
+          # The local-dev combination and the explicit override still render.
+          helm template test charts/nebari-apps $base --set api.auth.enabled=false --set tls.enabled=false > /dev/null
+          helm template test charts/nebari-apps $base --set api.auth.enabled=false --set api.auth.insecureAllowAnonymous=true > /dev/null
+
       - name: Validate example App CRs against the CRD schema
         run: |
           curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz \

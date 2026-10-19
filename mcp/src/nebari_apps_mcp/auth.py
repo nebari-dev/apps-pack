@@ -163,6 +163,20 @@ class TokenVerificationError(Exception):
     pass
 
 
+def check_client(claims: dict, allowed: list[str] | None) -> None:
+    """Raise ValueError unless the token was issued to (azp) or for (aud) one
+    of the allowed clients. None disables the check."""
+    if allowed is None:
+        return
+    aud = claims.get("aud") or []
+    auds = [aud] if isinstance(aud, str) else list(aud)
+    if claims.get("azp") in allowed or any(a in allowed for a in auds):
+        return
+    raise ValueError(
+        f"token was issued to client {claims.get('azp')!r}, which is not allowed here"
+    )
+
+
 class JWTValidator:
     """Signature/issuer/expiry verification against the realm JWKS.
 
@@ -170,11 +184,14 @@ class JWTValidator:
     here rejects bad tokens before any tool logic runs.
     """
 
-    def __init__(self, jwks_url: str, issuer: str, audience: str) -> None:
+    def __init__(
+        self, jwks_url: str, issuer: str, audience: str, allowed_clients: list[str] | None = None
+    ) -> None:
         import jwt
 
         self._issuer = issuer
         self._audience = audience
+        self._allowed_clients = allowed_clients
         self._jwks = jwt.PyJWKClient(jwks_url, cache_keys=True, lifespan=300)
 
     def validate(self, token: str) -> dict:
@@ -182,7 +199,7 @@ class JWTValidator:
 
         try:
             signing_key = self._jwks.get_signing_key_from_jwt(token)
-            return jwt.decode(
+            claims = jwt.decode(
                 token,
                 signing_key.key,
                 algorithms=["RS256", "ES256"],
@@ -190,6 +207,8 @@ class JWTValidator:
                 audience=self._audience or None,
                 options={"verify_aud": bool(self._audience)},
             )
+            check_client(claims, self._allowed_clients)
+            return claims
         except Exception as exc:  # noqa: BLE001 - any failure is a rejection
             raise TokenVerificationError(str(exc)) from exc
 
@@ -205,5 +224,10 @@ def get_validator() -> JWTValidator:
             raise TokenVerificationError(
                 "auth is enabled but no JWKS endpoint is configured (OIDC_ISSUER/OIDC_JWKS_URL)"
             )
-        _validator = JWTValidator(settings.jwks_url, settings.oidc_issuer, settings.oidc_audience)
+        _validator = JWTValidator(
+            settings.jwks_url,
+            settings.oidc_issuer,
+            settings.oidc_audience,
+            settings.oidc_allowed_clients,
+        )
     return _validator
