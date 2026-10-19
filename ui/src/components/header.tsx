@@ -85,10 +85,7 @@ export function Header({
         {brandedLogo ? (
           <img src={brandedLogo} alt={title || "Nebari"} className="h-8 w-auto" />
         ) : (
-          <>
-            <img src={nebariLogo} alt="Nebari" className="h-8 w-auto dark:hidden" />
-            <img src={nebariLogoDark} alt="Nebari" className="hidden h-8 w-auto dark:block" />
-          </>
+          <img src={isDarkMode ? nebariLogoDark : nebariLogo} alt="Nebari" className="h-8 w-auto" />
         )}
       </MenuBarBrand>
 
@@ -204,7 +201,7 @@ function ThemeOption({
       className={cn(
         "flex h-auto flex-1 cursor-pointer items-center justify-center gap-1 rounded-sm border border-transparent px-1.5 py-0.5 font-medium text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring",
         "text-muted-foreground-strong hover:text-foreground",
-        "data-checked:border-border-strong data-checked:bg-card data-checked:text-foreground data-checked:shadow-[0_1px_3px_0_rgba(0,0,0,0.10)]",
+        "data-checked:border-border-strong data-checked:bg-card data-checked:text-foreground data-checked:shadow-sm",
       )}
     >
       {children}

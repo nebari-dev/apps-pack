@@ -32,7 +32,10 @@ export function PhaseBadge({ phase }: { phase: string }) {
     },
     Failed: { variant: "destructive", icon: <XCircle className="size-3.5" /> },
     Stopped: { variant: "secondary", icon: <PauseCircle className="size-3.5" /> },
-    Deploying: { variant: "outline", icon: <Loader2 className="size-3.5 animate-spin" /> },
+    Deploying: {
+      variant: "outline",
+      icon: <Loader2 className="size-3.5 motion-safe:animate-spin" />,
+    },
     Pending: { variant: "outline", icon: <CircleDashed className="size-3.5" /> },
   };
   const cfg = map[phase] ?? map.Pending;
@@ -63,13 +66,14 @@ export function KindBadge({ pixiTask }: { pixiTask?: string }) {
 }
 
 /** Deterministic accent color from a string so fallback tiles stay stable. */
+/** Semantic surface/foreground pairs, so tiles follow the theme, dark mode and branding. */
 const TILE_COLORS = [
-  "bg-blue-500/15 text-blue-600 dark:text-blue-300",
-  "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300",
-  "bg-violet-500/15 text-violet-600 dark:text-violet-300",
-  "bg-amber-500/15 text-amber-600 dark:text-amber-300",
-  "bg-rose-500/15 text-rose-600 dark:text-rose-300",
-  "bg-cyan-500/15 text-cyan-600 dark:text-cyan-300",
+  "bg-info text-info-foreground",
+  "bg-success text-success-foreground",
+  "bg-primary/15 text-primary",
+  "bg-warning text-warning-foreground",
+  "bg-accent text-accent-foreground",
+  "bg-secondary text-secondary-foreground",
 ];
 
 function hashIndex(seed: string, mod: number) {
