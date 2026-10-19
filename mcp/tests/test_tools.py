@@ -122,7 +122,7 @@ async def test_stop_start_remove(store):
     await call("start_app", {"namespace": "apps", "name": "docs-site"})
     assert store.apps[("apps", "docs-site")]["spec"]["runtime"]["replicas"] == 1
 
-    result = await call("remove_app", {"namespace": "apps", "name": "docs-site"})
+    result = await call("remove_app", {"namespace": "apps", "name": "docs-site", "confirm": True})
     assert result["deleted"] == "apps/docs-site"
     assert store.apps == {}
 

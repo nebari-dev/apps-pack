@@ -20,10 +20,11 @@ from starlette.middleware import Middleware as ASGIMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
-from .auth import TokenVerificationError, auth, get_validator
+from .auth import MissingSessionError, TokenVerificationError, auth, get_validator
 from .client import ApiClient, ApiError
 from .config import settings
 from .logs import REQUEST_ID_HEADER, RequestIdMiddleware, configure_logging
+from .untrusted import fence_app, fence_logs, summarize_app
 
 if TYPE_CHECKING:
     import mcp_types as mt
@@ -104,7 +105,10 @@ class TokenVerificationMiddleware(Middleware):
         if context.fastmcp_context is not None:
             session_id = context.fastmcp_context.session_id or ""
         passthrough = get_http_headers().get("authorization", "")
-        bearer = await auth.bearer(session_id, passthrough)
+        try:
+            bearer = await auth.bearer(session_id, passthrough)
+        except MissingSessionError as exc:
+            raise ToolError(str(exc)) from exc
         if not bearer:
             raise ToolError("not authenticated: call the authenticate tool and follow its instructions")
         token = bearer.removeprefix("Bearer ").strip()
@@ -120,13 +124,17 @@ mcp.add_middleware(TokenVerificationMiddleware())
 
 
 def _session_id(ctx: Context) -> str:
-    return ctx.session_id or "anonymous"
+    return ctx.session_id or ""
 
 
 async def _api(ctx: Context) -> ApiClient:
     passthrough = get_http_headers().get("authorization", "")
     bearer = await auth.bearer(_session_id(ctx), passthrough)
     return ApiClient(bearer, request_id=_request_id())
+
+
+# Hints for clients that auto-approve tools: these only read.
+READ_ONLY: dict[str, Any] = {"readOnlyHint": True, "openWorldHint": False}
 
 
 def _error(exc: ApiError) -> dict[str, Any]:
@@ -136,7 +144,7 @@ def _error(exc: ApiError) -> dict[str, Any]:
     return out
 
 
-@mcp.tool
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False})
 async def authenticate(ctx: Context) -> dict[str, Any]:
     """Log in to the cluster via the Keycloak device flow, or confirm the cached login.
 
@@ -147,7 +155,7 @@ async def authenticate(ctx: Context) -> dict[str, Any]:
     return await auth.authenticate(_session_id(ctx))
 
 
-@mcp.tool
+@mcp.tool(annotations=READ_ONLY)
 async def describe_cluster(ctx: Context) -> dict[str, Any]:
     """Describe what this cluster supports: available source types, namespaces apps may be
     launched into, and the apps domain (apps get https://<subdomain>.<appsDomain>).
@@ -160,7 +168,7 @@ async def describe_cluster(ctx: Context) -> dict[str, Any]:
         return _error(exc)
 
 
-@mcp.tool
+@mcp.tool(annotations=READ_ONLY)
 async def list_apps(
     ctx: Context,
     namespace: Annotated[str, Field(description="Filter to one namespace; empty = all visible namespaces")] = "",
@@ -170,12 +178,13 @@ async def list_apps(
     """
     try:
         async with await _api(ctx) as api:
-            return await api.get("/apps", params={"namespace": namespace} if namespace else None)
+            apps = await api.get("/apps", params={"namespace": namespace} if namespace else None)
+            return [summarize_app(a) for a in apps]
     except ApiError as exc:
         return _error(exc)
 
 
-@mcp.tool
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": False})
 async def launch_app(
     ctx: Context,
     name: Annotated[str, Field(description="Kubernetes name: lowercase letters, digits, hyphens")],
@@ -294,17 +303,17 @@ async def launch_app(
         return _error(exc)
 
 
-@mcp.tool
+@mcp.tool(annotations=READ_ONLY)
 async def get_app(ctx: Context, namespace: str, name: str) -> Any:
     """Full spec and status for one app: source, runtime, access, URL, and conditions."""
     try:
         async with await _api(ctx) as api:
-            return await api.get(f"/apps/{namespace}/{name}")
+            return fence_app(await api.get(f"/apps/{namespace}/{name}"))
     except ApiError as exc:
         return _error(exc)
 
 
-@mcp.tool
+@mcp.tool(annotations=READ_ONLY)
 async def get_app_status(ctx: Context, namespace: str, name: str) -> Any:
     """Lightweight status poll: phase, URL, replica readiness, conditions, message.
     Poll this after launch_app until phase=Running (typically seconds; image pulls can
@@ -317,7 +326,7 @@ async def get_app_status(ctx: Context, namespace: str, name: str) -> Any:
         return _error(exc)
 
 
-@mcp.tool
+@mcp.tool(annotations=READ_ONLY)
 async def get_app_logs(
     ctx: Context,
     namespace: str,
@@ -329,12 +338,13 @@ async def get_app_logs(
     """
     try:
         async with await _api(ctx) as api:
-            return await api.get(f"/apps/{namespace}/{name}/logs", params={"lines": lines})
+            resp = await api.get(f"/apps/{namespace}/{name}/logs", params={"lines": lines})
+            return fence_logs(str(resp.get("logs", "")))
     except ApiError as exc:
         return _error(exc)
 
 
-@mcp.tool
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": False})
 async def update_app(
     ctx: Context,
     namespace: str,
@@ -349,34 +359,36 @@ async def update_app(
     """Update an existing app's spec. The operator rolls the workload automatically."""
     try:
         async with await _api(ctx) as api:
-            return await api.patch(f"/apps/{namespace}/{name}", json=patch)
+            return fence_app(await api.patch(f"/apps/{namespace}/{name}", json=patch))
     except ApiError as exc:
         return _error(exc)
 
 
-@mcp.tool
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": False})
 async def stop_app(ctx: Context, namespace: str, name: str) -> Any:
     """Scale an app to zero replicas (phase becomes Stopped). Routing and configuration
     are kept; start_app brings it back.
     """
     try:
         async with await _api(ctx) as api:
-            return await api.post(f"/apps/{namespace}/{name}/stop")
+            return fence_app(await api.post(f"/apps/{namespace}/{name}/stop"))
     except ApiError as exc:
         return _error(exc)
 
 
-@mcp.tool
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False})
 async def start_app(ctx: Context, namespace: str, name: str) -> Any:
     """Scale a stopped app back up to one replica."""
     try:
         async with await _api(ctx) as api:
-            return await api.post(f"/apps/{namespace}/{name}/start")
+            return fence_app(await api.post(f"/apps/{namespace}/{name}/start"))
     except ApiError as exc:
         return _error(exc)
 
 
-@mcp.tool
+@mcp.tool(
+    annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": False}
+)
 async def restart_app(ctx: Context, namespace: str, name: str) -> Any:
     """Roll the app's pods without changing its spec (like `kubectl rollout restart`).
     Use after external content or config changes, or to recover a wedged pod. Fails if the
@@ -384,12 +396,12 @@ async def restart_app(ctx: Context, namespace: str, name: str) -> Any:
     """
     try:
         async with await _api(ctx) as api:
-            return await api.post(f"/apps/{namespace}/{name}/restart")
+            return fence_app(await api.post(f"/apps/{namespace}/{name}/restart"))
     except ApiError as exc:
         return _error(exc)
 
 
-@mcp.tool
+@mcp.tool(annotations=READ_ONLY)
 async def get_app_metrics(ctx: Context, namespace: str, name: str) -> Any:
     """Instantaneous CPU (millicores) and memory (Mi) usage per pod, from metrics.k8s.io.
     Returns {available, pods:[{name, cpu, memory}]}; available=false when the cluster has no
@@ -402,11 +414,22 @@ async def get_app_metrics(ctx: Context, namespace: str, name: str) -> Any:
         return _error(exc)
 
 
-@mcp.tool
-async def remove_app(ctx: Context, namespace: str, name: str) -> dict[str, Any]:
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": False})
+async def remove_app(
+    ctx: Context,
+    namespace: str,
+    name: str,
+    confirm: Annotated[
+        bool, Field(description="Must be true: set it only after the user has agreed to delete this app")
+    ] = False,
+) -> dict[str, Any]:
     """Delete an app permanently. Cascades: workload, routing, TLS certificate, and OIDC
-    client are all removed. There is no undo - confirm with the user first.
+    client are all removed. There is no undo - ask the user first, then call with confirm=true.
     """
+    if not confirm:
+        raise ToolError(
+            f"remove_app deletes {namespace}/{name} permanently; ask the user to confirm, then call again with confirm=true"
+        )
     try:
         async with await _api(ctx) as api:
             await api.delete(f"/apps/{namespace}/{name}")

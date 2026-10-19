@@ -59,15 +59,35 @@ anonymously.
 | `authenticate` | Start/complete the device-flow login, or confirm the cached token. |
 | `describe_cluster` | Source types, launchable namespaces, apps domain — call first to pick valid options. |
 | `launch_app` | Create + launch (static, or Python/pixi via `pixi_task`); optional `resources` (requests/limits, cluster defaults otherwise). **Idempotent on (namespace, name)** — re-launching your own app updates it instead of failing, so retries are safe; an app owned by someone else is refused, never overwritten. |
-| `list_apps` | Apps with phase, URL, owner; optional namespace filter. |
-| `get_app` | Full spec + status for one app. |
+| `list_apps` | Apps with phase, URL, owner; optional namespace filter. Inline sources list file `paths` only. |
+| `get_app` | Full spec + status for one app; inline files come back fenced (see below). |
 | `get_app_status` | Lightweight poll: phase, URL, replicas, conditions. |
-| `get_app_logs` | Recent pod logs — first stop when phase is `Failed`. |
+| `get_app_logs` | Recent pod logs (fenced, last 64 KiB) — first stop when phase is `Failed`. |
 | `update_app` | Patch spec (source, runtime, access, …). |
 | `stop_app` / `start_app` | Scale to zero / back up. |
 | `restart_app` | Roll the app's pods without changing the spec; fails if the app is stopped. |
 | `get_app_metrics` | Instantaneous CPU/memory per pod (`available:false` when the cluster has no metrics server). |
-| `remove_app` | Delete permanently (cascades; the tool description tells agents to confirm with the user). |
+| `remove_app` | Delete permanently (cascades). Refused unless called with `confirm: true`, which the agent sets only after the user agrees. |
+
+Every tool carries MCP annotations, so clients that auto-approve tools can tell them
+apart: `describe_cluster`, `list_apps`, `get_app`, `get_app_status`, `get_app_logs` and
+`get_app_metrics` are `readOnlyHint`; `launch_app` (it updates an existing app),
+`update_app`, `stop_app` and `remove_app` are `destructiveHint`.
+
+### Untrusted output
+
+Pod logs and inline source files are written by whoever launched the app, and they land in
+the agent's context. Tools return them inside markers with a random nonce
+(`<untrusted-1a2b…>` … `</untrusted-1a2b…>`) that the content cannot close early, next to
+a `notice` telling the agent to treat the content as data, never as instructions. Logs are
+capped to the last 64 KiB and each inline file to its first 16 KiB (`truncated` /
+`truncatedFiles` say when).
+
+### Sessions
+
+Device-flow logins are kept in the MCP server's memory per MCP session, and dropped after
+`MCP_SESSION_TTL_SECONDS` (default 8 hours) without use. A connection without a session
+id cannot log in. Because sessions are in memory, `mcp.replicaCount` must stay 1.
 
 Every tool returns structured JSON. Errors carry the API's human-readable `detail`, and a
 `401` includes `nextAction: call the authenticate tool`, so agents can self-recover.
