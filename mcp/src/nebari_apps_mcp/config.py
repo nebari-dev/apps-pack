@@ -57,6 +57,11 @@ class Settings:
     # so a plain audience check cannot do this. Unset disables the check.
     oidc_allowed_clients: list[str] | None = field(default_factory=lambda: _client_list("OIDC_ALLOWED_CLIENTS"))
 
+    # Seconds a device-flow login (and its refresh token) is kept after the
+    # session last used it. Sessions live in this process's memory, which is
+    # why mcp.replicaCount must stay 1.
+    session_ttl: float = field(default_factory=lambda: float(os.environ.get("MCP_SESSION_TTL_SECONDS", "28800")))
+
     host: str = field(default_factory=lambda: os.environ.get("HOST", "0.0.0.0"))
     port: int = field(default_factory=lambda: int(os.environ.get("PORT", "8080")))
 

@@ -28,6 +28,7 @@ class TokenState:
     user_code: str = ""
     interval: float = 5.0
     device_expires_at: float = 0.0
+    last_used: float = field(default_factory=time.time)
 
     @property
     def valid(self) -> bool:
@@ -39,7 +40,19 @@ class DeviceFlowAuth:
     _sessions: dict[str, TokenState] = field(default_factory=dict)
 
     def state(self, session_id: str) -> TokenState:
-        return self._sessions.setdefault(session_id or "anonymous", TokenState())
+        """This session's login. Sessions idle longer than the TTL are dropped first.
+
+        Without a session id there is nothing to key a login on, and a shared
+        fallback would hand one agent's token to another, so it is refused.
+        """
+        if not session_id:
+            raise MissingSessionError("this MCP connection has no session id; reconnect with a stateful client")
+        now = time.time()
+        for stale in [sid for sid, s in self._sessions.items() if now - s.last_used > settings.session_ttl]:
+            del self._sessions[stale]
+        state = self._sessions.setdefault(session_id, TokenState())
+        state.last_used = now
+        return state
 
     async def authenticate(self, session_id: str) -> dict[str, Any]:
         """Start, poll, or confirm a device-flow login for this session."""
@@ -55,7 +68,10 @@ class DeviceFlowAuth:
                 "keycloak.url (the OIDC secret provides the client id once the NebariApp reconciles)",
             }
 
-        state = self.state(session_id)
+        try:
+            state = self.state(session_id)
+        except MissingSessionError as exc:
+            return {"status": "unavailable", "message": str(exc)}
 
         if state.valid:
             return {"status": "authenticated", "message": "already logged in; token is valid"}
@@ -158,6 +174,10 @@ class DeviceFlowAuth:
 
 
 auth = DeviceFlowAuth()
+
+
+class MissingSessionError(Exception):
+    pass
 
 
 class TokenVerificationError(Exception):

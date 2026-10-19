@@ -98,7 +98,8 @@ in).
 
 Environment: `API_URL`, `AUTH_ENABLED`, `OIDC_ISSUER`, `OIDC_ISSUER_INTERNAL`,
 `OIDC_DEVICE_CLIENT_ID` (from the UI's OIDC Secret); optional `OIDC_JWKS_URL`,
-`OIDC_AUDIENCE`, `HOST`, `PORT`, `LOG_LEVEL`.
+`OIDC_AUDIENCE`, `HOST`, `PORT`, `LOG_LEVEL`, `MCP_SESSION_TTL_SECONDS` (default 28800:
+how long an idle device-flow login is kept).
 
 ## Logs and probes
 
