@@ -43,14 +43,19 @@ func (r *AppReconciler) aggregateStatus(ctx context.Context, app *appsv1alpha1.A
 	ready := deploy.Status.ReadyReplicas
 	app.Status.Replicas = &appsv1alpha1.AppReplicas{Desired: desired, Ready: ready}
 
-	workloadReady := desired > 0 && ready >= desired
-	if workloadReady {
+	switch {
+	case desired > 0 && ready >= desired && rolledOut(deploy, desired):
 		setCondition(app, appsv1alpha1.ConditionWorkloadReady, metav1.ConditionTrue,
 			"ReplicasReady", fmt.Sprintf("%d/%d replicas ready", ready, desired))
-	} else {
+	case desired > 0 && ready >= desired:
+		// Old pods still serve while the new template rolls out.
+		setCondition(app, appsv1alpha1.ConditionWorkloadReady, metav1.ConditionFalse,
+			"RollingOut", fmt.Sprintf("%d/%d replicas updated", deploy.Status.UpdatedReplicas, desired))
+	default:
 		setCondition(app, appsv1alpha1.ConditionWorkloadReady, metav1.ConditionFalse,
 			"ReplicasNotReady", fmt.Sprintf("%d/%d replicas ready", ready, desired))
 	}
+	workloadReady := meta.IsStatusConditionTrue(app.Status.Conditions, appsv1alpha1.ConditionWorkloadReady)
 
 	// Routing readiness mirrors the NebariApp Ready condition.
 	routingReady := r.readNebariAppReady(ctx, app)
@@ -69,6 +74,16 @@ func (r *AppReconciler) aggregateStatus(ctx context.Context, app *appsv1alpha1.A
 		app.Status.Message = "waiting for workload and routing to become ready"
 	}
 	return nil
+}
+
+// rolledOut mirrors `kubectl rollout status`: the deployment controller has
+// seen the current template, every desired replica runs it, and no pods of an
+// older template remain.
+func rolledOut(d *appsv1.Deployment, desired int32) bool {
+	s := d.Status
+	return s.ObservedGeneration >= d.Generation &&
+		s.UpdatedReplicas >= desired &&
+		s.Replicas <= s.UpdatedReplicas
 }
 
 // readNebariAppReady reports whether the child NebariApp has Ready=True, and

@@ -141,8 +141,10 @@ current state of the ref.
 | Condition | Meaning |
 |---|---|
 | `Validated` | The spec is coherent and the namespace is opted in. `False` with reason `ValidationFailed` is terminal until the spec changes. |
-| `WorkloadReady` | All desired replicas are ready. |
+| `WorkloadReady` | The Deployment has rolled out the current pod template and all desired replicas are ready. `False` with reason `RollingOut` while pods of an older template remain (after an edit or a restart), so a `Running` app goes back to `Deploying` until the new pods are serving. |
 | `RoutingReady` | Mirrors the child `NebariApp`'s `Ready` condition (routing, TLS, auth). |
+
+Each condition's `observedGeneration` is the App generation that set it. When validation fails the operator stops before re-checking the workload and routing, so those two keep the generation they were last evaluated at until the spec is valid again.
 
 ## Children
 

@@ -528,6 +528,7 @@ function toManifest(a: App): string {
   if (a.source) spec.source = a.source;
   if (a.runtime) spec.runtime = a.runtime;
   if (a.access) spec.access = a.access;
+  if (a.landingPage) spec.landingPage = a.landingPage;
   const cr = {
     apiVersion: "apps.nebari.dev/v1alpha1",
     kind: "App",

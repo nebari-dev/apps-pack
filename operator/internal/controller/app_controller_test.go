@@ -172,7 +172,10 @@ func TestReconcileRunningWhenChildrenReady(t *testing.T) {
 	if err := c.Get(ctx, types.NamespacedName{Name: "app-docs-site", Namespace: "team-a"}, deploy); err != nil {
 		t.Fatal(err)
 	}
-	deploy.Status.ReadyReplicas = 1
+	// As the deployment controller reports a finished rollout.
+	deploy.Status = appsv1.DeploymentStatus{
+		ObservedGeneration: deploy.Generation, Replicas: 1, UpdatedReplicas: 1, ReadyReplicas: 1, AvailableReplicas: 1,
+	}
 	if err := c.Status().Update(ctx, deploy); err != nil {
 		t.Fatal(err)
 	}
