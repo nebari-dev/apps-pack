@@ -111,6 +111,9 @@ jobs:
           helm template test charts/nebari-apps -f examples/nebari-values.yaml > "$RUNNER_TEMP/rendered/nebari-values.yaml"
           helm template test charts/nebari-apps "${base[@]}" --set tls.enabled=false --set api.auth.enabled=false \
             > "$RUNNER_TEMP/rendered/local-dev.yaml"
+          helm template test charts/nebari-apps "${base[@]}" --set telemetry.enabled=true \
+            --set 'telemetry.metricsReaders[0].name=prometheus' --set 'telemetry.metricsReaders[0].namespace=monitoring' \
+            > "$RUNNER_TEMP/rendered/telemetry.yaml"
           # Kubernetes types from the default catalog, App from the CRD, the
           # rest from the CRDs catalog; NebariApp is the only kind skipped.
           # Every manifest under examples/ (nebari-values.yaml is Helm values).

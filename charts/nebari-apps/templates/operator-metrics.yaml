@@ -1,0 +1,90 @@
+# controller-runtime metrics (reconcile counts, durations and errors, work
+# queue depth, Go runtime) over HTTPS on 8443. The certificate is self-signed
+# and each scrape's bearer token is checked with a TokenReview and a
+# SubjectAccessReview, so the scraper's ServiceAccount must hold the
+# metrics-reader ClusterRole below.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "nebari-apps.fullname" . }}-operator-metrics
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "nebari-apps.labels" . | nindent 4 }}
+    app.kubernetes.io/component: operator
+  {{- if .Values.telemetry.enabled }}
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/scheme: https
+    prometheus.io/port: "8443"
+    prometheus.io/path: /metrics
+  {{- end }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "nebari-apps.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: operator
+  ports:
+    - name: metrics
+      port: 8443
+      targetPort: metrics
+      protocol: TCP
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "nebari-apps.fullname" . }}-metrics-reader
+  labels:
+    {{- include "nebari-apps.labels" . | nindent 4 }}
+rules:
+  - nonResourceURLs: ["/metrics"]
+    verbs: ["get"]
+{{- with .Values.telemetry.metricsReaders }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "nebari-apps.fullname" $ }}-metrics-reader
+  labels:
+    {{- include "nebari-apps.labels" $ | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "nebari-apps.fullname" $ }}-metrics-reader
+subjects:
+  {{- range . }}
+  - kind: ServiceAccount
+    name: {{ required "telemetry.metricsReaders[].name is required" .name }}
+    namespace: {{ required "telemetry.metricsReaders[].namespace is required" .namespace }}
+  {{- end }}
+{{- end }}
+{{- if .Values.telemetry.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "nebari-apps.fullname" . }}-operator
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "nebari-apps.labels" . | nindent 4 }}
+    {{- with .Values.telemetry.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "nebari-apps.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: operator
+  namespaceSelector:
+    matchNames: [{{ .Release.Namespace }}]
+  endpoints:
+    - port: metrics
+      path: /metrics
+      scheme: https
+      interval: {{ .Values.telemetry.serviceMonitor.interval }}
+      # Prometheus presents its own ServiceAccount token; bind that account
+      # with telemetry.metricsReaders.
+      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      tlsConfig:
+        # The operator's certificate is self-signed and regenerated on start.
+        insecureSkipVerify: true
+{{- end }}
