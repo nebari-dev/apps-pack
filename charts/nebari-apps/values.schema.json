@@ -973,6 +973,30 @@
             },
             "additionalProperties": false
           }
+        },
+        "prometheusRule": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "labels": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "apiErrorRatio": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1
+            },
+            "runbookUrl": {
+              "type": "string",
+              "pattern": "^https?://"
+            }
+          }
         }
       },
       "additionalProperties": false

@@ -285,8 +285,9 @@ keycloak:
 # bearer token whose ServiceAccount holds the <release>-metrics-reader
 # ClusterRole; the certificate is self-signed.
 telemetry:
-  # -- Render a ServiceMonitor (needs the Prometheus Operator CRDs) and the
-  # `prometheus.io/*` scrape annotations on the metrics Service.
+  # -- Render ServiceMonitors for the operator and apps-api (needs the
+  # Prometheus Operator CRDs) and the `prometheus.io/*` scrape annotations on
+  # the operator's metrics Service.
   enabled: false
   serviceMonitor:
     # -- Extra ServiceMonitor labels, e.g. the release label your Prometheus
@@ -297,6 +298,21 @@ telemetry:
   # -- ServiceAccounts allowed to scrape, bound to the metrics-reader
   # ClusterRole, e.g. `[{ name: prometheus-k8s, namespace: monitoring }]`.
   metricsReaders: []
+  prometheusRule:
+    # -- Render a PrometheusRule (needs the Prometheus Operator CRDs) with
+    # alerts for the operator and API being down, reconcile errors and
+    # backlog, the API's 5xx ratio, and pack pods that are unavailable or
+    # restarting. The pod alerts need kube-state-metrics. Each alert links its
+    # runbook section.
+    enabled: false
+    # -- Extra PrometheusRule labels, e.g. the label your Prometheus selects
+    # rules on.
+    labels: {}
+    # -- Fraction of API requests that may fail with a 5xx before
+    # NebariAppsAPIErrorRate fires.
+    apiErrorRatio: 0.05
+    # -- Base URL of the runbook the alerts link to.
+    runbookUrl: https://packs.nebari.dev/apps-pack/runbook/
 
 # =============================================================================
 # App runtime images

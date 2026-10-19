@@ -78,6 +78,25 @@ jobs:
           print("API RBAC scoped to", rbs)
           PY
 
+      # Renders the PrometheusRule, then has promtool check the PromQL and run
+      # the alert unit tests in .github/prometheus/ against it.
+      - name: Alert rules (promtool)
+        run: |
+          helm template t charts/nebari-apps -n nebari-apps -f examples/nebari-values.yaml \
+            --set telemetry.enabled=true --set telemetry.prometheusRule.enabled=true > "$RUNNER_TEMP/mon.yaml"
+          python3 - "$RUNNER_TEMP/mon.yaml" .github/prometheus/rules.yaml <<'PY'
+          import sys, yaml
+          docs = [d for d in yaml.safe_load_all(open(sys.argv[1])) if d]
+          rule = next(d for d in docs if d["kind"] == "PrometheusRule")
+          yaml.safe_dump({"groups": rule["spec"]["groups"]}, open(sys.argv[2], "w"), sort_keys=False)
+          PY
+          docker run --rm --entrypoint promtool -v "$PWD/.github/prometheus:/r:ro" -w /r \
+            prom/prometheus@sha256:49214755b6153f90a597adcbff0252cc61069f8ab69ce8411285cd4a560e8038 \
+            check rules rules.yaml
+          docker run --rm --entrypoint promtool -v "$PWD/.github/prometheus:/r:ro" -w /r \
+            prom/prometheus@sha256:49214755b6153f90a597adcbff0252cc61069f8ab69ce8411285cd4a560e8038 \
+            test rules alerts.test.yaml
+
       - name: helm template refuses anonymous auth on a TLS install
         run: |
           set -u
@@ -261,6 +280,21 @@ jobs:
           controller-gen object paths="./api/..."
           controller-gen crd paths="./api/..." output:crd:artifacts:config=../charts/nebari-apps/crds
           git diff --exit-code || (echo "::error::Generated code is stale; run controller-gen" && exit 1)
+
+      # v1alpha1 only changes additively (App CRD reference, "Versioning and
+      # deprecation"): compare the CRD with the base branch's.
+      - name: CRD stays compatible with stored Apps
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          CRD: charts/nebari-apps/crds/apps.nebari.dev_apps.yaml
+        run: |
+          git fetch --no-tags --depth=1 origin "$BASE_REF"
+          if ! git show "FETCH_HEAD:$CRD" > "$RUNNER_TEMP/base-crd.yaml" 2>/dev/null; then
+            echo "No CRD on $BASE_REF; nothing to compare."; exit 0
+          fi
+          pip install pyyaml==6.0.3
+          python3 .github/scripts/check_crd_compat.py "$RUNNER_TEMP/base-crd.yaml" "$CRD"
 
   python:
     name: Python lint (${{ matrix.package }})

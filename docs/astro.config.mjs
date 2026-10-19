@@ -56,6 +56,7 @@ export default defineConfig({
           label: 'Documentation',
           items: [
             { label: 'Troubleshooting', link: '/troubleshooting/' },
+            { label: 'Runbook', link: '/runbook/' },
             { label: 'Upgrading', link: '/upgrading/' },
             { label: 'CI/CD & releasing', link: '/ci-cd/' },
           ],

@@ -1,0 +1,123 @@
+{{- /*
+apps-api metrics (ServiceMonitor) and the optional PrometheusRule. The
+operator's ServiceMonitor is in operator-metrics.yaml. Alerts select on the
+`namespace` and `service` labels the Prometheus Operator adds to every
+ServiceMonitor target; the pod alerts need kube-state-metrics.
+*/ -}}
+{{- $fullname := include "nebari-apps.fullname" . }}
+{{- $ns := .Release.Namespace }}
+{{- if and .Values.telemetry.enabled .Values.api.enabled }}
+---
+# Request counts and latency by route (apps_api_requests_total,
+# apps_api_request_duration_seconds), plain HTTP on the pod port. The UI's
+# nginx proxies only /api/, so /metrics is not reachable through the gateway.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ $fullname }}-api
+  namespace: {{ $ns }}
+  labels:
+    {{- include "nebari-apps.labels" . | nindent 4 }}
+    {{- with .Values.telemetry.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "nebari-apps.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: api
+  namespaceSelector:
+    matchNames: [{{ $ns }}]
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: {{ .Values.telemetry.serviceMonitor.interval }}
+{{- end }}
+{{- with .Values.telemetry.prometheusRule }}
+{{- if .enabled }}
+{{- $operator := printf "namespace=%q,service=%q" $ns (printf "%s-operator-metrics" $fullname) }}
+{{- $api := printf "namespace=%q,service=%q" $ns (printf "%s-api" $fullname) }}
+{{- $runbook := .runbookUrl | trimSuffix "/" }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ $fullname }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "nebari-apps.labels" $ | nindent 4 }}
+    {{- with .labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: nebari-apps
+      rules:
+        - alert: NebariAppsOperatorDown
+          expr: absent(up{ {{- $operator -}} } == 1)
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: The apps-operator is not being scraped or is down.
+            description: No healthy scrape of {{ $fullname }}-operator-metrics in {{ $ns }} for 10 minutes. Apps are not being reconciled.
+            runbook_url: {{ $runbook }}/#the-operator-is-not-reconciling
+        - alert: NebariAppsReconcileErrors
+          expr: sum(rate(controller_runtime_reconcile_errors_total{ {{- $operator -}} ,controller="app"}[10m])) > 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: The apps-operator keeps failing to reconcile Apps.
+            description: "{{`{{ $value | humanize }}`}} reconcile errors per second for 15 minutes; see the operator's logs."
+            runbook_url: {{ $runbook }}/#the-operator-is-not-reconciling
+        - alert: NebariAppsReconcileBacklog
+          expr: max(workqueue_depth{ {{- $operator -}} ,name="app"}) > 25
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: Apps are queued faster than the operator reconciles them.
+            description: "{{`{{ $value }}`}} Apps waiting in the operator's work queue for 15 minutes."
+            runbook_url: {{ $runbook }}/#the-operator-is-not-reconciling
+        {{- if $.Values.api.enabled }}
+        - alert: NebariAppsAPIDown
+          expr: absent(up{ {{- $api -}} } == 1)
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: apps-api is not being scraped or is down.
+            description: No healthy scrape of {{ $fullname }}-api in {{ $ns }} for 5 minutes. The UI and the MCP server cannot list or change Apps.
+            runbook_url: {{ $runbook }}/#the-api-is-down-or-returns-errors
+        - alert: NebariAppsAPIErrorRate
+          expr: |
+            sum(rate(apps_api_requests_total{ {{- $api -}} ,status=~"5.."}[5m]))
+              / sum(rate(apps_api_requests_total{ {{- $api -}} }[5m])) > {{ .apiErrorRatio }}
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: apps-api is answering with server errors.
+            description: "{{`{{ $value | humanizePercentage }}`}} of API requests failed with a 5xx for 10 minutes."
+            runbook_url: {{ $runbook }}/#the-api-is-down-or-returns-errors
+        {{- end }}
+        - alert: NebariAppsPodsUnavailable
+          expr: max by (deployment) (kube_deployment_status_replicas_unavailable{namespace={{ $ns | quote }},deployment=~{{ printf "%s-(operator|api|ui|mcp)" $fullname | quote }}}) > 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: A pack Deployment has unavailable replicas.
+            description: "{{`{{ $labels.deployment }}`}} has had unavailable replicas for 10 minutes: its readiness probe is failing or its pods cannot start."
+            runbook_url: {{ $runbook }}/#a-pack-pod-is-not-ready
+        - alert: NebariAppsPodRestarting
+          expr: sum by (pod) (increase(kube_pod_container_status_restarts_total{namespace={{ $ns | quote }},pod=~{{ printf "%s-.*" $fullname | quote }}}[30m])) > 3
+          labels:
+            severity: warning
+          annotations:
+            summary: A pack pod keeps restarting.
+            description: "{{`{{ $labels.pod }}`}} restarted {{`{{ $value | humanize }}`}} times in 30 minutes: its liveness probe is failing or it is crashing."
+            runbook_url: {{ $runbook }}/#a-pack-pod-is-not-ready
+{{- end }}
+{{- end }}

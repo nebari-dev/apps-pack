@@ -18,6 +18,7 @@ const TITLES: Record<string, string> = {
   branding: 'Branding',
   'local-development': 'Local development',
   troubleshooting: 'Troubleshooting',
+  runbook: 'Runbook',
   upgrading: 'Upgrading',
   'ci-cd': 'CI/CD &amp; releasing',
   configuration: 'Configuration',
@@ -38,7 +39,7 @@ beforeAll(async () => {
   await $`bun run build`.cwd(SITE);
 });
 
-test('all 14 pages render at dist root with their titles', () => {
+test('all 15 pages render at dist root with their titles', () => {
   for (const [slug, title] of Object.entries(TITLES)) {
     expect(existsSync(pagePath(slug))).toBe(true);
     expect(readPage(slug)).toContain(title);
@@ -105,4 +106,17 @@ test('every nebari-operator version written outside the docs matches .nebari-ope
       `${name}: `,
     );
   }
+});
+
+test("every runbook link in the chart's alerts lands on a runbook heading", () => {
+  const rules = readFileSync(join(REPO, 'charts', 'nebari-apps', 'templates', 'monitoring.yaml'), 'utf8');
+  const anchors = [...rules.matchAll(/runbook_url: \{\{ \$runbook \}\}\/#([a-z0-9-]+)/g)].map((m) => m[1]);
+  expect(anchors.length).toBeGreaterThan(0);
+  const page = readPage('runbook');
+  for (const anchor of new Set(anchors)) {
+    expect(`#${anchor}: ${page.includes(`id="${anchor}"`)}`).toBe(`#${anchor}: true`);
+  }
+  // The default runbookUrl points at this page on the published site.
+  const values = readFileSync(join(REPO, 'charts', 'nebari-apps', 'values.yaml'), 'utf8');
+  expect(values).toContain(`runbookUrl: https://packs.nebari.dev${BASE}/runbook/`);
 });

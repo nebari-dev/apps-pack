@@ -65,7 +65,8 @@ helm rollback nebari-apps <REVISION> -n nebari-apps
 ```
 
 `helm rollback` restores the workloads, RBAC and values, but not the CRD. CRD changes
-within `v1alpha1` are additive, so the newer CRD keeps working with the older operator.
+within `v1alpha1` are additive ([versioning policy](/app-crd-reference/#versioning-and-deprecation),
+checked in CI), so the newer CRD keeps working with the older operator.
 If Apps were lost, re-apply the backup:
 
 ```bash

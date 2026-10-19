@@ -128,12 +128,24 @@ with a `TokenReview` and a `SubjectAccessReview`, so it must belong to a Service
 bound to the `<release>-metrics-reader` ClusterRole (`get` on the `/metrics` URL). Anything
 else gets `401` or `403`.
 
+apps-api serves `/metrics` on its pod port (plain HTTP, no token) with
+`apps_api_requests_total{method,route,status}` and
+`apps_api_request_duration_seconds{method,route}`. `route` is the route template (for
+example `/api/v1/apps/{namespace}/{name}`), so the series count does not grow with the
+number of Apps. The UI's nginx proxies only `/api/`, so the endpoint is reachable inside the
+cluster but not through the gateway; with `apps.networkPolicy` or your own policies, allow
+your Prometheus to reach the API Service.
+
 | Value | Default | Purpose |
 |---|---|---|
-| `telemetry.enabled` | `false` | Render a `ServiceMonitor` for the operator (needs the Prometheus Operator CRDs) and `prometheus.io/*` scrape annotations on the metrics Service. |
+| `telemetry.enabled` | `false` | Render `ServiceMonitor`s for the operator and apps-api (needs the Prometheus Operator CRDs) and `prometheus.io/*` scrape annotations on the operator's metrics Service. |
 | `telemetry.serviceMonitor.labels` | `{}` | Extra labels on the ServiceMonitor, e.g. the `release` label your Prometheus selects on. |
 | `telemetry.serviceMonitor.interval` | `30s` | Scrape interval. |
 | `telemetry.metricsReaders` | `[]` | ServiceAccounts (`{name, namespace}`) bound to the metrics-reader ClusterRole: list your Prometheus or Alloy account here. |
+| `telemetry.prometheusRule.enabled` | `false` | Render a `PrometheusRule` with the alerts in the [runbook](/runbook/#alerts). The pod alerts need kube-state-metrics. |
+| `telemetry.prometheusRule.labels` | `{}` | Extra labels on the PrometheusRule, e.g. the label your Prometheus selects rules on. |
+| `telemetry.prometheusRule.apiErrorRatio` | `0.05` | Share of API requests that may fail with a 5xx before `NebariAppsAPIErrorRate` fires. |
+| `telemetry.prometheusRule.runbookUrl` | `https://packs.nebari.dev/apps-pack/runbook/` | Base URL of the runbook the alerts' `runbook_url` annotations point to; override it to link a fork or an internal copy. |
 
 The ServiceMonitor scrapes with Prometheus's own ServiceAccount token and skips certificate
 verification, since the certificate is regenerated on every operator start. To check the
