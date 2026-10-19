@@ -15,16 +15,21 @@ export interface AppSource {
 
 export interface EnvVar {
   name: string;
-  value: string;
+  value?: string;
+  /** A Secret, ConfigMap or field reference set with kubectl; kept as is. */
+  valueFrom?: Record<string, unknown>;
 }
+
+/** Resource name (cpu, memory, ephemeral-storage, nvidia.com/gpu, ...) -> quantity. */
+export type ResourceAmounts = Record<string, string | undefined>;
 
 export interface AppRuntime {
   env?: EnvVar[];
   replicas?: number;
-  resources?: {
-    requests?: { cpu?: string; memory?: string };
-    limits?: { cpu?: string; memory?: string };
-  };
+  /** null in a PATCH clears it; an omitted field keeps the stored value. */
+  resources?: { requests?: ResourceAmounts; limits?: ResourceAmounts } | null;
+  /** Reserved (scale-to-zero); only round-tripped. */
+  keepAlive?: boolean;
   /** When set, the app runs as a Python/pixi service via `pixi run <task>`. */
   pixiTask?: string;
 }

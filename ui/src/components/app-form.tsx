@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
-import type { App, AppCreate, AppPatch, AppSource, EnvVar } from "@/lib/types";
+import type { App, AppCreate, AppPatch, AppSource, EnvVar, ResourceAmounts } from "@/lib/types";
 
 const SUBDOMAIN_RE = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/;
 
@@ -148,12 +148,21 @@ export function AppForm({
     setMemLim(p.memLim);
   };
 
+  // The form edits cpu and memory; any other resource the App already has
+  // (ephemeral-storage, a GPU limit set with kubectl) is carried over. null
+  // clears resources on an edit, since an omitted field keeps its value.
   const buildResources = () => {
-    const requests =
-      cpuReq || memReq ? { cpu: cpuReq || undefined, memory: memReq || undefined } : undefined;
-    const limits =
-      cpuLim || memLim ? { cpu: cpuLim || undefined, memory: memLim || undefined } : undefined;
-    return requests || limits ? { requests, limits } : undefined;
+    const merge = (base: ResourceAmounts | undefined, cpu: string, memory: string) => {
+      const { cpu: _cpu, memory: _memory, ...rest } = base ?? {};
+      const out: ResourceAmounts = { ...rest };
+      if (cpu) out.cpu = cpu;
+      if (memory) out.memory = memory;
+      return Object.keys(out).length ? out : undefined;
+    };
+    const current = initial?.runtime?.resources ?? undefined;
+    const requests = merge(current?.requests, cpuReq, memReq);
+    const limits = merge(current?.limits, cpuLim, memLim);
+    return requests || limits ? { ...current, requests, limits } : null;
   };
 
   const buildSource = (): AppSource | undefined => {
@@ -524,7 +533,9 @@ export function AppForm({
                 <Input
                   placeholder="value"
                   className="font-mono"
-                  value={env.value}
+                  // A valueFrom reference (set with kubectl) is kept but not editable here.
+                  value={env.valueFrom ? describeValueFrom(env.valueFrom) : (env.value ?? "")}
+                  disabled={Boolean(env.valueFrom)}
                   onChange={(e) =>
                     setEnvVars(
                       envVars.map((v, j) => (j === i ? { ...v, value: e.target.value } : v)),
@@ -633,6 +644,14 @@ export function AppForm({
       </div>
     </div>
   );
+}
+
+/** "secret site/token", "configMap cfg/key" or the reference's kind. */
+function describeValueFrom(ref: Record<string, unknown>): string {
+  const [kind, target] = Object.entries(ref)[0] ?? ["reference", {}];
+  const { name, key } = (target ?? {}) as { name?: string; key?: string };
+  const label = kind.replace(/KeyRef$|Ref$/, "");
+  return name ? `from ${label} ${name}${key ? `/${key}` : ""}` : `from ${label}`;
 }
 
 function splitGroups(raw: string): string[] {

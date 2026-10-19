@@ -2,12 +2,26 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
+
+from pydantic import BaseModel
 
 from .k8s import GROUP, VERSION
 from .models import AppCreate, AppOut, AppPatch, AppStatus
 
 API_VERSION = f"{GROUP}/{VERSION}"
+
+# A Kubernetes label value. Usernames that are not one (an email-style
+# preferred_username) get no owner label: spec.owner is the owner either way,
+# and rewriting the name to fit could collide with another user's.
+_LABEL_VALUE = re.compile(r"^(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?$")
+
+
+def owner_labels(owner: str) -> dict[str, str]:
+    if owner and len(owner) <= 63 and _LABEL_VALUE.match(owner):
+        return {"apps.nebari.dev/owner": owner}
+    return {}
 
 
 def _clean(obj: Any) -> Any:
@@ -44,11 +58,27 @@ def to_cr(req: AppCreate, owner: str) -> dict[str, Any]:
         "metadata": {
             "name": req.name,
             "namespace": req.namespace,
-            "labels": ({"apps.nebari.dev/owner": owner} if owner else {})
-            | {"apps.nebari.dev/subdomain": req.access.subdomain},
+            "labels": owner_labels(owner) | {"apps.nebari.dev/subdomain": req.access.subdomain},
         },
         "spec": _clean(spec) | {"access": {**_clean(spec["access"]), "public": req.access.public}},
     }
+
+
+def _merge(current: Any, change: BaseModel) -> dict[str, Any]:
+    """Merge the fields a PATCH sent into the stored object. Fields it did not
+    send keep their stored value, so a partial runtime or access edit does not
+    drop what another producer (kubectl, GitOps) set; a field sent empty or
+    null is removed.
+    """
+    merged = dict(current) if isinstance(current, dict) else {}
+    sent = change.model_dump(include=change.model_fields_set)
+    for key, value in sent.items():
+        value = _clean(value)
+        if value in (None, {}, [], ""):
+            merged.pop(key, None)
+        else:
+            merged[key] = value
+    return merged
 
 
 def apply_patch(cr: dict[str, Any], patch: AppPatch) -> dict[str, Any]:
@@ -62,9 +92,9 @@ def apply_patch(cr: dict[str, Any], patch: AppPatch) -> dict[str, Any]:
     if patch.source is not None:
         spec["source"] = _clean(patch.source.model_dump())
     if patch.runtime is not None:
-        spec["runtime"] = _clean(patch.runtime.model_dump())
+        spec["runtime"] = _merge(spec.get("runtime"), patch.runtime)
     if patch.access is not None:
-        spec["access"] = _clean(patch.access.model_dump()) | {"public": patch.access.public}
+        spec["access"] = _merge(spec.get("access"), patch.access) | {"public": patch.access.public}
     if patch.landingPage is not None:
         if patch.landingPage.enabled is None:
             spec.pop("landingPage", None)  # back to the cluster default
