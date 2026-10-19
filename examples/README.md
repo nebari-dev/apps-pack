@@ -20,6 +20,10 @@ kubectl get apps -n apps -w
 | `web-terminal/` | An interactive **bash shell in the browser** via [ttyd](https://github.com/tsl0922/ttyd), with vim, nano, git, gh, curl, wget, ssh, jq, yq, ripgrep, fd, bat, htop, tree, tmux, fzf, make, zip/unzip and Python on PATH — all from conda-forge via `pixi.toml`, no image build. `terminal.sh` + `bashrc` give the shell a prompt, git identity and a username (app pods run as UID 65532 with no passwd entry — nss_wrapper fixes that fully on linux-64; elsewhere the prompt falls back to `$USER`). SSO-gated (`access.public: false`) because it is a shell. |
 | `static/` | The content `static-git-app.yaml` points at (`subdir: examples/static`). |
 | `nebari-values.yaml` | Helm values for a full Nebari deployment — deploys unmodified except for `clusterDomain` and `keycloak.url`. |
+| `argocd-application.yaml` | Argo CD `Application` installing the published chart (OCI, `ghcr.io/nebari-dev/apps-pack/charts`) with the same values, auto-sync and the `nebari.dev/managed` namespace label. |
+
+CI validates every manifest here, and the rendered chart, with kubeconform: the App CRs against
+the CRD schema with unknown fields rejected.
 
 The operator reconciles each `App` into a Deployment, a Service, and a
 `NebariApp` (routing + TLS + auth, plus a landing-page tile when the App sets

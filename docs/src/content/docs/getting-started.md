@@ -59,6 +59,14 @@ helm install nebari-apps oci://ghcr.io/nebari-dev/apps-pack/charts/nebari-apps \
   --namespace nebari-apps --create-namespace -f examples/nebari-values.yaml
 ```
 
+With GitOps, apply the Argo CD `Application` in
+[`examples/argocd-application.yaml`](https://github.com/nebari-dev/apps-pack/blob/main/examples/argocd-application.yaml) instead: it installs the same published chart
+with the same values (edit the two hostnames and `targetRevision`).
+
+```bash
+kubectl apply -n argocd -f examples/argocd-application.yaml
+```
+
 This deploys four components:
 
 | Component | Where it ends up |
