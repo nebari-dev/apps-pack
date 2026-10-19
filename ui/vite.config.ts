@@ -38,6 +38,17 @@ export default defineConfig({
     globals: true,
     setupFiles: "./tests/setup.ts",
     include: ["tests/**/*.{test,spec}.{ts,tsx}"],
+    // `npm run test:coverage` (CI) fails below these. They cover the app's own
+    // code: components/ui/ is vendored from the @nebari registry and tested
+    // there, and main.tsx is boot wiring. Set a little under today's numbers;
+    // raise them as tests land.
+    coverage: {
+      provider: "v8",
+      include: ["src/**"],
+      exclude: ["src/components/ui/**", "src/main.tsx"],
+      reporter: ["text-summary", "text"],
+      thresholds: { statements: 78, branches: 69, functions: 71, lines: 79 },
+    },
   },
   server: {
     port: 5173,
