@@ -186,6 +186,13 @@ jobs:
       - name: Build
         run: npm run build
 
+      # The e2e job below tests this exact build rather than rebuilding it.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ui-dist
+          path: ui/dist
+          retention-days: 1
+
       # Budgets are in ui/package.json "bundleBudget".
       - name: Bundle size budget
         run: npm run size
@@ -196,6 +203,54 @@ jobs:
 
       - name: npm audit
         run: npm audit --audit-level=high
+
+  # Playwright on Chromium against `vite preview` of the UI job's build, with
+  # the apps-api mocked (ui/e2e/fixtures.ts): the user flows, keyboard use, and
+  # axe in light and dark (the @a11y tests). The HTML report is uploaded on
+  # every run, pass or fail.
+  ui-e2e:
+    name: UI e2e + a11y
+    needs: ui
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: ui/.node-version
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - run: npm ci
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ui-dist
+          path: ui/dist
+
+      # Browsers are keyed on the lockfile, which pins the Playwright version.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('ui/package-lock.json') }}
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Playwright
+        run: npm run test:e2e
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: ui/playwright-report
+          retention-days: 14
 
   chart:
     name: Helm chart

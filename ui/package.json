@@ -11,7 +11,9 @@
     "check": "biome check --write",
     "check:ci": "biome ci",
     "size": "node scripts/check-bundle-size.mjs",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:a11y": "playwright test --grep @a11y"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -28,7 +30,9 @@
     "tailwind-merge": "^3.7.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
     "@biomejs/biome": "2.5.15",
+    "@playwright/test": "^1.64.1",
     "@tailwindcss/vite": "^4.3.3",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/jest-dom": "^7.0.1",

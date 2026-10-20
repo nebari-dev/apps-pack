@@ -51,7 +51,7 @@ chart; see the `chart` job for the arguments).
 | CRD / deepcopy | `operator/` | Regenerate with `controller-gen` v0.21.0 (commands below) and commit the result; CI fails on drift. |
 | apps-api | `api/` | `uv lock --check`, `uv sync --frozen --extra dev`, `uv run --frozen --no-sync python -m pytest -q --cov` (fails under `fail_under` in `pyproject.toml`), then `ruff check .`, `ruff format --check .` and `mypy` (strict) through `uv run --frozen --no-sync` |
 | apps-mcp | `mcp/` | Same as apps-api, plus `uv pip install --no-deps -e ../api` before the tests (they drive the real API in process). |
-| apps-ui | `ui/` | `npm ci`, `npm run check:ci` (Biome lint and format; `npm run check` applies fixes), `npm run build`, `npm run size` (bundle budget, below), `npm run test:coverage` (the tests plus the coverage thresholds in `vite.config.ts`) |
+| apps-ui | `ui/` | `npm ci`, `npm run check:ci` (Biome lint and format; `npm run check` applies fixes), `npm run build`, `npm run size` (bundle budget, below), `npm run test:coverage` (the tests plus the coverage thresholds in `vite.config.ts`), `npm run test:e2e` (Playwright end-to-end and accessibility suite, below; `npm run test:a11y` runs only its accessibility tests) |
 | Helm chart | `charts/nebari-apps/` | `helm lint charts/nebari-apps --set clusterDomain=nebari.example.com`, and `helm template` with `examples/nebari-values.yaml` (both validate against `values.schema.json`); the chart README must match `values.yaml` (regenerate below) |
 | Docs | `docs/` | `bun install --frozen-lockfile`, `bun test test`, `bun run build` |
 | Dependencies | `api/`, `mcp/`, `ui/` | `pip-audit` over the locked Python deps, `npm audit --audit-level=high` |
@@ -69,6 +69,17 @@ is over `bundleBudget` in `ui/package.json` (kB, gzip; 195 initial and 240 total
 5% above the current build). Pages load on first visit (`React.lazy` in `src/main.tsx`) and
 keycloak-js only when auth is on, so new page code rarely touches the initial number. If it
 goes over, move the code out of the initial load before raising the budget.
+
+The UI's end-to-end suite (`ui/e2e/`, Playwright on Chromium) loads the production build
+under `vite preview`, so run `npm run build` first. It mocks the apps-api with `page.route`
+fixtures (`ui/e2e/fixtures.ts`, App data in `ui/e2e/data.ts`), so no cluster is needed. It
+covers the apps list with its empty and error states, launching an app (validation included),
+an app's detail and logs, and keyboard-only use of the launch form, the app actions and the
+account menu. Tests tagged `@a11y` run axe over every page in light and dark and fail on a
+`critical` or `serious` WCAG 2.0/2.1 A or AA violation; unlike the jsdom check in
+`ui/tests/pages/a11y.test.tsx`, they see real color contrast and focus order. One-time setup is
+`npx playwright install chromium`; after a run, `npx playwright show-report` opens the HTML
+report (CI uploads it as the `playwright-report` artifact).
 
 The operator's envtest suite runs the reconciler against a real kube-apiserver and etcd (no
 kubelet), so it covers CRD validation, generations and watches that the fake client does not:

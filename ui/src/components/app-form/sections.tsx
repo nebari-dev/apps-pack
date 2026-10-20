@@ -186,7 +186,7 @@ export function SourceSection({ form }: { form: FormContext }) {
             <TabsPanel value="upload" className="mt-4">
               <label
                 htmlFor="file-upload"
-                className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-border border-dashed p-8 text-center hover:bg-accent"
+                className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-border border-dashed p-8 text-center hover:bg-accent has-focus-visible:ring-2 has-focus-visible:ring-ring"
               >
                 <UploadCloud className="size-6 text-muted-foreground" />
                 {file ? (
@@ -214,7 +214,9 @@ export function SourceSection({ form }: { form: FormContext }) {
                   {...errorProps("file")}
                   type="file"
                   accept={kind === "pixi" ? ".zip" : ".zip,.html,.htm"}
-                  className="hidden"
+                  // Visually hidden, not display:none, so it stays in the tab
+                  // order; the drop zone shows its focus ring.
+                  className="sr-only"
                   onChange={(e) => set("file", e.target.files?.[0] ?? null)}
                 />
               </label>
