@@ -72,7 +72,7 @@ func TestAuthzSidecarStaticApp(t *testing.T) {
 		t.Errorf("app ports = %+v, want only %d under another name", main.Ports, AppInternalPort)
 	}
 	for _, p := range []*corev1.Probe{main.ReadinessProbe, main.LivenessProbe} {
-		if p == nil || p.HTTPGet == nil || p.HTTPGet.Path != "/upstreamz" || p.HTTPGet.Port.StrVal != authzHealthName {
+		if p == nil || p.HTTPGet == nil || p.HTTPGet.Path != "/upstreamz" || p.HTTPGet.Port.IntVal != authzHealthPort {
 			t.Errorf("app probe = %+v, want the sidecar's /upstreamz", p)
 		}
 	}
@@ -135,7 +135,7 @@ func TestAuthzSidecarPixiApp(t *testing.T) {
 		t.Errorf("PORT = %q, want 8081", envOf(main)["PORT"])
 	}
 	for _, p := range []*corev1.Probe{main.StartupProbe, main.ReadinessProbe, main.LivenessProbe} {
-		if p == nil || p.HTTPGet == nil || p.HTTPGet.Path != "/upstreamz" || p.TCPSocket != nil {
+		if p == nil || p.HTTPGet == nil || p.HTTPGet.Path != "/upstreamz" || p.HTTPGet.Port.IntVal != authzHealthPort || p.TCPSocket != nil {
 			t.Errorf("app probe = %+v, want the sidecar's /upstreamz", p)
 		}
 	}

@@ -135,8 +135,11 @@ func (r *AppReconciler) addAuthzSidecar(app *appsv1alpha1.App, pod *corev1.PodSp
 		ContainerPort: AppInternalPort,
 		Protocol:      corev1.ProtocolTCP,
 	}}
+	// By number, not name: a probe's named port must belong to the probed
+	// container, and authz-health is the sidecar's. The pod shares one
+	// network namespace, so the kubelet reaches the sidecar on this port.
 	upstreamz := corev1.ProbeHandler{
-		HTTPGet: &corev1.HTTPGetAction{Path: "/upstreamz", Port: intstr.FromString(authzHealthName)},
+		HTTPGet: &corev1.HTTPGetAction{Path: "/upstreamz", Port: intstr.FromInt32(authzHealthPort)},
 	}
 	for _, p := range []*corev1.Probe{main.StartupProbe, main.ReadinessProbe, main.LivenessProbe} {
 		if p != nil {
