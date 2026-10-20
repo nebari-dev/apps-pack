@@ -120,3 +120,34 @@ def test_jwt_validator_binds_tokens_to_pack_clients():
     empty._jwks.get_signing_key_from_jwt = lambda _t: _Key()  # type: ignore[method-assign]
     with pytest.raises(TokenVerificationError):
         empty.validate(tok("apps-ui-spa"))
+
+
+async def test_bearer_passthrough_over_http(auth_on, monkeypatch):
+    """A token on the MCP HTTP request authenticates the call and reaches apps-api.
+
+    Runs the real Streamable HTTP app so header handling is the production
+    path; the in-memory client above never sends HTTP headers at all.
+    """
+    import httpx
+    from fastmcp.utilities.tests import asgi_client
+
+    from nebari_apps_mcp import client as mcp_client
+
+    seen: list[str] = []
+    inner = mcp_client.transport
+
+    class Capture(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+            seen.append(request.headers.get("authorization", ""))
+            return await inner.handle_async_request(request)
+
+    monkeypatch.setattr(mcp_client, "transport", Capture())
+
+    async with asgi_client(mcp, auth="good-token") as client:
+        caps = (await client.call_tool("describe_cluster", {})).data
+        assert "inline" in caps["sourceTypes"]
+    assert seen and all(h == "Bearer good-token" for h in seen)
+
+    async with asgi_client(mcp, auth="forged-token") as client:
+        with pytest.raises(ToolError, match="token rejected"):
+            await client.call_tool("describe_cluster", {})
