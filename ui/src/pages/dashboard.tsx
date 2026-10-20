@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Activity, Boxes, Layers, Rocket } from "lucide-react";
+import { Activity, AlertTriangle, Boxes, Layers, Rocket } from "lucide-react";
 import { Link } from "react-router-dom";
 import {
   AppThumbnail,
@@ -10,13 +10,15 @@ import {
   StatCard,
 } from "@/components/app-bits";
 import { Onboarding } from "@/components/onboarding";
-import { QueryError } from "@/components/query-error";
+import { errorMessage, QueryError } from "@/components/query-error";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { api } from "@/lib/api";
 import { listInterval } from "@/lib/polling";
+import type { App, ClusterMetrics } from "@/lib/types";
 
 export function DashboardPage() {
   const heading = usePageTitle("Dashboard");
@@ -29,6 +31,11 @@ export function DashboardPage() {
     queryKey: ["apps"],
     queryFn: () => api.listApps(),
     refetchInterval: (q) => listInterval(q.state.data),
+  });
+  const metrics = useQuery({
+    queryKey: ["cluster-metrics"],
+    queryFn: api.clusterMetrics,
+    refetchInterval: 10_000,
   });
 
   if (analytics.isLoading) {
@@ -114,6 +121,21 @@ export function DashboardPage() {
         />
       </div>
 
+      <Card>
+        <CardHeader className="flex-row items-center gap-2">
+          <AlertTriangle aria-hidden="true" className="size-4 text-muted-foreground" />
+          <CardTitle>Needs attention</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <NeedsAttention
+            apps={apps.data}
+            metrics={metrics.data}
+            loading={apps.isLoading || metrics.isLoading}
+            error={metrics.error ?? apps.error}
+          />
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card>
           <CardHeader>
@@ -192,5 +214,105 @@ export function DashboardPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+interface AttentionItem {
+  namespace: string;
+  name: string;
+  label: string;
+  failed: boolean;
+  restarts: number;
+}
+
+/**
+ * Apps in the Failed phase merged with apps whose containers restarted, one row
+ * per app, failed first and then by restart count.
+ */
+function attentionItems(apps: App[], metrics: ClusterMetrics | undefined): AttentionItem[] {
+  const labels = new Map(apps.map((a) => [appKey(a), a.displayName || a.name]));
+  const items = new Map<string, AttentionItem>();
+  const item = (a: { namespace: string; name: string }) => {
+    const key = appKey(a);
+    const found = items.get(key);
+    if (found) return found;
+    const created = {
+      namespace: a.namespace,
+      name: a.name,
+      label: labels.get(key) ?? a.name,
+      failed: false,
+      restarts: 0,
+    };
+    items.set(key, created);
+    return created;
+  };
+  for (const a of apps) if (a.status.phase === "Failed") item(a).failed = true;
+  for (const u of metrics?.apps ?? []) if (u.restarts > 0) item(u).restarts = u.restarts;
+  return [...items.values()].sort(
+    (a, b) => Number(b.failed) - Number(a.failed) || b.restarts - a.restarts,
+  );
+}
+
+const appKey = (a: { namespace: string; name: string }) => `${a.namespace}/${a.name}`;
+
+function NeedsAttention({
+  apps,
+  metrics,
+  loading,
+  error,
+}: {
+  apps: App[] | undefined;
+  metrics: ClusterMetrics | undefined;
+  loading: boolean;
+  error: unknown;
+}) {
+  if (loading) {
+    return (
+      <div className="flex h-16 items-center justify-center">
+        <Spinner className="size-5" />
+      </div>
+    );
+  }
+  const items = attentionItems(apps ?? [], metrics);
+  return (
+    <>
+      {/* A failed request still lists what is known, but never claims the all-clear. */}
+      {error ? (
+        <p role="alert" className="mb-2 text-destructive-foreground text-sm">
+          Could not check every app: {errorMessage(error)}
+        </p>
+      ) : null}
+      {items.length === 0 && !error ? (
+        <p className="text-muted-foreground text-sm">
+          Everything is running — no restarts or failed apps.
+        </p>
+      ) : null}
+      {items.length > 0 ? (
+        <ul className="divide-y divide-border">
+          {items.map((a) => {
+            const hot = a.failed || a.restarts >= 3;
+            const restarts = `${a.restarts} restart${a.restarts === 1 ? "" : "s"}`;
+            return (
+              <li key={appKey(a)} className="flex items-center justify-between gap-3 py-2">
+                <div className="min-w-0">
+                  <Link
+                    to={`/apps/${a.namespace}/${a.name}`}
+                    className="font-medium text-sm hover:underline"
+                  >
+                    {a.label}
+                  </Link>
+                  <p className="text-muted-foreground text-xs">{a.namespace}</p>
+                </div>
+                <Badge variant={hot ? "destructive" : "secondary"} className="tabular-nums">
+                  {[a.failed ? "Failed" : "", a.restarts > 0 ? restarts : ""]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </Badge>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+    </>
   );
 }

@@ -21,7 +21,7 @@ export function pollFor<T extends number | false>(
   return phases.every(isSettled) ? slow : fast;
 }
 
-/** Interval for a query holding a list of apps (dashboard, apps, metrics). */
+/** Interval for a query holding a list of apps (dashboard, apps). */
 export const listInterval = (apps: { status?: { phase?: string } }[] | undefined) =>
   pollFor(
     (apps ?? []).map((a) => a.status?.phase),

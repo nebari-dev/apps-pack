@@ -16,12 +16,12 @@ describe("Header", () => {
     expect(screen.getByRole("link", { name: /go to homepage/i })).toHaveAttribute("href", "/");
   });
 
-  it("shows the app navigation links", () => {
+  it("shows the app navigation links, without a Metrics page", () => {
     renderWithRouter(<Header />);
 
     expect(screen.getByRole("link", { name: /dashboard/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /apps/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /metrics/i })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /metrics/i })).not.toBeInTheDocument();
   });
 
   it("shows the user name when signed in", () => {

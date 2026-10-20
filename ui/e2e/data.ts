@@ -153,19 +153,29 @@ export function analyticsFor(apps: App[]): AnalyticsSummary {
   };
 }
 
-/** GET /analytics/metrics. */
-export function clusterMetricsFor(apps: App[]): ClusterMetrics {
-  const running = apps.filter((a) => a.status.phase === "Running");
+/**
+ * Container restarts per App ("namespace/name"): Docs Site is running but has
+ * restarted once, Broken App is Failed and crash-looping, so the dashboard's
+ * Needs attention card has a restarting row and a failed one by default.
+ */
+export const RESTARTS: Record<string, number> = {
+  "apps/docs-site": 1,
+  "apps/broken-app": 4,
+};
+
+/** GET /analytics/metrics: every App with pods (anything not Stopped). */
+export function clusterMetricsFor(apps: App[], restarts = RESTARTS): ClusterMetrics {
+  const live = apps.filter((a) => a.status.phase !== "Stopped");
   return {
     usageAvailable: true,
-    apps: running.map((a, i) => ({
+    apps: live.map((a, i) => ({
       namespace: a.namespace,
       name: a.name,
       cpu: 12 + i,
       memory: 34 + i,
-      restarts: i,
+      restarts: restarts[`${a.namespace}/${a.name}`] ?? 0,
     })),
-    byNamespace: [...new Set(running.map((a) => a.namespace))].map((namespace) => ({
+    byNamespace: [...new Set(live.map((a) => a.namespace))].map((namespace) => ({
       namespace,
       cpu: 12,
       memory: 34,

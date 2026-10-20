@@ -87,7 +87,7 @@ kubectl -n nebari-operator-system logs deploy/nebari-operator-controller-manager
   apps; `default` and `kube-*` never can.
 - **`403 you do not have access to app …`.** Apps are visible to their owner and to members
   of `api.adminGroups` only.
-- **The metrics page says metrics-server is not installed.** Pod CPU and memory come from
+- **An app's CPU and memory cards say "Metrics unavailable".** Pod CPU and memory come from
   `metrics.k8s.io`; install metrics-server.
 
 ## Install and upgrade

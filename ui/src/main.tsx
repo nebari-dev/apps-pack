@@ -46,7 +46,6 @@ const AppsPage = page(() => import("@/pages/apps"), "AppsPage");
 const DashboardPage = page(() => import("@/pages/dashboard"), "DashboardPage");
 const EditPage = page(() => import("@/pages/edit"), "EditPage");
 const LaunchPage = page(() => import("@/pages/launch"), "LaunchPage");
-const MetricsPage = page(() => import("@/pages/metrics"), "MetricsPage");
 
 // Branding comes from /config.json (ui.branding.* in the chart). Start the
 // fetch before the auth round trip so the two overlap, and treat it as
@@ -89,7 +88,6 @@ createRoot(container).render(
               <Route path="apps" element={<AppsPage />} />
               <Route path="apps/:namespace/:name" element={<AppDetailPage />} />
               <Route path="apps/:namespace/:name/edit" element={<EditPage />} />
-              <Route path="metrics" element={<MetricsPage />} />
               <Route path="launch" element={<LaunchPage />} />
               <Route path="*" element={<NotFoundPage />} />
             </Route>

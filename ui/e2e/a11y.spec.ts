@@ -11,13 +11,14 @@ import {
   test,
 } from "./fixtures";
 
-const PAGES = [
-  { name: "dashboard", path: "/", heading: "Dashboard" },
+// `ready` is text that shows the page's data has loaded (the dashboard's Needs
+// attention card, with a destructive badge).
+const PAGES: { name: string; path: string; heading: string; ready?: string }[] = [
+  { name: "dashboard", path: "/", heading: "Dashboard", ready: "Failed · 4 restarts" },
   { name: "apps list", path: "/apps", heading: "Apps" },
   { name: "launch form", path: "/launch", heading: "Launch an app" },
   { name: "app detail", path: "/apps/apps/docs-site", heading: "Docs Site" },
   { name: "edit form", path: "/apps/apps/docs-site/edit", heading: "Edit app" },
-  { name: "metrics", path: "/metrics", heading: "Metrics" },
   { name: "not found", path: "/no-such-page", heading: "Page not found" },
 ];
 
@@ -25,11 +26,12 @@ for (const theme of ["light", "dark"] satisfies Theme[]) {
   test.describe(`${theme} theme`, () => {
     test.use({ theme });
 
-    for (const { name, path, heading } of PAGES) {
+    for (const { name, path, heading, ready } of PAGES) {
       test(`${name} has no critical or serious violations @a11y`, async ({ page }) => {
         await page.goto(path);
         await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible();
         await expectResolvedTheme(page, theme);
+        if (ready) await expect(page.getByText(ready)).toBeVisible();
         await expectNoCriticalOrSeriousA11yViolations(page);
       });
     }

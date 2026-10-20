@@ -129,8 +129,9 @@ kubectl -n nebari-apps exec deploy/nebari-apps-api -- python -c \
 
 ## metrics-server is missing
 
-The UI's Metrics page and the per-app CPU and memory read `metrics.k8s.io`. Without
-metrics-server the page says so, and restart counts still work; nothing else depends on it.
+The per-app CPU and memory on an app's detail page read `metrics.k8s.io`. Without
+metrics-server those cards say "Metrics unavailable", and restart counts (the Dashboard's
+Needs attention card) still work; nothing else depends on it.
 
 ```bash
 kubectl get apiservice v1beta1.metrics.k8s.io

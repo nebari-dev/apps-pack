@@ -21,7 +21,6 @@ vi.mock("@/lib/api", () => ({
 const { api } = await import("@/lib/api");
 const { AppsPage } = await import("@/pages/apps");
 const { DashboardPage } = await import("@/pages/dashboard");
-const { MetricsPage } = await import("@/pages/metrics");
 const { NotFoundPage } = await import("@/pages/not-found");
 const mocked = vi.mocked(api);
 
@@ -74,13 +73,26 @@ describe("a failed request is an error, not an empty state", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not load the dashboard");
   });
 
-  it("metrics page", async () => {
+  it("dashboard's Needs attention card, without taking down the dashboard", async () => {
+    mocked.analytics.mockResolvedValue({
+      total: 1,
+      byPhase: { Running: 1 },
+      bySourceType: { inline: 1 },
+      byNamespace: { apps: 1 },
+      readyReplicas: 1,
+      desiredReplicas: 1,
+    });
     mocked.clusterMetrics.mockRejectedValue(new Error("503 Service Unavailable"));
-    mocked.listApps.mockResolvedValue([]);
-    renderPage(<MetricsPage />);
+    mocked.listApps.mockResolvedValue([app("one")]);
+    renderPage(<DashboardPage />);
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Could not load metrics");
-    expect(screen.queryByText(/metrics-server/i)).not.toBeInTheDocument();
+    expect(alert).toHaveTextContent("Could not check every app");
+    expect(alert).toHaveTextContent("503 Service Unavailable");
+    expect(screen.queryByText(/everything is running/i)).not.toBeInTheDocument();
+    // The rest of the dashboard still renders.
+    expect(screen.getByRole("heading", { level: 1, name: "Dashboard" })).toBeInTheDocument();
+    expect(screen.getByText("Recently launched")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "one" })).toBeInTheDocument();
   });
 });
 
