@@ -4,6 +4,7 @@ import (
 	"flag"
 	"os"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -48,17 +49,30 @@ func main() {
 		"Image used by init containers to fetch git sources.")
 	flag.StringVar(&cfg.PythonImage, "python-image", envOr("PYTHON_IMAGE", "ghcr.io/prefix-dev/pixi:0.68.1-noble"),
 		"Image running Python/pixi apps (runtime.pixiTask); must provide pixi and run as non-root.")
+	flag.StringVar(&cfg.AuthzImage, "authz-image", envOr("AUTHZ_IMAGE", ""),
+		"apps-authz sidecar image, added to Apps that restrict access.groups or access.users (required for those Apps).")
+	var authzPullPolicy string
+	flag.StringVar(&authzPullPolicy, "authz-image-pull-policy", envOr("AUTHZ_IMAGE_PULL_POLICY", ""),
+		"Pull policy for the authz sidecar image (Always|IfNotPresent|Never; empty: the Kubernetes default).")
+	flag.StringVar(&cfg.KeycloakURL, "keycloak-url", envOr("KEYCLOAK_URL", ""),
+		"Public Keycloak base URL; the authz sidecar accepts tokens issued under <url>/realms/<realm>.")
+	flag.StringVar(&cfg.KeycloakInternalURL, "keycloak-internal-url", envOr("KEYCLOAK_INTERNAL_URL", ""),
+		"In-cluster Keycloak base URL; the authz sidecar also accepts it as issuer and fetches signing keys from it.")
+	flag.StringVar(&cfg.KeycloakRealm, "keycloak-realm", envOr("KEYCLOAK_REALM", "nebari"),
+		"Keycloak realm nebari-operator provisions app clients in.")
 	flag.BoolVar(&cfg.TLSDisabled, "tls-disabled", envOr("TLS_DISABLED", "") == "true",
 		"Serve apps over plain HTTP (no certificates, no HTTPS listeners).")
 	flag.BoolVar(&cfg.LandingPage, "landing-page", envOr("LANDING_PAGE", "") == "true",
 		"Cluster default for showing apps as tiles on the Nebari landing page (spec.landingPage.enabled overrides per app).")
 
 	opts := zap.Options{Development: false}
-	var staticResources, pythonResources string
+	var staticResources, pythonResources, authzResources string
 	flag.StringVar(&staticResources, "default-static-resources", envOr("DEFAULT_STATIC_RESOURCES", ""),
 		`Requests/limits (JSON, e.g. {"requests":{"cpu":"50m"},"limits":{"memory":"256Mi"}}) for static app pods that leave them unset.`)
 	flag.StringVar(&pythonResources, "default-python-resources", envOr("DEFAULT_PYTHON_RESOURCES", ""),
 		"Requests/limits (JSON) for Python/pixi app pods that leave them unset.")
+	flag.StringVar(&authzResources, "authz-resources", envOr("AUTHZ_RESOURCES", ""),
+		"Requests/limits (JSON) for the authz sidecar.")
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
@@ -71,6 +85,18 @@ func main() {
 	}
 	if cfg.PythonResources, err = controller.ParseResources(pythonResources, controller.DefaultPythonResources); err != nil {
 		setupLog.Error(err, "invalid --default-python-resources")
+		os.Exit(1)
+	}
+
+	if cfg.AuthzResources, err = controller.ParseResources(authzResources, controller.DefaultAuthzResources); err != nil {
+		setupLog.Error(err, "invalid --authz-resources")
+		os.Exit(1)
+	}
+	switch p := corev1.PullPolicy(authzPullPolicy); p {
+	case "", corev1.PullAlways, corev1.PullIfNotPresent, corev1.PullNever:
+		cfg.AuthzImagePullPolicy = p
+	default:
+		setupLog.Error(nil, "invalid --authz-image-pull-policy", "value", authzPullPolicy)
 		os.Exit(1)
 	}
 
@@ -110,7 +136,8 @@ func main() {
 	}
 
 	setupLog.Info("starting manager",
-		"appsDomain", cfg.AppsDomain, "gateway", cfg.Gateway)
+		"appsDomain", cfg.AppsDomain, "gateway", cfg.Gateway,
+		"authzImage", cfg.AuthzImage, "keycloakIssuers", len(cfg.KeycloakURL+cfg.KeycloakInternalURL) > 0)
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)

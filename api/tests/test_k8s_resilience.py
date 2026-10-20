@@ -86,6 +86,15 @@ def test_every_call_has_a_timeout(kube):
         assert call.kwargs.get("_request_timeout") == REQUEST_TIMEOUT, call
 
 
+def test_pod_logs_default_to_the_app_container(kube):
+    # Restricted apps have an authz sidecar; the apiserver refuses a log
+    # request for a multi-container pod without a container name.
+    kube.pod_logs("apps", "demo", 10, None)
+    assert kube._core.read_namespaced_pod_log.call_args.kwargs["container"] == "app"
+    kube.pod_logs("apps", "demo", 10, "authz")
+    assert kube._core.read_namespaced_pod_log.call_args.kwargs["container"] == "authz"
+
+
 def test_lists_page_through_continue_tokens(kube):
     kube._custom.list_cluster_custom_object.side_effect = [
         {"items": [{"metadata": {"name": "a"}}], "metadata": {"continue": "t1"}},

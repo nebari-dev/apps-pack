@@ -43,13 +43,17 @@ wrong type fails the install.
 | apps.networkPolicy.enabled | bool | `false` | Render a NetworkPolicy for launched app pods: ingress only from the gateway namespace on the app port, egress only to DNS and to the internet minus `blockedCIDRs`, so user code cannot reach cluster-internal services. git/pixi sources still clone and install from the internet. Needs a CNI that enforces NetworkPolicy. |
 | apps.networkPolicy.gatewayNamespace | string | `"envoy-gateway-system"` | Namespace of the Envoy gateway pods allowed to reach app pods. |
 | appsDomain | string | `""` | Domain apps are exposed under: `https://<subdomain>.<appsDomain>`. Empty defaults to `apps.<clusterDomain>`, e.g. `my-app.apps.example.ai`. |
+| authz.image.pullPolicy | string | `"IfNotPresent"` | Image pull policy. |
+| authz.image.repository | string | `"ghcr.io/nebari-dev/apps-pack/apps-authz"` | apps-authz image repository. |
+| authz.image.tag | string | `""` | Image tag. Empty defaults to the chart's appVersion. |
+| authz.resources | object | `{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}}` | Sidecar resources, per restricted app pod (on top of the app container's own). |
 | clusterDomain | string | `""` | Required. The cluster's base domain; there is no sensible default. |
 | fullnameOverride | string | `""` | Override the full resource-name prefix. |
 | gateway | string | `"public"` | Shared Gateway that app NebariApps attach to: `public` or `internal`. |
 | gitImage | string | `"alpine/git:v2.47.2"` | Image used by init containers to fetch git sources. |
-| keycloak.internalUrl | string | `""` | Optional in-cluster Keycloak URL (split horizon) the API and MCP server fetch JWKS from. |
+| keycloak.internalUrl | string | `""` | Optional in-cluster Keycloak URL (split horizon) the API, the MCP server and the authz sidecar fetch JWKS from. The sidecar accepts tokens issued under either URL. |
 | keycloak.realm | string | `"nebari"` | Keycloak realm. |
-| keycloak.url | string | `""` | Browser-facing Keycloak base URL, e.g. `https://keycloak.example.ai/auth`. Required when `api.auth.enabled`. |
+| keycloak.url | string | `""` | Browser-facing Keycloak base URL, e.g. `https://keycloak.example.ai/auth`. Required when `api.auth.enabled`, and (or `internalUrl`) for apps that list `access.groups`/`access.users`. |
 | mcp.enabled | bool | `true` | Deploy the MCP server. Agents connect at `https://<ui hostname>/mcp` (streamable HTTP); the UI's nginx proxies `/mcp` to it, so there is no separate hostname. When off, `/mcp` returns 404. |
 | mcp.extraEnv | list | `[]` | Extra environment variables for apps-mcp, after the chart's own (an entry with the same name wins). |
 | mcp.image.pullPolicy | string | `"IfNotPresent"` | Image pull policy. |

@@ -53,6 +53,22 @@ type OperatorConfig struct {
 	// limit an App leaves unset (static apps vs runtime.pixiTask apps).
 	StaticResources corev1.ResourceRequirements
 	PythonResources corev1.ResourceRequirements
+	// AuthzImage is the apps-authz sidecar added in front of Apps that
+	// restrict access to groups or users (authz.go).
+	AuthzImage string
+	// AuthzImagePullPolicy is the sidecar's pull policy (empty: the
+	// Kubernetes default).
+	AuthzImagePullPolicy corev1.PullPolicy
+	// AuthzResources are the sidecar's requests/limits.
+	AuthzResources corev1.ResourceRequirements
+	// KeycloakURL and KeycloakInternalURL are the realm's public and
+	// in-cluster base URLs; the sidecar accepts tokens issued under either
+	// and fetches keys from the in-cluster one when set.
+	KeycloakURL         string
+	KeycloakInternalURL string
+	// KeycloakRealm is the realm nebari-operator provisions clients in
+	// (default nebari).
+	KeycloakRealm string
 }
 
 // LandingPageEnabled reports whether an App should appear on the landing page:
@@ -236,6 +252,9 @@ func (r *AppReconciler) validate(ctx context.Context, app *appsv1alpha1.App) err
 
 	if app.Spec.Access.Subdomain == "" {
 		return fmt.Errorf("access.subdomain is required")
+	}
+	if err := r.Config.checkAuthz(app); err != nil {
+		return err
 	}
 	return r.checkSubdomain(ctx, app)
 }

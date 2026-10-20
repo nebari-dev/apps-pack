@@ -97,6 +97,12 @@ func TestNebariAppContractPrivateApp(t *testing.T) {
 	if len(groups) != 1 || groups[0] != "analytics" {
 		t.Errorf("auth.groups = %+v", groups)
 	}
+	// Groups are enforced by the authz sidecar on the forwarded token, which
+	// needs forwardAccessToken (and enforceAtGateway, per the CRD's rule).
+	if auth["forwardAccessToken"] != true || auth["enforceAtGateway"] != true {
+		t.Errorf("auth.forwardAccessToken/enforceAtGateway = %v/%v, want true/true",
+			auth["forwardAccessToken"], auth["enforceAtGateway"])
+	}
 	scopes := auth["scopes"].([]any)
 	want := []string{"openid", "profile", "email", "groups"}
 	if len(scopes) != len(want) {
@@ -114,6 +120,36 @@ func TestNebariAppContractPrivateApp(t *testing.T) {
 	}
 	if landing["description"] != "Q2 sales explorer" {
 		t.Errorf("landingPage.description = %v", landing["description"])
+	}
+}
+
+// access.users is enforced only by the sidecar: the token is forwarded, but
+// NebariApp has no per-user field, so neither users nor groups are emitted.
+func TestNebariAppContractUsersOnly(t *testing.T) {
+	app := inlineApp("team-a")
+	app.Spec.Access = appsv1alpha1.AppAccess{Users: []string{"alice"}, Subdomain: "docs-site"}
+
+	auth, _, _ := unstructured.NestedMap(testReconciler().buildNebariApp(app).Object, "spec", "auth")
+	if auth["enabled"] != true || auth["forwardAccessToken"] != true || auth["enforceAtGateway"] != true {
+		t.Errorf("auth = %+v, want sign-in with the token forwarded", auth)
+	}
+	for _, k := range []string{"users", "groups"} {
+		if _, has := auth[k]; has {
+			t.Errorf("auth.%s should not be emitted for a users-only App", k)
+		}
+	}
+}
+
+// A private App open to any signed-in user does not forward the token.
+func TestNebariAppContractPrivateWithoutLists(t *testing.T) {
+	app := inlineApp("team-a")
+	app.Spec.Access.Public = false
+
+	auth, _, _ := unstructured.NestedMap(testReconciler().buildNebariApp(app).Object, "spec", "auth")
+	for _, k := range []string{"forwardAccessToken", "enforceAtGateway", "groups"} {
+		if _, has := auth[k]; has {
+			t.Errorf("auth.%s should not be emitted", k)
+		}
 	}
 }
 

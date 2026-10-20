@@ -11,6 +11,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
@@ -77,6 +78,10 @@ func startEnv(t *testing.T) client.Client {
 			PythonImage:     "ghcr.io/prefix-dev/pixi:0.68.1-noble",
 			StaticResources: DefaultStaticResources,
 			PythonResources: DefaultPythonResources,
+			AuthzImage:      testAuthzImage,
+			AuthzResources:  DefaultAuthzResources,
+			KeycloakURL:     "https://keycloak.nebari.local",
+			KeycloakRealm:   "nebari",
 		},
 	}
 	if err := r.SetupWithManager(mgr); err != nil {
@@ -242,4 +247,57 @@ func TestEnvtestCRDRejectsInvalidApps(t *testing.T) {
 			t.Errorf("%s: want an Invalid error from the CRD schema, got %v", name, err)
 		}
 	}
+}
+
+// Restricting an App adds the authz sidecar and forwards the access token;
+// lifting the restriction takes both away again.
+func TestEnvtestRestrictedAppGetsAuthzSidecar(t *testing.T) {
+	c := startEnv(t)
+	ctx := context.Background()
+	if err := c.Create(ctx, managedNamespace("team-a")); err != nil {
+		t.Fatal(err)
+	}
+	app := inlineApp("team-a")
+	app.Generation = 0
+	app.Spec.Access.Public = false
+	app.Spec.Access.Groups = []string{"analysts"}
+	app.Spec.Access.Users = []string{"alice"}
+	if err := c.Create(ctx, app); err != nil {
+		t.Fatal(err)
+	}
+	key := types.NamespacedName{Name: app.Name, Namespace: app.Namespace}
+	child := types.NamespacedName{Name: childName(app), Namespace: app.Namespace}
+	eventually(t, "Deploying", phaseIs(c, key, appsv1alpha1.AppPhaseDeploying))
+
+	state := func(wantSidecar bool) func() string {
+		return func() string {
+			d := &appsv1.Deployment{}
+			if err := c.Get(ctx, child, d); err != nil {
+				return err.Error()
+			}
+			na := &unstructured.Unstructured{}
+			na.SetGroupVersionKind(NebariAppGVK)
+			if err := c.Get(ctx, child, na); err != nil {
+				return err.Error()
+			}
+			fwd, _, _ := unstructured.NestedBool(na.Object, "spec", "auth", "forwardAccessToken")
+			containers := d.Spec.Template.Spec.Containers
+			hasSidecar := len(containers) == 2 && containers[1].Name == "authz"
+			if hasSidecar != wantSidecar || fwd != wantSidecar || containers[0].Name != "app" {
+				return fmt.Sprintf("containers %d, forwardAccessToken %v", len(containers), fwd)
+			}
+			return ""
+		}
+	}
+	eventually(t, "sidecar and forwarded token", state(true))
+
+	edit := &appsv1alpha1.App{}
+	if err := c.Get(ctx, key, edit); err != nil {
+		t.Fatal(err)
+	}
+	edit.Spec.Access.Groups, edit.Spec.Access.Users = nil, nil
+	if err := c.Update(ctx, edit); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, "no sidecar once unrestricted", state(false))
 }
