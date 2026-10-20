@@ -12,6 +12,8 @@
     "includes": [
       "src/**",
       "tests/**",
+      "e2e/**",
+      "playwright.config.ts",
       "biome.json",
       "package.json",
       "tsconfig*.json",

@@ -78,6 +78,7 @@ export function Header({
   const { logoUrl, logoUrlDark, title } = getBranding();
   const brandedLogo = isDarkMode ? (logoUrlDark ?? logoUrl) : logoUrl;
   const { version, build } = getConfig();
+  const accountLabel = user?.name || user?.email || "Account";
 
   return (
     <NavigationMenu className="h-14 justify-between border-header-border bg-header pl-4 text-header-foreground">
@@ -106,16 +107,20 @@ export function Header({
         <DropdownMenu modal={false}>
           <DropdownMenuTrigger
             variant="ghost"
-            aria-label="Account menu"
             className="h-auto px-2.5 py-1 hover:bg-header-action-hover hover:no-underline focus-visible:ring-offset-0 active:bg-header-action-hover data-[popup-open]:bg-header-action-hover data-[popup-open]:no-underline"
           >
-            <Avatar>
+            <Avatar aria-hidden="true">
               <AvatarFallback className="bg-primary font-semibold text-primary-foreground">
                 {getUserInitials(user?.name, user?.email)}
               </AvatarFallback>
             </Avatar>
 
-            <span>{user?.name || user?.email || "Account"}</span>
+            {/* Named by its content, not aria-label, so the name contains the
+                visible text (WCAG 2.5.3, label in name). The initials repeat
+                the label and are hidden from assistive tech. */}
+            <span>
+              {accountLabel} <span className="sr-only">{user ? "(account menu)" : "menu"}</span>
+            </span>
 
             <ChevronDown />
           </DropdownMenuTrigger>

@@ -43,6 +43,7 @@ uv run --frozen --no-sync ruff check . && uv run --frozen --no-sync ruff format 
 
 # ui/
 npm ci && npm run check:ci && npm run build && npm test
+npm run test:e2e   # Playwright + axe on the build (once: npx playwright install chromium)
 
 # docs/
 bun install --frozen-lockfile && bun test test && bun run build

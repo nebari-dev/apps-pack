@@ -42,6 +42,10 @@ ui/dist/
 # TypeScript incremental build state (tsc -b).
 *.tsbuildinfo
 ui/coverage/
+# Playwright output (npm run test:e2e).
+ui/test-results/
+ui/playwright-report/
+ui/blob-report/
 *.log
 npm-debug.log*
 yarn-debug.log*
