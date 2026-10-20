@@ -38,7 +38,7 @@ const APP: App = {
 } as unknown as App;
 
 // A failed app that is also restarting, so the dashboard's Needs attention card
-// renders a row with the destructive badge.
+// renders a Failed row in its table.
 const BROKEN: App = {
   ...APP,
   name: "broken-app",
@@ -86,7 +86,7 @@ const { LaunchPage } = await import("@/pages/launch");
 
 // name, URL, route path, page, h1, and text that shows the page's data has loaded.
 const PAGES: [string, string, string, ReactElement, string, string?][] = [
-  ["dashboard", "/", "", <DashboardPage key="d" />, "Dashboard", "Failed · 4 restarts"],
+  ["dashboard", "/", "", <DashboardPage key="d" />, "Dashboard", "broken-app · apps"],
   ["apps", "/apps", "apps", <AppsPage key="a" />, "Apps"],
   [
     "app detail",

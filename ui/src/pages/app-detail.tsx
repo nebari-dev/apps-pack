@@ -13,7 +13,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   AppThumbnail,
   ConfirmDeleteDialog,
@@ -40,9 +40,17 @@ import type { App } from "@/lib/types";
 
 const MAX_SAMPLES = 30;
 
+/** The detail tabs, selectable by `?tab=` so other pages can link straight to one. */
+const TABS = ["conditions", "logs", "events", "manifest"] as const;
+type DetailTab = (typeof TABS)[number];
+const isDetailTab = (value: unknown): value is DetailTab => TABS.includes(value as DetailTab);
+
 export function AppDetailPage() {
   const { namespace = "", name = "" } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const tab: DetailTab = isDetailTab(tabParam) ? tabParam : "conditions";
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [logFollow, setLogFollow] = useState(true);
@@ -290,7 +298,20 @@ export function AppDetailPage() {
         </Card>
       </div>
 
-      <Tabs defaultValue="conditions">
+      <Tabs
+        value={tab}
+        onValueChange={(next) => {
+          if (!isDetailTab(next)) return;
+          setSearchParams(
+            (prev) => {
+              const params = new URLSearchParams(prev);
+              params.set("tab", next);
+              return params;
+            },
+            { replace: true },
+          );
+        }}
+      >
         <TabsList>
           <TabsTab value="conditions">Conditions</TabsTab>
           <TabsTab value="logs">Logs</TabsTab>

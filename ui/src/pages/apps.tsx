@@ -28,6 +28,7 @@ import {
 } from "@/hooks/use-app-actions";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { api } from "@/lib/api";
+import { comparePhase } from "@/lib/phase";
 import { listInterval } from "@/lib/polling";
 import type { App } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -87,15 +88,18 @@ export function AppsPage() {
           return appType(a);
         case "source":
           return a.source?.type ?? "";
-        case "status":
-          return a.status.phase;
         case "owner":
           return a.owner ?? "";
         default:
           return (a.displayName || a.name).toLowerCase();
       }
     };
-    out = [...out].sort((a, b) => val(a).localeCompare(val(b)) * (sort.dir === "asc" ? 1 : -1));
+    // Status sorts by severity (Failed first ascending), the rest alphabetically.
+    const cmp = (a: App, b: App) =>
+      sort.col === "status"
+        ? comparePhase(a.status.phase, b.status.phase)
+        : val(a).localeCompare(val(b));
+    out = [...out].sort((a, b) => cmp(a, b) * (sort.dir === "asc" ? 1 : -1));
     return out;
   }, [list, filter, phaseFilter, sort]);
 

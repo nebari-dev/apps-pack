@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Toaster } from "@/components/ui/toast";
 import type { App } from "@/lib/types";
@@ -147,8 +147,14 @@ describe("apps page", () => {
   });
 });
 
+/** Renders the current location so tests can assert on the URL. */
+function LocationProbe() {
+  const { pathname, search } = useLocation();
+  return <output aria-label="location">{`${pathname}${search}`}</output>;
+}
+
 describe("app detail page", () => {
-  const renderDetail = async (a: App) => {
+  const renderDetail = async (a: App, path = "/apps/apps/docs") => {
     mocked.getApp.mockResolvedValue(a);
     mocked.logs.mockResolvedValue({ logs: "GET / 200\nGET /missing 404\n" });
     mocked.events.mockResolvedValue([]);
@@ -157,11 +163,38 @@ describe("app detail page", () => {
       pods: [{ name: "p", cpu: "3m", memory: "10Mi" }],
     });
     renderAt(
-      "/apps/apps/docs",
-      <Route path="/apps/:namespace/:name" element={<AppDetailPage />} />,
+      path,
+      <Route
+        path="/apps/:namespace/:name"
+        element={
+          <>
+            <AppDetailPage />
+            <LocationProbe />
+          </>
+        }
+      />,
     );
     await screen.findByRole("heading", { level: 1 });
   };
+
+  it("opens the tab named by ?tab= and writes the chosen tab back to the URL", async () => {
+    const user = userEvent.setup();
+    await renderDetail(app("docs"), "/apps/apps/docs?tab=logs");
+    expect(screen.getByRole("tab", { name: "Logs" })).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByText(/GET \/missing 404/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Events" }));
+    expect(screen.getByRole("tab", { name: "Events" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByLabelText("location")).toHaveTextContent("/apps/apps/docs?tab=events");
+  });
+
+  it("falls back to Conditions for a missing or unknown ?tab=", async () => {
+    await renderDetail(app("docs"), "/apps/apps/docs?tab=nope");
+    expect(screen.getByRole("tab", { name: "Conditions" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
 
   it("offers the URL only while Running, and Start for a stopped app", async () => {
     await renderDetail(app("docs", { phase: "Stopped" }));

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Activity, AlertTriangle, Boxes, Layers, Rocket } from "lucide-react";
+import { Activity, AlertTriangle, Boxes, Layers, Rocket, RotateCw, ScrollText } from "lucide-react";
 import { Link } from "react-router-dom";
 import {
   AppThumbnail,
@@ -9,12 +9,21 @@ import {
   SourceBadge,
   StatCard,
 } from "@/components/app-bits";
+import { APP_ROW_CLASS, AppNameCell } from "@/components/app-name-cell";
 import { Onboarding } from "@/components/onboarding";
 import { errorMessage, QueryError } from "@/components/query-error";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { useAppActions } from "@/hooks/use-app-actions";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { api } from "@/lib/api";
 import { listInterval } from "@/lib/polling";
@@ -121,19 +130,20 @@ export function DashboardPage() {
         />
       </div>
 
-      <Card>
-        <CardHeader className="flex-row items-center gap-2">
-          <AlertTriangle aria-hidden="true" className="size-4 text-muted-foreground" />
-          <CardTitle>Needs attention</CardTitle>
+      {/* The table sits flush in the card, so drop the card's bottom padding under it. */}
+      <Card className="has-[table]:pb-0">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <AlertTriangle aria-hidden="true" className="size-4 text-muted-foreground" />
+            Needs attention
+          </CardTitle>
         </CardHeader>
-        <CardContent>
-          <NeedsAttention
-            apps={apps.data}
-            metrics={metrics.data}
-            loading={apps.isLoading || metrics.isLoading}
-            error={metrics.error ?? apps.error}
-          />
-        </CardContent>
+        <NeedsAttention
+          apps={apps.data}
+          metrics={metrics.data}
+          loading={apps.isLoading || metrics.isLoading}
+          error={metrics.error ?? apps.error}
+        />
       </Card>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -220,7 +230,8 @@ export function DashboardPage() {
 interface AttentionItem {
   namespace: string;
   name: string;
-  label: string;
+  /** The App, when the apps list has it; restarts can be known from metrics alone. */
+  app?: App;
   failed: boolean;
   restarts: number;
 }
@@ -230,16 +241,16 @@ interface AttentionItem {
  * per app, failed first and then by restart count.
  */
 function attentionItems(apps: App[], metrics: ClusterMetrics | undefined): AttentionItem[] {
-  const labels = new Map(apps.map((a) => [appKey(a), a.displayName || a.name]));
+  const byKey = new Map(apps.map((a) => [appKey(a), a]));
   const items = new Map<string, AttentionItem>();
   const item = (a: { namespace: string; name: string }) => {
     const key = appKey(a);
     const found = items.get(key);
     if (found) return found;
-    const created = {
+    const created: AttentionItem = {
       namespace: a.namespace,
       name: a.name,
-      label: labels.get(key) ?? a.name,
+      app: byKey.get(key),
       failed: false,
       restarts: 0,
     };
@@ -255,6 +266,13 @@ function attentionItems(apps: App[], metrics: ClusterMetrics | undefined): Atten
 
 const appKey = (a: { namespace: string; name: string }) => `${a.namespace}/${a.name}`;
 
+/** Why a Failed App failed: its first condition that is not True, else the status message. */
+function failureReason(app: App | undefined): string {
+  if (!app) return "";
+  const failing = (app.status.conditions ?? []).find((c) => c.status !== "True");
+  return failing?.reason || failing?.message || app.status.message || "";
+}
+
 function NeedsAttention({
   apps,
   metrics,
@@ -266,11 +284,12 @@ function NeedsAttention({
   loading: boolean;
   error: unknown;
 }) {
+  const actions = useAppActions();
   if (loading) {
     return (
-      <div className="flex h-16 items-center justify-center">
+      <CardContent className="flex h-16 items-center justify-center">
         <Spinner className="size-5" />
-      </div>
+      </CardContent>
     );
   }
   const items = attentionItems(apps ?? [], metrics);
@@ -278,40 +297,89 @@ function NeedsAttention({
     <>
       {/* A failed request still lists what is known, but never claims the all-clear. */}
       {error ? (
-        <p role="alert" className="mb-2 text-destructive-foreground text-sm">
-          Could not check every app: {errorMessage(error)}
-        </p>
+        <CardContent>
+          <p role="alert" className="text-destructive-foreground text-sm">
+            Could not check every app: {errorMessage(error)}
+          </p>
+        </CardContent>
       ) : null}
       {items.length === 0 && !error ? (
-        <p className="text-muted-foreground text-sm">
-          Everything is running — no restarts or failed apps.
-        </p>
+        <CardContent>
+          <p className="text-muted-foreground text-sm">
+            Everything is running — no restarts or failed apps.
+          </p>
+        </CardContent>
       ) : null}
       {items.length > 0 ? (
-        <ul className="divide-y divide-border">
-          {items.map((a) => {
-            const hot = a.failed || a.restarts >= 3;
-            const restarts = `${a.restarts} restart${a.restarts === 1 ? "" : "s"}`;
-            return (
-              <li key={appKey(a)} className="flex items-center justify-between gap-3 py-2">
-                <div className="min-w-0">
-                  <Link
-                    to={`/apps/${a.namespace}/${a.name}`}
-                    className="font-medium text-sm hover:underline"
-                  >
-                    {a.label}
-                  </Link>
-                  <p className="text-muted-foreground text-xs">{a.namespace}</p>
-                </div>
-                <Badge variant={hot ? "destructive" : "secondary"} className="tabular-nums">
-                  {[a.failed ? "Failed" : "", a.restarts > 0 ? restarts : ""]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </Badge>
-              </li>
-            );
-          })}
-        </ul>
+        <CardContent className="px-0">
+          <Table
+            aria-label="Apps that need attention"
+            scrollContainerClassName="rounded-none border-x-0 border-b-0"
+          >
+            <TableHeader>
+              <TableRow>
+                <TableHead>App</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Restarts</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {items.map((item) => {
+                const { app } = item;
+                const phase = app?.status.phase ?? "";
+                const label = app?.displayName || item.name;
+                const reason = item.failed ? failureReason(app) : "";
+                return (
+                  <TableRow key={appKey(item)} data-phase={phase} className={APP_ROW_CLASS}>
+                    <TableCell>
+                      <AppNameCell
+                        app={app ?? { namespace: item.namespace, name: item.name }}
+                        subline={`${item.name} · ${item.namespace}`}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {phase ? <PhaseBadge phase={phase} /> : "—"}
+                      {reason ? (
+                        <p className="mt-1 text-muted-foreground text-xs">{reason}</p>
+                      ) : null}
+                    </TableCell>
+                    <TableCell className="tabular-nums">{item.restarts || "—"}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          render={
+                            <Link
+                              to={`/apps/${item.namespace}/${item.name}?tab=logs`}
+                              aria-label={`Logs for ${label}`}
+                            />
+                          }
+                        >
+                          <ScrollText aria-hidden="true" />
+                          Logs
+                        </Button>
+                        {item.failed && app ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            aria-label={`Restart ${label}`}
+                            loading={actions.isPendingFor(actions.restart, app)}
+                            onClick={() => actions.restart.mutate(app)}
+                          >
+                            <RotateCw aria-hidden="true" />
+                            Restart
+                          </Button>
+                        ) : null}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </CardContent>
       ) : null}
     </>
   );
