@@ -3,7 +3,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { App, AppCondition, AppUsage } from "@/lib/types";
+import type { AnalyticsSummary, App, AppCondition, AppUsage } from "@/lib/types";
 
 vi.mock("@/lib/api", () => ({
   api: {
@@ -44,7 +44,11 @@ const usage = (name: string, restarts: number, namespace = "apps"): AppUsage => 
   restarts,
 });
 
-function renderDashboard(apps: App[], restarts: AppUsage[]) {
+function renderDashboard(
+  apps: App[],
+  restarts: AppUsage[],
+  summary: Partial<AnalyticsSummary> = {},
+) {
   mocked.analytics.mockResolvedValue({
     total: apps.length,
     byPhase: { Running: apps.length },
@@ -52,6 +56,7 @@ function renderDashboard(apps: App[], restarts: AppUsage[]) {
     byNamespace: { apps: apps.length },
     readyReplicas: 1,
     desiredReplicas: 1,
+    ...summary,
   });
   mocked.listApps.mockResolvedValue(apps);
   mocked.clusterMetrics.mockResolvedValue({
@@ -178,9 +183,135 @@ describe("Needs attention card", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it("puts the warning icon inside the card title", async () => {
+  it("puts a muted warning icon inside the card title when all is clear", async () => {
     renderDashboard([app("docs")], []);
-    const title = await screen.findByText("Needs attention");
-    expect(title.querySelector("svg")).not.toBeNull();
+    await screen.findByText("Everything is running — no restarts or failed apps.");
+    const icon = screen.getByText("Needs attention").querySelector("svg");
+    expect(icon).toHaveClass("text-muted-foreground");
+    expect(icon).not.toHaveClass("text-warning-foreground");
+  });
+
+  it("colours the warning icon when something needs attention", async () => {
+    renderDashboard([app("broken", "Failed")], []);
+    await attentionRows();
+    const icon = screen.getByText("Needs attention").querySelector("svg");
+    expect(icon).toHaveClass("text-warning-foreground");
+  });
+});
+
+describe("Dashboard layout", () => {
+  it("leads with Needs attention, then the counts, the breakdown and recent apps", async () => {
+    renderDashboard([app("docs")], []);
+    await screen.findByText("Everything is running — no restarts or failed apps.");
+    const heading = screen.getByRole("heading", { level: 1, name: "Dashboard" });
+    const sections = [
+      heading,
+      screen.getByText("Needs attention"),
+      screen.getByLabelText("App counts"),
+      screen.getByText("Breakdown"),
+      screen.getByText("Recently launched"),
+    ];
+    for (let i = 1; i < sections.length; i++) {
+      expect(
+        sections[i - 1].compareDocumentPosition(sections[i]) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    }
+    // Needs attention is the first card on the page.
+    expect(document.querySelector("[data-slot=card]")).toHaveTextContent(/^Needs attention/);
+  });
+});
+
+describe("Counts row", () => {
+  it("lists each phase present in severity order, then replicas and namespaces", async () => {
+    renderDashboard([app("docs")], [], {
+      total: 9,
+      byPhase: { Running: 4, Stopped: 1, Failed: 2, Pending: 2, Deploying: 0 },
+      byNamespace: { apps: 6, team: 3 },
+      readyReplicas: 4,
+      desiredReplicas: 7,
+    });
+    const counts = await screen.findByLabelText("App counts");
+    const entries = within(counts)
+      .getAllByRole("term")
+      .map((dt) => `${dt.nextElementSibling?.textContent} ${dt.textContent}`);
+    expect(entries).toEqual([
+      "2 Failed",
+      "2 Pending",
+      "4 Running",
+      "1 Stopped",
+      "4/7 replicas ready",
+      "2 namespaces",
+    ]);
+    expect(screen.queryByText(/not running/i)).not.toBeInTheDocument();
+  });
+
+  it("keeps phases it does not know, after the known ones", async () => {
+    renderDashboard([app("docs")], [], { byPhase: { Unknown: 1, Running: 1 } });
+    const counts = await screen.findByLabelText("App counts");
+    expect(
+      within(counts)
+        .getAllByRole("term")
+        .map((t) => t.textContent),
+    ).toEqual(["Running", "Unknown", "replicas ready", "namespaces"]);
+  });
+});
+
+describe("Breakdown card", () => {
+  it("switches between status, source and namespace, labelling inline as Upload", async () => {
+    const user = userEvent.setup();
+    renderDashboard([app("docs")], [], {
+      total: 3,
+      byPhase: { Running: 2, Failed: 1 },
+      bySourceType: { inline: 1, git: 1, pvc: 1 },
+      byNamespace: { apps: 2, team: 1 },
+    });
+    const tabs = await screen.findByRole("tablist", { name: "Break down apps by" });
+    expect(
+      within(tabs)
+        .getAllByRole("tab")
+        .map((t) => t.textContent),
+    ).toEqual(["Status", "Source", "Namespace"]);
+    expect(within(tabs).getByRole("tab", { name: "Status" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    const panel = () => screen.getByRole("tabpanel");
+    expect(within(panel()).getByText("Failed")).toBeInTheDocument();
+    expect(screen.queryByText("By status")).not.toBeInTheDocument();
+
+    await user.click(within(tabs).getByRole("tab", { name: "Source" }));
+    expect(within(panel()).getByText("Upload")).toBeInTheDocument();
+    expect(within(panel()).getByText("Git")).toBeInTheDocument();
+    expect(within(panel()).getByText("PVC")).toBeInTheDocument();
+    expect(within(panel()).queryByText("inline")).not.toBeInTheDocument();
+
+    await user.click(within(tabs).getByRole("tab", { name: "Namespace" }));
+    expect(within(panel()).getByText("team")).toBeInTheDocument();
+  });
+});
+
+describe("Recently launched card", () => {
+  it("shows the three newest apps with one status badge each and links to all apps", async () => {
+    const apps = ["a", "b", "c", "d", "e"].map((name, i) => ({
+      ...app(name, i === 4 ? "Stopped" : "Running"),
+      createdAt: `2026-10-0${i + 1}T00:00:00Z`,
+      source: { type: "git" },
+    })) as App[];
+    renderDashboard(apps, []);
+    const list = await screen.findByRole("list", { name: "Recently launched apps" });
+    const items = within(list).getAllByRole("listitem");
+    expect(items.map((li) => within(li).getByRole("link").textContent)).toEqual(["e", "d", "c"]);
+    expect(items[0]).toHaveTextContent(/^Eeapps · aliceStopped$/);
+    expect(items[1]).toHaveTextContent(/^Ddapps · aliceRunning$/);
+    expect(screen.getByRole("link", { name: "All apps" })).toHaveAttribute("href", "/apps");
+  });
+});
+
+describe("empty and error states", () => {
+  it("shows onboarding, not the dashboard cards, on an empty cluster", async () => {
+    renderDashboard([], [], { total: 0, byPhase: {}, bySourceType: {}, byNamespace: {} });
+    await screen.findByRole("heading", { level: 1, name: "Dashboard" });
+    expect(screen.queryByText("Needs attention")).not.toBeInTheDocument();
+    expect(screen.queryByText("Breakdown")).not.toBeInTheDocument();
   });
 });

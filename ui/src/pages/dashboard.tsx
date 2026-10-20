@@ -1,19 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { Activity, AlertTriangle, Boxes, Layers, Rocket, RotateCw, ScrollText } from "lucide-react";
+import { AlertTriangle, ArrowRight, RotateCw, ScrollText } from "lucide-react";
 import { Link } from "react-router-dom";
-import {
-  AppThumbnail,
-  BarList,
-  KindBadge,
-  PhaseBadge,
-  SourceBadge,
-  StatCard,
-} from "@/components/app-bits";
+import { AppThumbnail, BarList, PhaseBadge } from "@/components/app-bits";
 import { APP_ROW_CLASS, AppNameCell } from "@/components/app-name-cell";
 import { Onboarding } from "@/components/onboarding";
 import { errorMessage, QueryError } from "@/components/query-error";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import {
   Table,
@@ -23,11 +16,40 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
 import { useAppActions } from "@/hooks/use-app-actions";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { api } from "@/lib/api";
+import { PHASE_SEVERITY } from "@/lib/phase";
 import { listInterval } from "@/lib/polling";
-import type { App, ClusterMetrics } from "@/lib/types";
+import type { AnalyticsSummary, App, ClusterMetrics } from "@/lib/types";
+import { cn } from "@/lib/utils";
+
+/** Display names for source types; `inline` is what the UI calls an upload. */
+const SOURCE_LABELS: Record<string, string> = { inline: "Upload", git: "Git", pvc: "PVC" };
+
+/** Re-key a source-type count map by its display label. */
+function labelSources(bySourceType: Record<string, number>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [type, count] of Object.entries(bySourceType)) {
+    const label = SOURCE_LABELS[type] ?? type;
+    out[label] = (out[label] ?? 0) + count;
+  }
+  return out;
+}
+
+/**
+ * The phases present in the summary, most severe first, then any unknown
+ * phases by name. Each phase is its own entry, never summed into another.
+ */
+function phaseCounts(byPhase: Record<string, number>): [string, number][] {
+  const known: readonly string[] = PHASE_SEVERITY;
+  const present = Object.entries(byPhase).filter(([, n]) => n > 0);
+  return [
+    ...PHASE_SEVERITY.flatMap((p): [string, number][] => (byPhase[p] ? [[p, byPhase[p]]] : [])),
+    ...present.filter(([p]) => !known.includes(p)).sort(([a], [b]) => a.localeCompare(b)),
+  ];
+}
 
 export function DashboardPage() {
   const heading = usePageTitle("Dashboard");
@@ -73,8 +95,9 @@ export function DashboardPage() {
   const summary = analytics.data;
   const recent = [...(apps.data ?? [])]
     .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))
-    .slice(0, 5);
-  const running = summary?.byPhase.Running ?? 0;
+    .slice(0, 3);
+  const attentionLoading = apps.isLoading || metrics.isLoading;
+  const attention = attentionLoading ? [] : attentionItems(apps.data ?? [], metrics.data);
 
   if (summary && summary.total === 0) {
     return (
@@ -106,76 +129,68 @@ export function DashboardPage() {
         <Button render={<Link to="/launch">Launch app</Link>} />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          label="Total apps"
-          value={summary?.total ?? 0}
-          icon={<Rocket className="size-5" />}
-        />
-        <StatCard
-          label="Running"
-          value={running}
-          hint={summary ? `${summary.total - running} not running` : undefined}
-          icon={<Activity className="size-5" />}
-        />
-        <StatCard
-          label="Replicas ready"
-          value={`${summary?.readyReplicas ?? 0}/${summary?.desiredReplicas ?? 0}`}
-          icon={<Boxes className="size-5" />}
-        />
-        <StatCard
-          label="Namespaces"
-          value={Object.keys(summary?.byNamespace ?? {}).length}
-          icon={<Layers className="size-5" />}
-        />
-      </div>
-
       {/* The table sits flush in the card, so drop the card's bottom padding under it. */}
       <Card className="has-[table]:pb-0">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <AlertTriangle aria-hidden="true" className="size-4 text-muted-foreground" />
+            <AlertTriangle
+              aria-hidden="true"
+              className={cn(
+                "size-4",
+                attention.length > 0 ? "text-warning-foreground" : "text-muted-foreground",
+              )}
+            />
             Needs attention
           </CardTitle>
         </CardHeader>
         <NeedsAttention
-          apps={apps.data}
-          metrics={metrics.data}
-          loading={apps.isLoading || metrics.isLoading}
+          items={attention}
+          loading={attentionLoading}
           error={metrics.error ?? apps.error}
         />
       </Card>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle>By status</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <BarList data={summary?.byPhase ?? {}} total={summary?.total ?? 0} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>By source</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <BarList data={summary?.bySourceType ?? {}} total={summary?.total ?? 0} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>By namespace</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <BarList data={summary?.byNamespace ?? {}} total={summary?.total ?? 0} />
-          </CardContent>
-        </Card>
-      </div>
+      {summary ? <StatsRow summary={summary} /> : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Breakdown</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Tabs defaultValue="status">
+            <TabsList aria-label="Break down apps by">
+              <TabsTab value="status">Status</TabsTab>
+              <TabsTab value="source">Source</TabsTab>
+              <TabsTab value="namespace">Namespace</TabsTab>
+            </TabsList>
+            <TabsPanel value="status" className="mt-4">
+              <BarList data={summary?.byPhase ?? {}} total={summary?.total ?? 0} />
+            </TabsPanel>
+            <TabsPanel value="source" className="mt-4">
+              <BarList
+                data={labelSources(summary?.bySourceType ?? {})}
+                total={summary?.total ?? 0}
+              />
+            </TabsPanel>
+            <TabsPanel value="namespace" className="mt-4">
+              <BarList data={summary?.byNamespace ?? {}} total={summary?.total ?? 0} />
+            </TabsPanel>
+          </Tabs>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
           <CardTitle>Recently launched</CardTitle>
+          <CardAction>
+            <Link
+              to="/apps"
+              className="inline-flex items-center gap-1 text-muted-foreground text-sm hover:text-foreground hover:underline"
+            >
+              All apps
+              <ArrowRight aria-hidden="true" className="size-4" />
+            </Link>
+          </CardAction>
         </CardHeader>
         <CardContent>
           {recent.length === 0 ? (
@@ -187,7 +202,7 @@ export function DashboardPage() {
               .
             </p>
           ) : (
-            <ul className="divide-y divide-border">
+            <ul aria-label="Recently launched apps" className="divide-y divide-border">
               {recent.map((app) => (
                 <li
                   key={`${app.namespace}/${app.name}`}
@@ -212,9 +227,7 @@ export function DashboardPage() {
                       </p>
                     </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <SourceBadge source={app.source?.type ?? "—"} />
-                    <KindBadge pixiTask={app.runtime?.pixiTask} />
+                  <div className="shrink-0">
                     <PhaseBadge phase={app.status.phase} />
                   </div>
                 </li>
@@ -224,6 +237,25 @@ export function DashboardPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/** One row of counts: each phase present, then replicas ready and namespaces. */
+function StatsRow({ summary }: { summary: AnalyticsSummary }) {
+  const entries: [string, string | number][] = [
+    ...phaseCounts(summary.byPhase),
+    ["replicas ready", `${summary.readyReplicas}/${summary.desiredReplicas}`],
+    ["namespaces", Object.keys(summary.byNamespace).length],
+  ];
+  return (
+    <dl aria-label="App counts" className="flex flex-wrap items-baseline gap-x-6 gap-y-2 text-sm">
+      {entries.map(([label, value]) => (
+        <div key={label} className="flex items-baseline gap-1.5">
+          <dt className="order-2 text-muted-foreground">{label}</dt>
+          <dd className="order-1 font-semibold tabular-nums">{value}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 
@@ -274,13 +306,11 @@ function failureReason(app: App | undefined): string {
 }
 
 function NeedsAttention({
-  apps,
-  metrics,
+  items,
   loading,
   error,
 }: {
-  apps: App[] | undefined;
-  metrics: ClusterMetrics | undefined;
+  items: AttentionItem[];
   loading: boolean;
   error: unknown;
 }) {
@@ -292,7 +322,6 @@ function NeedsAttention({
       </CardContent>
     );
   }
-  const items = attentionItems(apps ?? [], metrics);
   return (
     <>
       {/* A failed request still lists what is known, but never claims the all-clear. */}
