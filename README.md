@@ -299,7 +299,7 @@ pins exact `sha-` tags. Pull requests build each image once (amd64, without push
 scan it with Trivy; a HIGH or CRITICAL vulnerability with an available fix fails the check.
 
 **Releasing is merging the release PR.**
-[`release-please.yaml`](.github/workflows/release-please.yaml) keeps one open
+[`release-pr.yaml`](.github/workflows/release-pr.yaml) keeps one open
 `chore: release X.Y.Z` pull request, opened by
 [release-please](https://github.com/googleapis/release-please). It bumps every version string
 together (Chart `version` and `appVersion`, the api and mcp `__version__`, `ui/package.json`

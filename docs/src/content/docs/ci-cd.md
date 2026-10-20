@@ -46,7 +46,7 @@ To verify a signature, see
 1. **Merge pull requests with Conventional Commit titles.** They are squash-merged, so the
    title is the commit, and it decides the next version: `feat:` bumps the minor version
    while the pack is below 1.0, `fix:` the patch version.
-2. **release-please keeps a release PR open** (`release-please.yaml`), titled
+2. **release-please keeps a release PR open** (`release-pr.yaml`), titled
    `chore: release X.Y.Z`. It bumps every version string together (the chart's `version`
    and `appVersion`, the API and MCP `__version__`, `ui/package.json` and its lockfile) and
    adds the release's section to `CHANGELOG.md`. Without a `RELEASE_PLEASE_TOKEN` secret the
