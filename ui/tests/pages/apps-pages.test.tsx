@@ -84,24 +84,174 @@ describe("apps page", () => {
       .slice(1)
       .map((r) => within(r).getAllByRole("link")[0].textContent);
 
-  const renderApps = async () => {
-    mocked.listApps.mockResolvedValue(LIST);
-    renderAt("/", <Route path="/" element={<AppsPage />} />);
-    await screen.findByRole("link", { name: "Alpha Docs" });
+  const renderApps = async (list: App[] = LIST) => {
+    mocked.listApps.mockResolvedValue(list);
+    renderAt(
+      "/",
+      <>
+        <Route path="/" element={<AppsPage />} />
+        <Route path="/apps/:namespace/:name" element={<LocationProbe />} />
+      </>,
+    );
+    await screen.findByRole("link", { name: list[1].displayName });
   };
+  const rowOf = (name: string) => screen.getByRole("link", { name }).closest("tr") as HTMLElement;
 
-  it("lists apps sorted by name and sorts by a column on click", async () => {
+  it("sorts by severity by default, then by name, and by a column on click", async () => {
     const user = userEvent.setup();
     await renderApps();
+    const status = screen.getByRole("button", { name: /Status/ });
+    expect(status.closest("th")).toHaveAttribute("aria-sort", "ascending");
+    expect(names()).toEqual(["gamma", "Alpha Docs", "beta"]);
+
+    await user.click(screen.getByRole("button", { name: /^App/ }));
     expect(names()).toEqual(["Alpha Docs", "beta", "gamma"]);
 
-    const status = screen.getByRole("button", { name: /Status/ });
     await user.click(status);
     expect(status.closest("th")).toHaveAttribute("aria-sort", "ascending");
     expect(names()).toEqual(["gamma", "Alpha Docs", "beta"]);
     await user.click(status);
     expect(status.closest("th")).toHaveAttribute("aria-sort", "descending");
     expect(names()).toEqual(["beta", "Alpha Docs", "gamma"]);
+  });
+
+  it("breaks severity ties by display name", async () => {
+    await renderApps([
+      app("zed"),
+      app("mid", { displayName: "Alpha" }),
+      app("bad", { phase: "Failed" }),
+      app("new", { phase: "Pending" }),
+    ]);
+    expect(names()).toEqual(["bad", "new", "Alpha", "zed"]);
+  });
+
+  it("opens the app when a row is clicked outside its controls", async () => {
+    const user = userEvent.setup();
+    await renderApps();
+    const alpha = rowOf("Alpha Docs");
+    expect(alpha).toHaveClass("cursor-pointer");
+    expect(alpha).not.toHaveAttribute("tabindex");
+
+    await user.click(within(alpha).getByRole("checkbox"));
+    expect(screen.queryByLabelText("location")).not.toBeInTheDocument();
+    expect(screen.getByText("1 selected")).toBeInTheDocument();
+
+    await user.click(within(alpha).getByText("alice"));
+    expect(screen.getByLabelText("location")).toHaveTextContent("/apps/apps/alpha");
+  });
+
+  it("shows the reason and a Logs shortcut on Failed rows, and no View icon", async () => {
+    const failing = app("gamma", { phase: "Failed" });
+    failing.status.conditions = [
+      { type: "Validated", status: "True", reason: "Valid", message: "" },
+      { type: "WorkloadReady", status: "False", reason: "CrashLoopBackOff", message: "x" },
+    ] as App["status"]["conditions"];
+    await renderApps([app("alpha", { displayName: "Alpha Docs" }), failing]);
+
+    const gamma = rowOf("gamma");
+    expect(gamma).toHaveAttribute("data-phase", "Failed");
+    expect(within(gamma).getByText("CrashLoopBackOff")).toHaveClass("text-xs");
+    expect(within(gamma).getByRole("link", { name: "Logs" })).toHaveAttribute(
+      "href",
+      "/apps/apps/gamma?tab=logs",
+    );
+    const alpha = rowOf("Alpha Docs");
+    expect(within(alpha).queryByRole("link", { name: "Logs" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "View" })).not.toBeInTheDocument();
+  });
+
+  it("labels Type and Source apart and puts the namespace under the name", async () => {
+    await renderApps();
+    expect(screen.queryByRole("columnheader", { name: /Namespace/ })).not.toBeInTheDocument();
+    const alpha = rowOf("Alpha Docs");
+    expect(within(alpha).getByText("alpha · apps")).toBeInTheDocument();
+    expect(within(alpha).getByText("Static")).toHaveAttribute("data-variant", "secondary");
+    expect(within(alpha).getByText("Upload")).toHaveClass("font-mono");
+    expect(within(rowOf("gamma")).getByText("Git")).toBeInTheDocument();
+  });
+
+  it("keeps Delete neutral and disables Stop while Pending", async () => {
+    await renderApps([app("alpha"), app("queued", { phase: "Pending" })]);
+    const del = within(rowOf("alpha")).getByRole("button", { name: "Delete app" });
+    expect(del).toHaveClass("text-muted-foreground", "hover:text-destructive-foreground");
+    expect(within(rowOf("queued")).getByRole("button", { name: "Stop app" })).toBeDisabled();
+    expect(within(rowOf("alpha")).getByRole("button", { name: "Stop app" })).toBeEnabled();
+  });
+
+  it("offers bulk Start and Stop only for apps they apply to", async () => {
+    const user = userEvent.setup();
+    await renderApps([...LIST, app("queued", { phase: "Pending" })]);
+    const bulk = () => screen.getByText(/selected$/).parentElement as HTMLElement;
+
+    await user.click(within(rowOf("beta")).getByRole("checkbox"));
+    expect(within(bulk()).getByRole("button", { name: "Start" })).toBeInTheDocument();
+    expect(within(bulk()).queryByRole("button", { name: "Stop" })).not.toBeInTheDocument();
+
+    await user.click(within(rowOf("beta")).getByRole("checkbox"));
+    await user.click(within(rowOf("queued")).getByRole("checkbox"));
+    expect(within(bulk()).queryByRole("button", { name: "Start" })).not.toBeInTheDocument();
+    expect(within(bulk()).queryByRole("button", { name: "Stop" })).not.toBeInTheDocument();
+    expect(within(bulk()).getByRole("button", { name: "Delete" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("checkbox", { name: "Select all" }));
+    mocked.stopApp.mockResolvedValue(LIST[1]);
+    await user.click(within(bulk()).getByRole("button", { name: "Stop" }));
+    expect(await screen.findByText("Stopped 2 app(s)")).toBeInTheDocument();
+    expect(mocked.stopApp.mock.calls.map(([, name]) => name).sort()).toEqual(["alpha", "gamma"]);
+  });
+
+  it("starts only the stopped apps in a bulk selection", async () => {
+    const user = userEvent.setup();
+    await renderApps();
+    await user.click(screen.getByRole("checkbox", { name: "Select all" }));
+    mocked.startApp.mockResolvedValue(LIST[0]);
+    await user.click(screen.getByRole("button", { name: "Start" }));
+    expect(await screen.findByText("Started 1 app(s)")).toBeInTheDocument();
+    expect(mocked.startApp).toHaveBeenCalledExactlyOnceWith("apps", "beta");
+  });
+
+  it("shows chip counts at full contrast", async () => {
+    const user = userEvent.setup();
+    await renderApps();
+    const all = screen.getByRole("button", { name: /All/ });
+    const failed = screen.getByRole("button", { name: /Failed/ });
+    expect(within(all).getByText("3")).not.toHaveClass("text-muted-foreground");
+    expect(within(all).getByText("3")).not.toHaveClass("opacity-70");
+    expect(within(failed).getByText("1")).toHaveClass("text-muted-foreground");
+    expect(within(failed).getByText("1")).not.toHaveClass("opacity-70");
+
+    await user.click(failed);
+    expect(within(failed).getByText("1")).not.toHaveClass("text-muted-foreground");
+  });
+
+  it("focuses the search with / unless typing in a field", async () => {
+    const user = userEvent.setup();
+    await renderApps();
+    const search = screen.getByPlaceholderText(/Search by name/);
+    expect(search).toHaveAttribute("aria-keyshortcuts", "/");
+    expect(screen.getByText("/", { selector: "kbd" })).toBeInTheDocument();
+
+    await user.keyboard("/");
+    expect(search).toHaveFocus();
+    expect(search).toHaveValue("");
+
+    await user.keyboard("a/b");
+    expect(search).toHaveValue("a/b");
+    expect(screen.queryByText("/", { selector: "kbd" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Clear search" })).toBeInTheDocument();
+  });
+
+  it("clears the search and the phase from the empty filtered state", async () => {
+    const user = userEvent.setup();
+    await renderApps();
+    await user.click(screen.getByRole("button", { name: /Failed/ }));
+    await user.type(screen.getByPlaceholderText(/Search by name/), "nothing-matches");
+    expect(screen.getByText("No apps match your filter.")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(names()).toHaveLength(3);
+    expect(screen.getByPlaceholderText(/Search by name/)).toHaveValue("");
+    expect(screen.getByRole("button", { name: /All/ })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("filters by search text and by phase", async () => {
