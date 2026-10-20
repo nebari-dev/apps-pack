@@ -49,6 +49,52 @@ test.describe("dashboard", () => {
     await expect(card.getByRole("table")).toHaveCount(0);
   });
 
+  test("leads with Needs attention, then one row of counts per phase", async ({ page }) => {
+    await page.goto("/");
+    const firstCard = page.locator("[data-slot=card]").first();
+    await expect(firstCard).toContainText("Needs attention");
+    await expect(firstCard.getByRole("table")).toBeVisible();
+
+    const counts = page.getByLabel("App counts");
+    await expect(counts).toHaveText(/^Failed1Running1Stopped1replicas ready1\/2namespaces2$/);
+    await expect(page.getByText(/not running/i)).toHaveCount(0);
+  });
+
+  test("the Breakdown card switches tabs and labels inline uploads", async ({ page }) => {
+    await page.goto("/");
+    const card = page.locator("[data-slot=card]").filter({ hasText: "Breakdown" });
+    await expect(card.getByRole("tab", { name: "Status" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await expect(card.getByRole("tabpanel", { name: "Status" })).toContainText("Failed");
+
+    await card.getByRole("tab", { name: "Source" }).click();
+    const panel = card.getByRole("tabpanel", { name: "Source" });
+    await expect(panel).toContainText("Upload");
+    await expect(panel).toContainText("Git");
+    await expect(panel).toContainText("PVC");
+    await expect(panel).not.toContainText("inline");
+
+    await card.getByRole("tab", { name: "Namespace" }).click();
+    await expect(card.getByRole("tabpanel", { name: "Namespace" })).toContainText("team-data");
+  });
+
+  test("Recently launched shows one status badge per app and links to all apps", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    const list = page.getByRole("list", { name: "Recently launched apps" });
+    const items = list.getByRole("listitem");
+    await expect(items).toHaveCount(3);
+    await expect(items.first()).toContainText("Docs Site");
+    await expect(items.first()).toContainText("apps · alice");
+    await expect(items.first()).not.toContainText(/git/i);
+
+    await page.getByRole("link", { name: "All apps" }).click();
+    await expect(page).toHaveURL("/apps");
+  });
+
   test("the Metrics page is gone: no nav item, and /metrics is not found", async ({ page }) => {
     await page.goto("/");
     await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
