@@ -1,6 +1,6 @@
 name: Images
 
-# check: builds each of the four images once on amd64, scans it with Trivy and,
+# check: builds each of the five images once on amd64, scans it with Trivy and,
 # for apps-ui, boots it to assert the security headers. Runs on pull requests,
 # on main, and weekly.
 #
@@ -19,6 +19,7 @@ on:
     branches: [main]
     paths:
       - "operator/**"
+      - "authz/**"
       - "api/**"
       - "ui/**"
       - "mcp/**"
@@ -27,6 +28,7 @@ on:
   pull_request:
     paths:
       - "operator/**"
+      - "authz/**"
       - "api/**"
       - "ui/**"
       - "mcp/**"
@@ -56,6 +58,8 @@ jobs:
         include:
           - image: apps-operator
             context: operator
+          - image: apps-authz
+            context: authz
           - image: apps-api
             context: api
           - image: apps-ui
@@ -98,6 +102,8 @@ jobs:
         include:
           - image: apps-operator
             context: operator
+          - image: apps-authz
+            context: authz
           - image: apps-api
             context: api
           - image: apps-ui
