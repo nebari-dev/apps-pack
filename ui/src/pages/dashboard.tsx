@@ -117,7 +117,7 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 ref={heading} tabIndex={-1} className="font-semibold text-2xl outline-none">
             Dashboard
@@ -126,7 +126,7 @@ export function DashboardPage() {
             Web applications running on this Nebari cluster.
           </p>
         </div>
-        <Button render={<Link to="/launch">Launch app</Link>} />
+        <Button className="self-start sm:self-auto" render={<Link to="/launch">Launch app</Link>} />
       </div>
 
       {/* The table sits flush in the card, so drop the card's bottom padding under it. */}
@@ -158,7 +158,7 @@ export function DashboardPage() {
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="status">
-            <TabsList aria-label="Break down apps by">
+            <TabsList aria-label="Break down apps by" className="max-w-full overflow-x-auto">
               <TabsTab value="status">Status</TabsTab>
               <TabsTab value="source">Source</TabsTab>
               <TabsTab value="namespace">Namespace</TabsTab>
@@ -343,13 +343,15 @@ function NeedsAttention({
         <CardContent className="px-0">
           <Table
             aria-label="Apps that need attention"
+            // Below sm the cells tighten and the action buttons show only icons.
+            className="max-sm:[&_td]:px-2 max-sm:[&_th]:px-2"
             scrollContainerClassName="rounded-none border-x-0 border-b-0"
           >
             <TableHeader>
               <TableRow>
                 <TableHead>App</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Restarts</TableHead>
+                <TableHead className="hidden sm:table-cell">Restarts</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -373,7 +375,9 @@ function NeedsAttention({
                         <p className="mt-1 text-muted-foreground text-xs">{reason}</p>
                       ) : null}
                     </TableCell>
-                    <TableCell className="tabular-nums">{item.restarts || "—"}</TableCell>
+                    <TableCell className="hidden tabular-nums sm:table-cell">
+                      {item.restarts || "—"}
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
                         <Button
@@ -387,7 +391,7 @@ function NeedsAttention({
                           }
                         >
                           <ScrollText aria-hidden="true" />
-                          Logs
+                          <span className="max-sm:sr-only">Logs</span>
                         </Button>
                         {item.failed && app ? (
                           <Button
@@ -398,7 +402,7 @@ function NeedsAttention({
                             onClick={() => actions.restart.mutate(app)}
                           >
                             <RotateCw aria-hidden="true" />
-                            Restart
+                            <span className="max-sm:sr-only">Restart</span>
                           </Button>
                         ) : null}
                       </div>

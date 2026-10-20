@@ -80,12 +80,16 @@ export function Header({
         )}
       </MenuBarBrand>
 
-      <MenuBarNav className="ml-4">
+      <MenuBarNav className="ml-1 sm:ml-4">
         {NAV.map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to}
             active={end ? pathname === to : pathname === to || pathname.startsWith(`${to}/`)}
             icon={<Icon />}
+            title={label}
+            // Below md the label stays in the DOM (the link's accessible name)
+            // but only the icon shows, so the nav fits beside the account menu.
+            className="max-md:[&>span]:sr-only"
             render={<Link to={to} />}
           >
             {label}
@@ -108,7 +112,9 @@ export function Header({
             {/* Named by its content, not aria-label, so the name contains the
                 visible text (WCAG 2.5.3, label in name). The initials repeat
                 the label and are hidden from assistive tech. */}
-            <span>
+            {/* Below md only the avatar and chevron show; the label stays for
+                assistive tech. */}
+            <span className="max-md:sr-only">
               {accountLabel} <span className="sr-only">{user ? "(account menu)" : "menu"}</span>
             </span>
 

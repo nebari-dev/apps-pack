@@ -36,7 +36,11 @@ export function Layout() {
           onSignOut={() => void logout()}
         />
 
-        <main id="main" tabIndex={-1} className="min-w-0 flex-1 bg-canvas px-10 py-8 outline-none">
+        <main
+          id="main"
+          tabIndex={-1}
+          className="min-w-0 flex-1 bg-canvas px-4 py-6 outline-none sm:px-6 lg:px-10 lg:py-8"
+        >
           {/* Keyed by route: a page that threw is retried when the user navigates. */}
           <ErrorBoundary key={pathname}>
             <Suspense
