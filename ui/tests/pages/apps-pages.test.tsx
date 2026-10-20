@@ -304,7 +304,8 @@ function LocationProbe() {
 }
 
 describe("app detail page", () => {
-  const renderDetail = async (a: App, path = "/apps/apps/docs") => {
+  /** Renders the detail page for `a`; `before` overrides the default API mocks. */
+  const renderDetail = async (a: App, path = "/apps/apps/docs", before?: () => void) => {
     mocked.getApp.mockResolvedValue(a);
     mocked.logs.mockResolvedValue({ logs: "GET / 200\nGET /missing 404\n" });
     mocked.events.mockResolvedValue([]);
@@ -312,6 +313,7 @@ describe("app detail page", () => {
       available: true,
       pods: [{ name: "p", cpu: "3m", memory: "10Mi" }],
     });
+    before?.();
     renderAt(
       path,
       <Route
@@ -327,6 +329,36 @@ describe("app detail page", () => {
     await screen.findByRole("heading", { level: 1 });
   };
 
+  const condition = (type: string, status: "True" | "False", reason: string, message = "") => ({
+    type,
+    status,
+    reason,
+    message,
+    lastTransitionTime: "2026-10-19T12:00:00Z",
+  });
+
+  /** A crash-looping app, shaped like BROKEN_APP in e2e/data.ts. */
+  const failed = (over: Partial<App["status"]> = {}): App => {
+    const a = app("docs", { phase: "Failed" });
+    return {
+      ...a,
+      status: {
+        ...a.status,
+        message: "CrashLoopBackOff",
+        conditions: [
+          condition("Validated", "True", "Valid"),
+          condition("WorkloadReady", "False", "CrashLoopBackOff", "Back-off restarting container"),
+        ],
+        ...over,
+      },
+    };
+  };
+
+  const openMoreMenu = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.click(screen.getByRole("button", { name: "More actions" }));
+    return screen.findAllByRole("menuitem");
+  };
+
   it("opens the tab named by ?tab= and writes the chosen tab back to the URL", async () => {
     const user = userEvent.setup();
     await renderDetail(app("docs"), "/apps/apps/docs?tab=logs");
@@ -338,19 +370,69 @@ describe("app detail page", () => {
     expect(screen.getByLabelText("location")).toHaveTextContent("/apps/apps/docs?tab=events");
   });
 
-  it("falls back to Conditions for a missing or unknown ?tab=", async () => {
+  it("labels the conditions tab Health and falls back to it for an unknown ?tab=", async () => {
     await renderDetail(app("docs"), "/apps/apps/docs?tab=nope");
-    expect(screen.getByRole("tab", { name: "Conditions" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
+    expect(screen.getByRole("tab", { name: "Health" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByRole("tab", { name: "Conditions" })).not.toBeInTheDocument();
   });
 
-  it("offers the URL only while Running, and Start for a stopped app", async () => {
+  it("offers Open only while Running, and Start for a stopped app", async () => {
+    const user = userEvent.setup();
     await renderDetail(app("docs", { phase: "Stopped" }));
-    expect(screen.getByRole("button", { name: /Open/ })).toBeDisabled();
+    expect(screen.queryByRole("link", { name: /Open/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Open/ })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Start/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Restart/ })).toBeDisabled();
+
+    await openMoreMenu(user);
+    const restart = screen.getByRole("menuitem", { name: /Restart/ });
+    expect(restart).toHaveAttribute("aria-disabled", "true");
+    expect(restart).toHaveTextContent("Start the app to restart it");
+  });
+
+  it("hides Open while an app is still deploying, without alerting", async () => {
+    await renderDetail(app("docs", { phase: "Deploying" }));
+    expect(screen.queryByRole("link", { name: /Open/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Stop/ })).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("keeps Restart, Copy URL and Delete in the More menu, Delete last", async () => {
+    const user = userEvent.setup();
+    await renderDetail(app("docs"));
+    expect(screen.queryByRole("button", { name: /Restart|Delete/ })).not.toBeInTheDocument();
+    const items = await openMoreMenu(user);
+    expect(items.map((i) => i.textContent)).toEqual(["Restart", "Copy URL", "Delete"]);
+    expect(items[2]).toHaveClass("text-destructive-foreground");
+    expect(screen.getByRole("separator")).toBeInTheDocument();
+  });
+
+  it("copies the URL from the More menu and reports the result", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn(async (_text: string) => {});
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    await renderDetail(app("docs"));
+
+    await openMoreMenu(user);
+    await user.click(screen.getByRole("menuitem", { name: "Copy URL" }));
+    expect(writeText).toHaveBeenCalledWith("https://docs.apps.example.ai");
+    expect((await screen.findAllByText("Copied the URL")).length).toBeGreaterThan(0);
+
+    writeText.mockRejectedValueOnce(new Error("denied"));
+    await openMoreMenu(user);
+    await user.click(screen.getByRole("menuitem", { name: "Copy URL" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(2));
+    expect((await screen.findAllByText("Could not copy to clipboard")).length).toBeGreaterThan(0);
+  });
+
+  it("disables Copy URL for an app without a URL", async () => {
+    const user = userEvent.setup();
+    const a = app("docs", { phase: "Pending" });
+    await renderDetail({ ...a, status: { ...a.status, url: "" } });
+    await openMoreMenu(user);
+    expect(screen.getByRole("menuitem", { name: "Copy URL" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
   });
 
   it("stops and restarts a running app", async () => {
@@ -360,8 +442,13 @@ describe("app detail page", () => {
       "href",
       "https://docs.apps.example.ai",
     );
+    mocked.stopApp.mockResolvedValue(app("docs"));
+    await user.click(screen.getByRole("button", { name: /Stop/ }));
+    expect(mocked.stopApp).toHaveBeenCalledWith("apps", "docs");
+
     mocked.restartApp.mockResolvedValue(app("docs"));
-    await user.click(screen.getByRole("button", { name: /Restart/ }));
+    await openMoreMenu(user);
+    await user.click(screen.getByRole("menuitem", { name: "Restart" }));
     expect(mocked.restartApp).toHaveBeenCalledWith("apps", "docs");
     expect(await screen.findByText("Restarting docs")).toBeInTheDocument();
   });
@@ -370,7 +457,8 @@ describe("app detail page", () => {
     const user = userEvent.setup();
     await renderDetail(app("docs"));
     mocked.deleteApp.mockResolvedValue(undefined);
-    await user.click(screen.getByRole("button", { name: /Delete/ }));
+    await openMoreMenu(user);
+    await user.click(screen.getByRole("menuitem", { name: "Delete" }));
     const dialog = await screen.findByRole("dialog");
     const confirm = within(dialog).getByRole("button", { name: "Delete app" });
     expect(confirm).toBeDisabled();
@@ -382,17 +470,106 @@ describe("app detail page", () => {
     expect(await screen.findByText("apps list")).toBeInTheDocument();
   });
 
-  it("filters logs", async () => {
+  it("names a failed app's failing condition in an alert, with View logs and Restart", async () => {
+    const user = userEvent.setup();
+    await renderDetail(failed());
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("WorkloadReady failed: CrashLoopBackOff");
+    expect(alert).toHaveTextContent("Back-off restarting container");
+
+    await user.click(within(alert).getByRole("button", { name: "View logs" }));
+    expect(screen.getByRole("tab", { name: "Logs" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByLabelText("location")).toHaveTextContent("/apps/apps/docs?tab=logs");
+
+    mocked.restartApp.mockResolvedValue(failed());
+    await user.click(within(alert).getByRole("button", { name: "Restart" }));
+    expect(mocked.restartApp).toHaveBeenCalledWith("apps", "docs");
+  });
+
+  it("falls back to the status message for a failed app with no failing condition", async () => {
+    await renderDetail(failed({ conditions: [] }));
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("App failed");
+    expect(alert).toHaveTextContent("CrashLoopBackOff");
+  });
+
+  it("alerts on a False condition while Running, describing it with the status message", async () => {
+    const a = app("docs");
+    await renderDetail({
+      ...a,
+      status: {
+        ...a.status,
+        message: "Route is not ready",
+        conditions: [condition("RoutingReady", "False", "")],
+      },
+    });
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("RoutingReady failed: Unknown");
+    expect(alert).toHaveTextContent("Route is not ready");
+  });
+
+  it("shows CPU and memory and no alert for a healthy app", async () => {
+    await renderDetail(app("docs"));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByText("CPU")).toBeInTheDocument();
+    expect(screen.getByText("Memory")).toBeInTheDocument();
+    expect(screen.getByText("of 1 ready")).toBeInTheDocument();
+  });
+
+  it.each([
+    ["Stopped", () => app("docs", { phase: "Stopped" })],
+    ["Failed", () => failed()],
+  ])("explains the missing CPU and memory cards for a %s app", async (_phase, make) => {
+    await renderDetail(make());
+    expect(
+      screen.getByText("CPU and memory are shown once the app is running."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("CPU")).not.toBeInTheDocument();
+    expect(screen.queryByText("Memory")).not.toBeInTheDocument();
+  });
+
+  it("filters logs in a focusable log region", async () => {
     const user = userEvent.setup();
     await renderDetail(app("docs"));
     await user.click(screen.getByRole("tab", { name: "Logs" }));
     await screen.findByText(/GET \/missing 404/);
-    await user.type(screen.getByPlaceholderText("Filter lines…"), "404");
+    const log = screen.getByRole("log", { name: "Pod logs" });
+    expect(log).toHaveAttribute("tabindex", "0");
+    await user.type(screen.getByRole("textbox", { name: "Filter log lines" }), "404");
     await waitFor(() => expect(screen.queryByText(/GET \/ 200/)).not.toBeInTheDocument());
-    expect(screen.getByText(/GET \/missing 404/)).toBeInTheDocument();
+    expect(log).toHaveTextContent("GET /missing 404");
   });
 
-  it("shows a manifest that round-trips the App's spec", async () => {
+  it("explains why logs are unavailable", async () => {
+    await renderDetail(app("docs"), "/apps/apps/docs?tab=logs", () =>
+      mocked.logs.mockRejectedValue(new Error("pod has no containers")),
+    );
+    expect(await screen.findByText("No logs available")).toBeInTheDocument();
+    expect(screen.getByText("pod has no containers")).toBeInTheDocument();
+    expect(screen.queryByRole("log")).not.toBeInTheDocument();
+  });
+
+  it("shows event times relative to now, with the absolute time as a title", async () => {
+    const at = new Date(Date.now() - 2 * 60_000).toISOString();
+    await renderDetail(app("docs"), "/apps/apps/docs?tab=events", () =>
+      mocked.events.mockResolvedValue([
+        {
+          type: "Normal",
+          reason: "Scheduled",
+          message: "Assigned",
+          kind: "Pod",
+          object: "docs-abc",
+          count: 1,
+          lastTimestamp: at,
+        },
+      ]),
+    );
+    const time = await screen.findByText("2 min ago");
+    expect(time).toHaveAttribute("title", at);
+    expect(time).toHaveAttribute("datetime", at);
+  });
+
+  it("shows the manifest as YAML carrying the App's spec", async () => {
     const user = userEvent.setup();
     const a = app("docs", {
       description: "Team docs",
@@ -400,17 +577,16 @@ describe("app detail page", () => {
     } as Partial<App>);
     await renderDetail(a);
     await user.click(screen.getByRole("tab", { name: "Manifest" }));
-    const code = await screen.findByText(/"kind": "App"/, { exact: false });
-    const manifest = JSON.parse(code.closest("pre")?.textContent ?? code.textContent ?? "{}");
-    expect(manifest.metadata).toEqual({ name: "docs", namespace: "apps" });
-    expect(manifest.spec).toMatchObject({
-      displayName: "docs",
-      description: "Team docs",
-      source: a.source,
-      runtime: a.runtime,
-      access: a.access,
-      landingPage: { enabled: true },
-    });
+    const panel = screen.getByRole("tabpanel", { name: "Manifest" });
+    await waitFor(() => expect(panel).toHaveTextContent("kind: App"));
+    const yaml = panel.querySelector("pre")?.textContent ?? "";
+    expect(yaml).toContain("apiVersion: apps.nebari.dev/v1alpha1\nkind: App\n");
+    expect(yaml).toContain("metadata:\n  name: docs\n  namespace: apps\n");
+    expect(yaml).toContain("  description: Team docs\n");
+    expect(yaml).toContain("    inline:\n      files:\n        index.html: hi\n");
+    expect(yaml).toContain("  landingPage:\n    enabled: true");
+    expect(yaml).not.toContain('"kind"');
+    expect(panel).toHaveTextContent("apply with kubectl apply -f");
   });
 
   it("explains a failed load", async () => {

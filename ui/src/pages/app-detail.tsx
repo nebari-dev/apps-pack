@@ -1,14 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
 import {
+  AlertCircle,
   ArrowLeft,
   CheckCircle2,
+  Copy,
   Download,
   ExternalLink,
+  MoreHorizontal,
   Pause,
   Pencil,
   Play,
   RefreshCw,
   RotateCw,
+  ScrollText,
   Trash2,
   XCircle,
 } from "lucide-react";
@@ -23,20 +27,33 @@ import {
   SourceBadge,
   Sparkline,
 } from "@/components/app-bits";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { errorMessage } from "@/components/query-error";
+import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CodeBlock, CodeBlockBody } from "@/components/ui/code-block";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuPortal,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
+import { toast } from "@/components/ui/toast";
 import { useAppActions } from "@/hooks/use-app-actions";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { accessLine } from "@/lib/access";
 import { api } from "@/lib/api";
+import { copyText } from "@/lib/clipboard";
 import { pollFor } from "@/lib/polling";
+import { relativeTime } from "@/lib/time";
 import type { App } from "@/lib/types";
+import { toYaml } from "@/lib/yaml";
 
 const MAX_SAMPLES = 30;
 
@@ -51,6 +68,15 @@ export function AppDetailPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get("tab");
   const tab: DetailTab = isDetailTab(tabParam) ? tabParam : "conditions";
+  const selectTab = (next: DetailTab) =>
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        params.set("tab", next);
+        return params;
+      },
+      { replace: true },
+    );
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [logFollow, setLogFollow] = useState(true);
@@ -120,6 +146,20 @@ export function AppDetailPage() {
   // still-deploying apps would just show a gateway error.
   const ready = a.status.phase === "Running";
   const manifest = toManifest(a);
+  const failure = failureOf(a);
+  // A stopped or failed app has no pods to measure: say so instead of
+  // drawing empty CPU and memory cards.
+  const showUsage = a.status.phase !== "Stopped" && a.status.phase !== "Failed";
+  const url = a.status.url;
+  const copyUrl = async () => {
+    if (!url) return;
+    try {
+      await copyText(url);
+      toast.add({ type: "success", title: "Copied the URL" });
+    } catch {
+      toast.add({ type: "error", title: "Could not copy to clipboard" });
+    }
+  };
 
   const filteredLogs = filterLogs(logs.data?.logs ?? "", logSearch);
   const downloadLogs = () => {
@@ -165,22 +205,24 @@ export function AppDetailPage() {
           </div>
         </div>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-          {a.status.url ? (
-            ready ? (
-              <Button
-                variant="outline"
-                render={
-                  <a href={a.status.url} target="_blank" rel="noreferrer">
-                    Open <ExternalLink />
-                  </a>
-                }
-              />
-            ) : (
-              <Button variant="outline" disabled>
-                Open <ExternalLink />
-              </Button>
-            )
+          {ready && url ? (
+            <Button
+              render={
+                <a href={url} target="_blank" rel="noreferrer">
+                  Open <ExternalLink />
+                </a>
+              }
+            />
           ) : null}
+          {stopped ? (
+            <Button variant="outline" loading={start.isPending} onClick={() => start.mutate(a)}>
+              <Play /> Start
+            </Button>
+          ) : (
+            <Button variant="outline" loading={stop.isPending} onClick={() => stop.mutate(a)}>
+              <Pause /> Stop
+            </Button>
+          )}
           <Button
             variant="outline"
             render={
@@ -189,30 +231,75 @@ export function AppDetailPage() {
               </Link>
             }
           />
-          {stopped ? (
-            <Button variant="secondary" loading={start.isPending} onClick={() => start.mutate(a)}>
-              <Play /> Start
-            </Button>
-          ) : (
-            <Button variant="secondary" loading={stop.isPending} onClick={() => stop.mutate(a)}>
-              <Pause /> Stop
-            </Button>
-          )}
-          <Button
-            variant="secondary"
-            disabled={stopped}
-            loading={restart.isPending}
-            onClick={() => restart.mutate(a)}
-          >
-            <RotateCw /> Restart
-          </Button>
-          <Button variant="destructive" onClick={() => setDeleteOpen(true)}>
-            <Trash2 /> Delete
-          </Button>
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger
+              variant="ghost"
+              aria-label="More actions"
+              render={<Button variant="ghost" size="icon" />}
+            >
+              <MoreHorizontal aria-hidden="true" />
+            </DropdownMenuTrigger>
+            <DropdownMenuPortal>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem disabled={stopped} onClick={() => restart.mutate(a)}>
+                  <RotateCw aria-hidden="true" className="size-4 shrink-0" />
+                  <span className="flex flex-col">
+                    Restart
+                    {stopped ? (
+                      <span className="text-muted-foreground text-xs">
+                        Start the app to restart it
+                      </span>
+                    ) : null}
+                  </span>
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled={!url} onClick={() => void copyUrl()}>
+                  <Copy aria-hidden="true" className="size-4 shrink-0" />
+                  Copy URL
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive-foreground"
+                  variant="destructive"
+                  onClick={() => setDeleteOpen(true)}
+                >
+                  <Trash2 aria-hidden="true" className="size-4 shrink-0" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenuPortal>
+          </DropdownMenu>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {failure ? (
+        <Alert variant="destructive" role="alert" className="has-data-[slot=alert-action]:pr-2">
+          <AlertCircle aria-hidden="true" />
+          <AlertTitle>{failure.title}</AlertTitle>
+          {failure.message ? <AlertDescription>{failure.message}</AlertDescription> : null}
+          <AlertAction className="static col-start-2 mt-2 flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={() => selectTab("logs")}>
+              <ScrollText aria-hidden="true" /> View logs
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={stopped}
+              loading={restart.isPending}
+              onClick={() => restart.mutate(a)}
+            >
+              <RotateCw aria-hidden="true" /> Restart
+            </Button>
+          </AlertAction>
+        </Alert>
+      ) : null}
+
+      <div
+        className={
+          showUsage
+            ? "grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
+            : "grid grid-cols-1 gap-4 sm:grid-cols-2"
+        }
+      >
         <Card>
           <CardHeader>
             <CardTitle>URL</CardTitle>
@@ -255,65 +342,75 @@ export function AppDetailPage() {
           </CardHeader>
           <CardContent>
             <p className="font-semibold text-2xl tabular-nums">
-              {a.status.replicas ? `${a.status.replicas.ready}/${a.status.replicas.desired}` : "—"}
+              {a.status.replicas ? (
+                <>
+                  {a.status.replicas.ready}
+                  <span className="ml-1 font-normal text-muted-foreground text-sm">
+                    of {a.status.replicas.desired} ready
+                  </span>
+                </>
+              ) : (
+                "—"
+              )}
             </p>
             <p className="mt-1 text-muted-foreground text-xs">{a.status.message}</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>CPU</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {metrics.data?.available ? (
-              <>
-                <p className="font-semibold text-2xl tabular-nums">
-                  {cpuHistory.at(-1) ?? 0}
-                  <span className="ml-1 font-normal text-muted-foreground text-sm">m</span>
-                </p>
-                <Sparkline data={cpuHistory} className="mt-2 w-full" />
-              </>
-            ) : (
-              <p className="text-muted-foreground text-sm">Metrics unavailable</p>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Memory</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {metrics.data?.available ? (
-              <>
-                <p className="font-semibold text-2xl tabular-nums">
-                  {memHistory.at(-1) ?? 0}
-                  <span className="ml-1 font-normal text-muted-foreground text-sm">Mi</span>
-                </p>
-                <Sparkline data={memHistory} className="mt-2 w-full" />
-              </>
-            ) : (
-              <p className="text-muted-foreground text-sm">Metrics unavailable</p>
-            )}
-          </CardContent>
-        </Card>
+        {showUsage ? (
+          <>
+            <Card>
+              <CardHeader>
+                <CardTitle>CPU</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {metrics.data?.available ? (
+                  <>
+                    <p className="font-semibold text-2xl tabular-nums">
+                      {cpuHistory.at(-1) ?? 0}
+                      <span className="ml-1 font-normal text-muted-foreground text-sm">m</span>
+                    </p>
+                    <Sparkline data={cpuHistory} className="mt-2 w-full" />
+                  </>
+                ) : (
+                  <p className="text-muted-foreground text-sm">Metrics unavailable</p>
+                )}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Memory</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {metrics.data?.available ? (
+                  <>
+                    <p className="font-semibold text-2xl tabular-nums">
+                      {memHistory.at(-1) ?? 0}
+                      <span className="ml-1 font-normal text-muted-foreground text-sm">Mi</span>
+                    </p>
+                    <Sparkline data={memHistory} className="mt-2 w-full" />
+                  </>
+                ) : (
+                  <p className="text-muted-foreground text-sm">Metrics unavailable</p>
+                )}
+              </CardContent>
+            </Card>
+          </>
+        ) : null}
       </div>
+      {showUsage ? null : (
+        <p className="text-muted-foreground text-sm">
+          CPU and memory are shown once the app is running.
+        </p>
+      )}
 
       <Tabs
         value={tab}
         onValueChange={(next) => {
-          if (!isDetailTab(next)) return;
-          setSearchParams(
-            (prev) => {
-              const params = new URLSearchParams(prev);
-              params.set("tab", next);
-              return params;
-            },
-            { replace: true },
-          );
+          if (isDetailTab(next)) selectTab(next);
         }}
       >
         <TabsList>
-          <TabsTab value="conditions">Conditions</TabsTab>
+          <TabsTab value="conditions">Health</TabsTab>
           <TabsTab value="logs">Logs</TabsTab>
           <TabsTab value="events">Events</TabsTab>
           <TabsTab value="manifest">Manifest</TabsTab>
@@ -361,6 +458,7 @@ export function AppDetailPage() {
               <CardTitle>Pod logs</CardTitle>
               <div className="flex items-center gap-3">
                 <Input
+                  aria-label="Filter log lines"
                   placeholder="Filter lines…"
                   className="h-8 w-48"
                   value={logSearch}
@@ -392,14 +490,22 @@ export function AppDetailPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <pre className="max-h-96 overflow-auto rounded-md bg-muted p-3 font-mono text-xs leading-relaxed">
-                {filteredLogs ||
-                  (logs.isError
-                    ? `No logs available: ${logs.error}`
-                    : logSearch
-                      ? "No matching lines."
-                      : "Loading…")}
-              </pre>
+              {logs.isError && !filteredLogs ? (
+                <div className="rounded-md bg-muted p-3 text-sm">
+                  <p>No logs available</p>
+                  <p className="mt-1 text-muted-foreground">{errorMessage(logs.error)}</p>
+                </div>
+              ) : (
+                <pre
+                  role="log"
+                  // biome-ignore lint/a11y/noNoninteractiveTabindex: the log scrolls, so keyboard users need to reach it
+                  tabIndex={0}
+                  aria-label="Pod logs"
+                  className="max-h-96 overflow-auto rounded-md bg-muted p-3 font-mono text-xs leading-relaxed"
+                >
+                  {filteredLogs || (logSearch ? "No matching lines." : "Loading…")}
+                </pre>
+              )}
             </CardContent>
           </Card>
         </TabsPanel>
@@ -423,9 +529,15 @@ export function AppDetailPage() {
                       </p>
                       <p className="text-muted-foreground">{ev.message}</p>
                     </div>
-                    <span className="shrink-0 text-muted-foreground text-xs">
-                      {ev.lastTimestamp}
-                    </span>
+                    {ev.lastTimestamp ? (
+                      <time
+                        dateTime={ev.lastTimestamp}
+                        title={ev.lastTimestamp}
+                        className="shrink-0 text-muted-foreground text-xs"
+                      >
+                        {relativeTime(ev.lastTimestamp)}
+                      </time>
+                    ) : null}
                   </li>
                 ))}
                 {(events.data ?? []).length === 0 ? (
@@ -475,7 +587,27 @@ function filterLogs(logs: string, term: string): string {
     .join("\n");
 }
 
-/** Rebuild the App custom resource from API data, as pretty JSON. */
+/**
+ * Why the app is unhealthy, for the Alert under the header: the first
+ * condition that is not True, named with its reason, or the phase message
+ * for a Failed app with no failing condition. Conditions still settling on
+ * a Pending or Deploying app are not failures yet.
+ */
+function failureOf(a: App): { title: string; message: string } | null {
+  const { phase, conditions, message } = a.status;
+  if (phase !== "Failed" && phase !== "Running") return null;
+  const failing = conditions.find((c) => c.status !== "True");
+  if (failing) {
+    return {
+      title: `${failing.type} failed: ${failing.reason || "Unknown"}`,
+      message: failing.message || message,
+    };
+  }
+  if (phase === "Failed") return { title: "App failed", message };
+  return null;
+}
+
+/** Rebuild the App custom resource from API data, as YAML for `kubectl apply -f`. */
 function toManifest(a: App): string {
   const spec: Record<string, unknown> = { displayName: a.displayName };
   if (a.description) spec.description = a.description;
@@ -490,5 +622,5 @@ function toManifest(a: App): string {
     metadata: { name: a.name, namespace: a.namespace },
     spec,
   };
-  return JSON.stringify(cr, null, 2);
+  return toYaml(cr);
 }
