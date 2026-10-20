@@ -10,3 +10,6 @@ tests
 e2e
 test-results
 playwright-report
+# Screenshot tooling imports e2e/ (excluded above); the image needs neither.
+scripts/readme-screenshot.ts
+playwright.screenshot.config.ts
