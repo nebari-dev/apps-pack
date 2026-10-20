@@ -269,12 +269,14 @@ mcp:
 # =============================================================================
 keycloak:
   # -- Browser-facing Keycloak base URL, e.g.
-  # `https://keycloak.example.ai/auth`. Required when `api.auth.enabled`.
+  # `https://keycloak.example.ai/auth`. Required when `api.auth.enabled`,
+  # and (or `internalUrl`) for apps that list `access.groups`/`access.users`.
   url: ""
   # -- Keycloak realm.
   realm: nebari
-  # -- Optional in-cluster Keycloak URL (split horizon) the API and MCP server
-  # fetch JWKS from.
+  # -- Optional in-cluster Keycloak URL (split horizon) the API, the MCP
+  # server and the authz sidecar fetch JWKS from. The sidecar accepts tokens
+  # issued under either URL.
   internalUrl: ""
 
 # =============================================================================
@@ -327,6 +329,24 @@ gitImage: alpine/git:v2.47.2
 # -- Image running Python/pixi apps (`runtime.pixiTask`). Must provide the
 # `pixi` binary and run as a non-root user.
 pythonImage: ghcr.io/prefix-dev/pixi:0.68.1-noble
+
+# The apps-authz sidecar. Apps that list `access.groups` or `access.users`
+# get it in front of the app container: it checks the access token the
+# gateway forwards against the Keycloak realm (`keycloak.url`, and
+# `keycloak.internalUrl` when set) and returns 403 to everyone else.
+authz:
+  image:
+    # -- apps-authz image repository.
+    repository: ghcr.io/nebari-dev/apps-pack/apps-authz
+    # -- Image tag. Empty defaults to the chart's appVersion.
+    tag: ""
+    # -- Image pull policy.
+    pullPolicy: IfNotPresent
+  # -- Sidecar resources, per restricted app pod (on top of the app
+  # container's own).
+  resources:
+    requests: { cpu: 10m, memory: 32Mi }
+    limits: { cpu: 100m, memory: 64Mi }
 
 # =============================================================================
 # Overrides

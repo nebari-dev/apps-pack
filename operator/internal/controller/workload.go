@@ -12,9 +12,11 @@ import (
 )
 
 const (
-	// AppPort is the port every app container listens on. Auth is enforced at
-	// the gateway by the NebariApp SecurityPolicy, so apps serve plain HTTP
-	// here.
+	// AppPort is the port the Service and the chart's NetworkPolicy target.
+	// The app container listens on it, unless the App restricts access to
+	// groups or users: then the authz sidecar takes it and the app moves to
+	// AppInternalPort (authz.go). Sign-in is enforced at the gateway by the
+	// NebariApp SecurityPolicy, so apps serve plain HTTP here.
 	AppPort = 8080
 
 	// webRoot is where the static server image serves content from.
@@ -61,6 +63,11 @@ func (r *AppReconciler) buildDeployment(app *appsv1alpha1.App) (*appsv1.Deployme
 	}
 	if err != nil {
 		return nil, err
+	}
+	if restricted(app) {
+		r.addAuthzSidecar(app, &podSpec)
+		// kubectl logs/exec pick the app, not the sidecar.
+		annotations["kubectl.kubernetes.io/default-container"] = "app"
 	}
 	// Init containers (git clone, source copy) get the same bounds as the
 	// app, so a namespace ResourceQuota that requires limits admits the pod.
@@ -138,7 +145,7 @@ func (r *AppReconciler) buildStaticPodSpec(app *appsv1alpha1.App, annotations ma
 			},
 		}},
 	}
-	annotations["apps.nebari.dev/server-config-checksum"] = serverConfChecksum()
+	annotations["apps.nebari.dev/server-config-checksum"] = serverConfChecksum(app)
 
 	switch app.Spec.Source.Type {
 	case appsv1alpha1.SourceTypeInline:
@@ -195,8 +202,8 @@ const (
 
 // buildPixiPodSpec runs the app as a Python/pixi service: source is assembled
 // into a writable emptyDir, then the main container installs the pixi
-// environment and executes `pixi run <task>`. The task must listen on
-// 0.0.0.0:8080.
+// environment and executes `pixi run <task>`. The task must listen on $PORT
+// (AppPort, or AppInternalPort behind the authz sidecar).
 func (r *AppReconciler) buildPixiPodSpec(app *appsv1alpha1.App, annotations map[string]string) (corev1.PodSpec, error) {
 	containerSecurity := &corev1.SecurityContext{
 		AllowPrivilegeEscalation: ptr.To(false),
@@ -207,7 +214,7 @@ func (r *AppReconciler) buildPixiPodSpec(app *appsv1alpha1.App, annotations map[
 	// user-controlled strings (same convention as the git-clone init).
 	env := []corev1.EnvVar{
 		{Name: "PIXI_TASK", Value: app.Spec.Runtime.PixiTask},
-		{Name: "PORT", Value: fmt.Sprintf("%d", AppPort)},
+		{Name: "PORT", Value: fmt.Sprintf("%d", appContainerPort(app))},
 		{Name: "HOME", Value: appWorkdir},
 	}
 	env = append(env, app.Spec.Runtime.Env...)

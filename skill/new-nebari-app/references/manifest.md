@@ -38,16 +38,19 @@ runtime:                       # optional
     requests: { cpu: 250m, memory: 512Mi }
   # Python/pixi apps only: the pixi task that launches the app. When set, the
   # platform runs `pixi install` + `pixi run <task>` instead of serving the
-  # source with nginx. The task must serve on 0.0.0.0:8080 (PORT is injected).
+  # source with nginx. The task must serve on 0.0.0.0:$PORT (PORT is injected:
+  # 8080, or 8081 when groups or users are set).
   pixiTask: start
 
 access:
   public: false                # true = anonymous; false = Keycloak SSO at the gateway
-  groups: ["analytics"]        # intended audience; NOTE: not enforced by the gateway yet
+  groups: ["analytics"]        # allowed groups (enforced in the app pod; 403 for others)
+  users: ["alice"]             # allowed usernames, in addition to the groups
   subdomain: docs-site         # URL: http(s)://<subdomain>.<appsDomain>
 
 landingPage:                   # optional
-  enabled: true                # tile on the Nebari landing page; omit = cluster default (off)
+  enabled: true                # tile on the Nebari landing page; omit = cluster default (off).
+                               # The tile honors groups only: users-only apps show it to everyone
 ```
 
 ## Manifest → MCP `launch_app` mapping
@@ -63,12 +66,12 @@ landingPage:                   # optional
 | `runtime.replicas` | `replicas` (0–10) |
 | `runtime.resources` | `resources` (same `{requests, limits}` shape; omitted values get the cluster default) |
 | `runtime.pixiTask` | `pixi_task` |
-| `access.public` / `access.groups` | `public` / `groups` |
+| `access.public` / `access.groups` / `access.users` | `public` / `groups` / `users` |
 | `access.subdomain` | `subdomain` |
 | `landingPage.enabled` | `landing_page` (omit when the manifest omits it) |
 
 The manifest covers everything `launch_app` accepts. The `App` resource has a few extra
-fields with no manifest/tool equivalent (`spec.owner`, `spec.thumbnail`, `access.users`,
+fields with no manifest/tool equivalent (`spec.owner`, `spec.thumbnail`,
 `runtime.keepAlive`) — set those via the API (`PATCH`) or `kubectl` after launch if needed.
 
 `files` constraints (they mirror the API's upload rules): static apps must include
@@ -87,5 +90,7 @@ content files and the manifest.
 **Python apps** (`runtime.pixiTask`) run in the platform's pixi image: the source is
 copied into a writable workspace, `pixi install` resolves the environment (use a
 committed `pixi.lock` for reproducible, faster starts), and `pixi run <task>` launches
-the app. The task must start a server on **0.0.0.0:8080** — `PORT=8080` is injected, so
-`--port ${PORT:-8080}` works both locally and on the cluster. No Dockerfile needed.
+the app. The task must start a server on **0.0.0.0:$PORT** — `PORT` is injected (8080, or
+8081 when `access.groups`/`access.users` puts the authz sidecar on 8080), so use
+`--port $PORT` and run `PORT=8080 pixi run start` locally (pixi tasks do not support
+`${PORT:-8080}`). No Dockerfile needed.

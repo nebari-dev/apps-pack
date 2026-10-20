@@ -33,6 +33,7 @@ For each `App`, the operator runs an ordered, idempotent pipeline:
    `RuntimeDefault`): nginx serving the app's content, with git sources cloned by a
    non-root init container. Static apps run an operator-written nginx config (a
    `<app>-server` ConfigMap mounted over `/etc/nginx/conf.d`) that adds security headers.
+   An App restricted to groups or users also gets the `authz` sidecar (next section).
 4. **Service** — ClusterIP on port 8080.
 5. **Routing** — a `NebariApp` (contract pinned to nebari-operator `%NEBARI_OPERATOR_VERSION%`,
    guarded by a contract test) carrying the hostname, auth policy, TLS setting, and
@@ -77,10 +78,15 @@ Apps never contain auth code. A private app's `NebariApp` creates an Envoy Gatew
 `access.public: true` skips the policy entirely. This keeps user workloads honest — there is
 no token to mishandle inside an app pod.
 
-`access.groups` is forwarded to the `NebariApp`, but nebari-operator `0.1.0` does not yet
-turn it into a gateway authorization rule, so a private app is open to **every signed-in
-realm user**; `access.users` is not used at all. See the
-[Known limitations](https://github.com/nebari-dev/apps-pack#known-limitations).
+The gateway only signs users in; it has no group or user rule
+([nebari-operator#153](https://github.com/nebari-dev/nebari-operator/issues/153)). So when a
+private App lists `access.groups` or `access.users`, the operator enforces them in the pod:
+the `NebariApp` sets `forwardAccessToken: true`, and the Deployment gets the **apps-authz**
+sidecar on port 8080 in front of the app container (moved to 8081). The sidecar verifies
+the forwarded Keycloak access token against the realm's keys and lets in a member of any
+listed group or a listed user; everyone else gets `403`. `access.groups` also goes to the
+`NebariApp` as `auth.groups` (landing-page tile visibility); `access.users` does not, since
+`NebariApp` has no per-user field. See [Access control](/launching-apps/#access-control).
 
 ## TLS
 

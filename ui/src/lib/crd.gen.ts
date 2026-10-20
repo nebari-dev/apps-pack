@@ -3,13 +3,13 @@
 // Do not edit: change operator/api/, regenerate the CRD, then run the script.
 
 export type AppAccess = {
-  /** Groups are the Keycloak/OIDC groups intended to use the app. */
+  /** Groups are the Keycloak/OIDC groups allowed to open a private app. */
   groups?: string[];
   /** Public disables authentication entirely (anonymous access). */
   public?: boolean;
   /** Subdomain under the cluster domain: https://<subdomain>.<clusterDomain>. */
   subdomain: string;
-  /** Users is reserved and currently ignored: nothing enforces it, and the apps-api rejects a non-empty list. */
+  /** Users are Keycloak usernames (preferred_username, case-insensitive) allowed to open a private app, in addition to the members of groups. */
   users?: string[];
 };
 

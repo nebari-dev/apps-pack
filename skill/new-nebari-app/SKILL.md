@@ -13,7 +13,8 @@ and maps the manifest onto the `nebari-apps` MCP server's `launch_app` tool so
 - **Static site**: HTML/CSS/JS served by the platform's nginx.
 - **Python app (pixi)**: a source tree with a `pixi.toml`; the platform runs
   `pixi install` then `pixi run <task>` (set in `runtime.pixiTask`), and the task must
-  start a server on **0.0.0.0:8080** (`PORT=8080` is injected).
+  start a server on **0.0.0.0:$PORT** (`PORT` is injected: 8080, or 8081 when the app
+  lists allowed groups or users).
 
 ## The layout
 
@@ -75,7 +76,7 @@ When the user asks to launch an app directory, read its `nebari-app.yaml` and dr
 ## Conventions (do not deviate)
 
 - Static content is served with nginx on **port 8080**; pixi tasks must serve on
-  **0.0.0.0:8080** themselves. The gateway terminates TLS and, for non-public apps,
+  **0.0.0.0:$PORT** themselves. The gateway terminates TLS and, for non-public apps,
   enforces Keycloak SSO — **never add auth code to the app itself**.
 - Keep `nebari-app.yaml` in version control — it is also the GitOps artifact: piped
   through `App` metadata, `kubectl apply` works on the rendered form.

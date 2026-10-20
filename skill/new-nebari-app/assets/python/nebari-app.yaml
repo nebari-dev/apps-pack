@@ -8,7 +8,7 @@ source:
   files:
     path: .            # directory containing pixi.toml, relative to this file
 runtime:
-  pixiTask: start      # pixi task that starts the server on 0.0.0.0:8080
+  pixiTask: start      # pixi task that starts the server on 0.0.0.0:$PORT
 access:
   public: true
   subdomain: APP_NAME

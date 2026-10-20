@@ -17,7 +17,8 @@ Keycloak auth. See [`docs/src/content/docs/architecture.md`](docs/src/content/do
 
 | Path | What | Key files |
 |---|---|---|
-| `operator/` | Go operator (controller-runtime) | `api/v1alpha1/app_types.go` (the CRD), `internal/controller/app_controller.go` (reconcile pipeline), `internal/controller/workload.go` (pod spec), `internal/controller/sources.go` (source volumes and init containers), `internal/controller/routing.go` (NebariApp) |
+| `operator/` | Go operator (controller-runtime) | `api/v1alpha1/app_types.go` (the CRD), `internal/controller/app_controller.go` (reconcile pipeline), `internal/controller/workload.go` (pod spec), `internal/controller/authz.go` (the authz sidecar for Apps with groups/users), `internal/controller/sources.go` (source volumes and init containers), `internal/controller/routing.go` (NebariApp) |
+| `authz/` | Go sidecar: verifies the forwarded access token and enforces `access.groups`/`access.users` (403 otherwise) | `main.go` (env config), `internal/gate/verify.go` (token checks), `internal/gate/proxy.go` (proxy + probes) |
 | `api/` | FastAPI REST API over App CRs | `src/nebari_apps_api/main.py` (routes), `auth.py` (JWT + owner/admin checks), `models.py` (request/response models), `cr.py` (model ↔ CR), `k8s.py` (store) |
 | `mcp/` | FastMCP server, agent tools at `/mcp` | `src/nebari_apps_mcp/server.py` (tools), `auth.py` (device flow, sessions), `untrusted.py` (fencing app output) |
 | `ui/` | React + Vite UI on the Nebari design registry | `src/pages/`, `src/components/` (`app-form/`: state, sections), `src/hooks/use-app-actions.ts`, `src/lib/api.ts`, `src/lib/types.ts` (over the generated `crd.gen.ts`) |
@@ -33,7 +34,7 @@ Run the checks for every component you touched; CI runs all of them
 ([quality gates](CONTRIBUTING.md#quality-gates) has the full table).
 
 ```bash
-# operator/
+# operator/ (authz/ is the same)
 go build ./... && go vet ./... && go test ./... -race && golangci-lint run
 
 # api/  (mcp/ is the same, plus `uv pip install --no-deps -e ../api` before pytest)
@@ -72,13 +73,15 @@ helm lint charts/nebari-apps --set clusterDomain=nebari.example.com
   new one has no authorization case; add it there.
 - **App pods are untrusted user code.** Keep them non-root, capability-free, without a
   ServiceAccount token, and with resource limits. User input reaches init containers through
-  environment variables, never shell interpolation. MCP tools return app-controlled text
+  environment variables, never shell interpolation. The `app` container stays first and
+  keeps its name (logs default to it); restricted Apps add the `authz` sidecar after it. MCP tools return app-controlled text
   (logs, files) only through the fences in `mcp/src/nebari_apps_mcp/untrusted.py`.
 - **Version strings are owned by release-please.** Never hand-edit the version in
   `charts/nebari-apps/Chart.yaml`, the `__version__` files, or `ui/package.json`; the
   "Version strings" check compares them with `.release-please-manifest.json`.
 - **Runtime versions are pinned once:** `ui/.node-version`, `api/.python-version`,
-  `mcp/.python-version`, `docs/.bun-version`, and the `toolchain` line in `operator/go.mod`.
+  `mcp/.python-version`, `docs/.bun-version`, and the `toolchain` line in `operator/go.mod`
+  (`authz/go.mod` carries the same line).
   Change the pin and the matching Dockerfile `FROM` (digest-pinned) together.
 - **Workflows:** every `uses:` is pinned to a full commit SHA with a `# vX.Y.Z` comment;
   each workflow starts at `permissions: contents: read`. actionlint and zizmor run in the

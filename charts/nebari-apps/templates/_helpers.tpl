@@ -63,3 +63,10 @@ Operator image reference
 {{- define "nebari-apps.operatorImage" -}}
 {{- printf "%s:%s" .Values.operator.image.repository (.Values.operator.image.tag | default .Chart.AppVersion) }}
 {{- end }}
+
+{{/*
+apps-authz sidecar image reference (passed to the operator)
+*/}}
+{{- define "nebari-apps.authzImage" -}}
+{{- printf "%s:%s" .Values.authz.image.repository (.Values.authz.image.tag | default .Chart.AppVersion) }}
+{{- end }}

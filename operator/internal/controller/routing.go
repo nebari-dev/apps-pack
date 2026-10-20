@@ -45,6 +45,16 @@ func (r *AppReconciler) buildNebariApp(app *appsv1alpha1.App) *unstructured.Unst
 			}
 			auth["groups"] = groups
 		}
+		// access.users is deliberately not forwarded: NebariApp has no
+		// per-user rule, and its groups only drive landing-tile visibility.
+		if restricted(app) {
+			// The authz sidecar (authz.go) enforces groups and users on the
+			// access token the gateway forwards. forwardAccessToken requires
+			// enforceAtGateway (a CEL rule on the NebariApp CRD), which
+			// defaults to true; it is set explicitly so the rule holds.
+			auth["enforceAtGateway"] = true
+			auth["forwardAccessToken"] = true
+		}
 	}
 
 	// Landing-page registration is opt-in (spec.landingPage.enabled, falling

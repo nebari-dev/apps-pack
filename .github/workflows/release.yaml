@@ -3,7 +3,7 @@ name: Release
 # Releasing is a chart version bump: merging a change to `version` in
 # charts/nebari-apps/Chart.yaml releases it through the org's reusable
 # workflow, which
-#   - pins the four image tags to sha-<release commit> (images.yaml
+#   - pins the five image tags to sha-<release commit> (images.yaml
 #     builds those images on the same push),
 #   - signs the packaged chart (keyless cosign, with provenance and SBOM) and
 #     attaches it to a GitHub Release nebari-apps-<version>, and
@@ -34,6 +34,7 @@ jobs:
       chart-name: nebari-apps
       tag-paths: |
         operator.image.tag
+        authz.image.tag
         api.image.tag
         ui.image.tag
         mcp.image.tag

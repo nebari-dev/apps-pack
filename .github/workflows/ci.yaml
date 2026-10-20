@@ -83,11 +83,11 @@ jobs:
 
       # The floor is for internal/ (the reconciler): cmd/ is wiring covered by
       # envtest below, and api/ is mostly generated deepcopy code. It sits a
-      # little under today's 87%; raise it as tests land.
+      # little under today's 89%; raise it as tests land.
       - name: Coverage floor
         working-directory: operator
         env:
-          FLOOR: "85"
+          FLOOR: "87"
         run: |
           grep -E '^mode:|/internal/' "$RUNNER_TEMP/cover.out" > "$RUNNER_TEMP/internal.out"
           total=$(go tool cover -func="$RUNNER_TEMP/internal.out" | awk '/^total:/ { sub("%", "", $3); print $3 }')
@@ -107,6 +107,52 @@ jobs:
           KUBEBUILDER_ASSETS=$(setup-envtest use "$ENVTEST_K8S_VERSION" --bin-dir "$RUNNER_TEMP/envtest" -p path)
           export KUBEBUILDER_ASSETS
           go test -tags envtest ./internal/controller/ -race -count=1 -run Envtest -v
+
+  # The apps-authz sidecar (authz/): the same Go gates as the operator, with
+  # its own coverage floor over internal/ (main.go is env wiring).
+  authz:
+    name: Authz sidecar
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: authz
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: authz/go.mod
+          cache-dependency-path: authz/go.sum
+
+      - name: go mod tidy is a no-op
+        run: go mod tidy -diff
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go build
+        run: go build ./...
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.14.0
+          working-directory: authz
+
+      - name: go test
+        run: go test ./... -race -count=1 -coverprofile="$RUNNER_TEMP/cover.out"
+
+      - name: Coverage floor
+        env:
+          FLOOR: "95"
+        run: |
+          grep -E '^mode:|/internal/' "$RUNNER_TEMP/cover.out" > "$RUNNER_TEMP/internal.out"
+          total=$(go tool cover -func="$RUNNER_TEMP/internal.out" | awk '/^total:/ { sub("%", "", $3); print $3 }')
+          echo "internal/ coverage: ${total}% (floor ${FLOOR}%)"
+          awk -v t="$total" -v f="$FLOOR" 'BEGIN { exit !(t >= f) }' || {
+            echo "::error::authz internal/ coverage ${total}% is below the ${FLOOR}% floor"; exit 1; }
 
   python:
     name: Python (${{ matrix.package }})
@@ -407,7 +453,12 @@ jobs:
           check api/Dockerfile python "$(cat api/.python-version)"
           check mcp/Dockerfile python "$(cat mcp/.python-version)"
           check operator/Dockerfile golang "$(sed -nE 's/^toolchain go(.+)/\1/p' operator/go.mod)"
-          if grep -nE '^FROM ' ui/Dockerfile api/Dockerfile mcp/Dockerfile operator/Dockerfile | grep -v '@sha256:'; then
+          check authz/Dockerfile golang "$(sed -nE 's/^toolchain go(.+)/\1/p' authz/go.mod)"
+          # One Go toolchain for the repo: authz/go.mod follows operator/go.mod.
+          if [ "$(grep '^toolchain' authz/go.mod)" != "$(grep '^toolchain' operator/go.mod)" ]; then
+            echo "::error file=authz/go.mod::toolchain differs from operator/go.mod"; fail=1
+          fi
+          if grep -nE '^FROM ' ui/Dockerfile api/Dockerfile mcp/Dockerfile operator/Dockerfile authz/Dockerfile | grep -v '@sha256:'; then
             echo "::error::base images above are not pinned by digest"; fail=1
           fi
           exit "$fail"

@@ -65,12 +65,13 @@ describe("AppForm (create)", () => {
     expect(screen.getByLabelText("Subdomain")).toHaveAttribute("aria-describedby", "form-error");
   });
 
-  it("submits an upload with the manifest and leaves the landing page to the cluster default", async () => {
+  it("submits an upload with the manifest, allowed groups and users, and no landing tile", async () => {
     const { user, onSubmit, submit } = setup();
     await user.type(screen.getByLabelText("Name"), "sales");
     await user.type(screen.getByLabelText("Display name"), "Sales");
     await user.type(screen.getByLabelText("Description"), "Quarterly numbers");
-    await user.type(screen.getByLabelText("Intended groups"), "analytics, finance ,");
+    await user.type(screen.getByLabelText("Allowed groups"), "analytics, finance ,");
+    await user.type(screen.getByLabelText("Allowed users"), " alice,bob ");
     await user.upload(screen.getByLabelText(/Drop a \.zip/), site());
     await submit();
 
@@ -85,20 +86,35 @@ describe("AppForm (create)", () => {
       description: "Quarterly numbers",
       thumbnail: undefined,
       runtime: { replicas: 1, env: [], resources: null, pixiTask: "" },
-      access: { public: false, groups: ["analytics", "finance"], subdomain: "sales" },
+      access: {
+        public: false,
+        groups: ["analytics", "finance"],
+        users: ["alice", "bob"],
+        subdomain: "sales",
+      },
+      // The landing-page switch is locked: new apps are registered off.
+      landingPage: { enabled: false },
     });
-    expect(payload.manifest).not.toHaveProperty("landingPage");
   });
 
-  it("opts into the landing page explicitly", async () => {
-    const { user, onSubmit, submit } = setup();
-    await user.type(screen.getByLabelText("Name"), "sales");
-    await user.type(screen.getByLabelText("Display name"), "Sales");
-    await user.upload(screen.getByLabelText(/Drop a \.zip/), site());
-    await user.click(screen.getByRole("switch", { name: "Show on the landing page" }));
-    await submit();
-    const payload = onSubmit.mock.calls[0][0];
-    expect(payload.kind === "upload" && payload.manifest.landingPage).toEqual({ enabled: true });
+  it("describes who the groups and users fields let in", () => {
+    setup();
+    expect(screen.getByLabelText("Allowed groups")).toHaveAccessibleDescription(
+      /Only members of these Keycloak groups can open the app; everyone else gets 403/,
+    );
+    expect(screen.getByLabelText("Allowed users")).toHaveAccessibleDescription(
+      "Keycloak usernames who can open the app even if they are not in an allowed group.",
+    );
+  });
+
+  it("shows the landing-page switch disabled and explains why", async () => {
+    const { user } = setup();
+    const toggle = screen.getByRole("switch", { name: "Show on the landing page" });
+    expect(toggle).toHaveAttribute("aria-disabled", "true");
+    expect(toggle).not.toBeChecked();
+    expect(toggle).toHaveAccessibleDescription(/^Temporarily unavailable/);
+    await user.click(toggle);
+    expect(toggle).not.toBeChecked();
   });
 
   it("launches from git with resources, env and a public URL", async () => {
@@ -133,7 +149,7 @@ describe("AppForm (create)", () => {
       },
       pixiTask: "",
     });
-    expect(payload.body.access).toEqual({ public: true, groups: [], subdomain: "docs" });
+    expect(payload.body.access).toEqual({ public: true, groups: [], users: [], subdomain: "docs" });
     expect(screen.getByText("https://docs.apps.example.ai")).toBeInTheDocument();
   });
 
@@ -198,7 +214,7 @@ const EXISTING: App = {
 } as unknown as App;
 
 describe("AppForm (edit)", () => {
-  it("patches what the form edits, keeps the source and is explicit about the landing page", async () => {
+  it("patches what the form edits and keeps the source and the landing page", async () => {
     const { user, onSubmit, submit } = setup({ mode: "edit", initial: EXISTING });
     expect(screen.getByLabelText("Name")).toBeDisabled();
     expect(screen.getByLabelText("Subdomain")).toBeDisabled();
@@ -213,10 +229,11 @@ describe("AppForm (edit)", () => {
     if (payload.kind !== "patch") throw new Error(`expected a patch, got ${payload.kind}`);
     expect(payload.body).not.toHaveProperty("source");
     expect(payload.body.displayName).toBe("Docs");
-    expect(payload.body.landingPage).toEqual({ enabled: false });
+    expect(payload.body).not.toHaveProperty("landingPage");
     expect(payload.body.access).toEqual({
       public: false,
       groups: ["analytics"],
+      users: [],
       subdomain: "docs-site",
     });
     // Resources the form does not show (set with kubectl) survive the edit.
@@ -225,6 +242,33 @@ describe("AppForm (edit)", () => {
       limits: { memory: "512Mi", "nvidia.com/gpu": "1" },
     });
     expect(payload.body.runtime?.replicas).toBe(2);
+  });
+
+  it("round-trips allowed users and never changes a registered tile", async () => {
+    const listed = {
+      ...EXISTING,
+      access: { public: false, groups: [], users: ["alice", "bob"], subdomain: "docs-site" },
+      landingPage: { enabled: true },
+    } as App;
+    const { user, onSubmit, submit } = setup({ mode: "edit", initial: listed });
+    const toggle = screen.getByRole("switch", { name: "Show on the landing page" });
+    expect(toggle).toBeChecked();
+    expect(toggle).toHaveAttribute("aria-disabled", "true");
+    const users = screen.getByLabelText("Allowed users");
+    expect(users).toHaveValue("alice, bob");
+    await user.clear(users);
+    await user.type(users, "carol");
+    await submit();
+
+    const payload = onSubmit.mock.calls[0][0];
+    if (payload.kind !== "patch") throw new Error(`expected a patch, got ${payload.kind}`);
+    expect(payload.body.access).toEqual({
+      public: false,
+      groups: [],
+      users: ["carol"],
+      subdomain: "docs-site",
+    });
+    expect(payload.body).not.toHaveProperty("landingPage");
   });
 
   it("clears resources with null once every field is emptied", async () => {

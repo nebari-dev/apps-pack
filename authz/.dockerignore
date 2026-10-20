@@ -1,0 +1,6 @@
+# The image copies go.mod, go.sum, main.go and internal/; tests and local
+# build output stay out of the context.
+**/*_test.go
+bin
+*.out
+.DS_Store

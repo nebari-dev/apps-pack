@@ -38,8 +38,8 @@ The repository layout is described in the [README](README.md#repository-layout).
 CI runs these on every pull request. Run the ones for the components you touched before
 pushing.
 
-CI is one job per component in `.github/workflows/ci.yaml` (Operator, Python per package, UI,
-Helm chart, Repo invariants), plus `.github/workflows/images.yaml`, which builds and scans each
+CI is one job per component in `.github/workflows/ci.yaml` (Operator, Authz sidecar, Python
+per package, UI, Helm chart, Repo invariants), plus `.github/workflows/images.yaml`, which builds and scans each
 image. The checks that are scripts live in `.github/scripts/` and run locally from the repo
 root, e.g. `python3 .github/scripts/check_versions.py` or
 `python3 .github/scripts/check_doc_paths.py` (the chart checks need PyYAML and a rendered
@@ -48,6 +48,7 @@ chart; see the `chart` job for the arguments).
 | Component | Directory | Checks |
 |---|---|---|
 | Operator (Go) | `operator/` | `go vet ./...`, `go build ./...`, `go test ./... -race` (CI also enforces an `internal/` coverage floor, in `.github/workflows/ci.yaml`), `golangci-lint run` (config in `operator/.golangci.yml`), and the envtest suite (below) |
+| Authz sidecar (Go) | `authz/` | `go mod tidy -diff`, `go vet ./...`, `go build ./...`, `golangci-lint run` (config in `authz/.golangci.yml`), `go test ./... -race` with an `internal/` coverage floor (in `.github/workflows/ci.yaml`); the tests mint tokens against a fake JWKS |
 | CRD / deepcopy | `operator/` | Regenerate with `controller-gen` v0.21.0 (commands below) and commit the result; CI fails on drift. |
 | apps-api | `api/` | `uv lock --check`, `uv sync --frozen --extra dev`, `uv run --frozen --no-sync python -m pytest -q --cov` (fails under `fail_under` in `pyproject.toml`), then `ruff check .`, `ruff format --check .` and `mypy` (strict) through `uv run --frozen --no-sync` |
 | apps-mcp | `mcp/` | Same as apps-api, plus `uv pip install --no-deps -e ../api` before the tests (they drive the real API in process). |
@@ -59,9 +60,9 @@ chart; see the `chart` job for the arguments).
 
 Runtime versions are pinned once and read everywhere: `ui/.node-version`, `api/.python-version`
 and `mcp/.python-version` (CI's setup-node and uv read them), `docs/.bun-version`, and the
-`toolchain` line in `operator/go.mod`. Base images are pinned by digest. When you change a
-runtime version, change the pin file and the matching Dockerfile `FROM` in the same PR; the
-Runtime pins check in CI fails when they disagree.
+`toolchain` line in `operator/go.mod` (which `authz/go.mod` repeats). Base images are pinned
+by digest. When you change a runtime version, change the pin file and the matching Dockerfile
+`FROM` in the same PR; the Runtime pins check in CI fails when they disagree.
 
 The UI has a bundle budget: `npm run size` gzips what the browser loads before first paint
 (the entry script and everything `dist/index.html` preloads) and all JS, and fails when either

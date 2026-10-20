@@ -36,7 +36,7 @@ helm upgrade nebari-apps oci://ghcr.io/nebari-dev/apps-pack/charts/nebari-apps \
 (Helm or Argo CD). Skipping the CRD step leaves the old schema in place: the API server then **silently drops**
 any new App field, and validation the new version relies on is missing.
 
-Upgrade the chart and images together. A released chart pins all four images to the same
+Upgrade the chart and images together. A released chart pins all five images to the same
 build, and newer operator or API images can depend on RBAC that only the matching chart
 grants.
 
@@ -85,7 +85,11 @@ Status fields in the backup are ignored; the operator recomputes them.
   `apps.nebari.dev/mountable=true`.
 - **Subdomains are unique and immutable.** If two Apps already share a subdomain, the
   older keeps it and the other goes `Failed` (`SubdomainTaken`).
-- **`access.users` is rejected** by the API (`422`) until it is enforced.
+- **`access.groups` and `access.users` are enforced.** A private App that lists them gets
+  the apps-authz sidecar and returns `403` to everyone else, so check who your existing
+  Apps list. Python tasks of restricted Apps must listen on `$PORT` (8081 for them). The
+  operator needs the chart's `keycloak.url` (or `keycloak.internalUrl`), or such Apps fail
+  validation; `authz.image` ships with the chart.
 - **App pods get default requests and limits** (`apps.defaultResources`) and at most 10
   replicas.
 - **Auth is stricter.** Tokens must come from the pack's own Keycloak clients, and

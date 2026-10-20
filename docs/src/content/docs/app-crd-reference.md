@@ -108,15 +108,15 @@ current state of the ref.
 | `resources` | [ResourceRequirements](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) | No | chart `apps.defaultResources` | CPU/memory requests and limits. Any cpu/memory request or limit left unset is filled from the cluster default for the app kind (static or Python); a filled limit never drops below the App's own request. Init containers get the same bounds. |
 | `replicas` | int | No | `1` | Desired replicas, `0`–`10`. `0` stops the app (phase `Stopped`). |
 | `keepAlive` | bool | No | `false` | Reserved for scale-to-zero idle reaping (not yet implemented). |
-| `pixiTask` | string | No | — | When set, the app runs as a **Python/pixi service**: the operator copies the source into a writable workspace, runs `pixi install` (`--locked` when a `pixi.lock` is present), then `pixi run <pixiTask>`. The task must start a server on `0.0.0.0:8080` (`PORT=8080` and `HOME=/app` are injected). Max 64 chars. |
+| `pixiTask` | string | No | — | When set, the app runs as a **Python/pixi service**: the operator copies the source into a writable workspace, runs `pixi install` (`--locked` when a `pixi.lock` is present), then `pixi run <pixiTask>`. The task must start a server on `0.0.0.0:$PORT` (`PORT` and `HOME=/app` are injected; `PORT` is 8080, or 8081 when `access.groups` or `access.users` puts the authz sidecar on 8080). Max 64 chars. |
 
 ## spec.access
 
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `public` | bool | No | `true` disables authentication entirely (anonymous access). |
-| `groups` | []string | No | Keycloak groups intended to use the app. Passed to the `NebariApp` as `auth.groups`, but **not enforced by the gateway in nebari-operator 0.1.0** — any signed-in realm user can open a private app. |
-| `users` | []string | No | **Reserved.** Not used by the operator or the gateway. The API rejects a non-empty list with `422`; a value set with `kubectl` is stored and ignored. Tracked in [#67](https://github.com/nebari-dev/apps-pack/issues/67). |
+| `groups` | []string | No | Keycloak groups allowed to open a private app. **Enforced in the app pod** by the authz sidecar (everyone else gets `403`); also passed to the `NebariApp` as `auth.groups`, which hides the landing-page tile from non-members. A user in **any** group **or** listed in `users` gets in; with both empty, any signed-in realm user does. Changes apply when the user's access token refreshes (Keycloak's lifespan, 5 minutes by default). See [Access control](/launching-apps/#access-control). |
+| `users` | []string | No | Keycloak usernames (`preferred_username`, case-insensitive) allowed to open a private app, in addition to the members of `groups`. Enforced in the app pod like `groups`. Not passed to the `NebariApp` (it has no per-user rule), so it does not affect landing-page visibility. |
 | `subdomain` | string | Yes | Lowercase DNS label, at most 63 characters. The app is served at `https://<subdomain>.<appsDomain>`. **Unique across all Apps** in the cluster: the API returns `409` for a taken subdomain, and if two Apps claim one anyway (e.g. via `kubectl`), the oldest keeps it and the other goes `Failed` with `Validated=False`, reason `SubdomainTaken`, and no `NebariApp`. **Immutable** after creation. The operator mirrors it into the `apps.nebari.dev/subdomain` label. |
 
 ## spec.landingPage
@@ -154,8 +154,8 @@ For each `App` the operator creates (and owns, via `ownerReferences`):
 |---|---|---|
 | ConfigMap | `app-<name>-content` | Inline source files (inline apps only). |
 | ConfigMap | `app-<name>-server` | The nginx server config with security headers (static apps only). |
-| Deployment | `app-<name>` | The app workload (hardened: non-root, no privilege escalation, seccomp `RuntimeDefault`). |
-| Service | `app-<name>` | ClusterIP on port 8080. |
+| Deployment | `app-<name>` | The app workload (hardened: non-root, no privilege escalation, seccomp `RuntimeDefault`). The `app` container comes first; an App that lists `access.groups` or `access.users` also gets the `authz` sidecar on 8080, with the app on 8081. |
+| Service | `app-<name>` | ClusterIP on port 8080 (the app, or the authz sidecar in front of it). |
 | NebariApp | `app-<name>` | Routing + TLS + auth + (opt-in) landing-page tile, reconciled by the nebari-operator (contract pinned to `%NEBARI_OPERATOR_VERSION%`). |
 
 Deleting the `App` cascades through all of them.

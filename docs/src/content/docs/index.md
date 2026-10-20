@@ -56,4 +56,4 @@ https://<subdomain>.apps.<cluster-domain>
 Upload a zip containing a `pixi.toml` and your Python source, name the pixi task that
 starts your server, and the pack runs it — no Dockerfile, no image build. See
 [Launching apps](/launching-apps/) for the contract (the task must serve on
-`0.0.0.0:8080`).
+`0.0.0.0:$PORT`).

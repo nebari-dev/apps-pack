@@ -17,9 +17,9 @@ only `clusterDomain` and `keycloak.url` need changing.
 | `appsDomain` | `apps.<clusterDomain>` | Domain apps are served under: `https://<subdomain>.<appsDomain>`. |
 | `gateway` | `public` | Shared Gateway the UI's and every app's `NebariApp` attach to (`public` \| `internal`). |
 | `tls.enabled` | `true` | TLS for the UI and every launched app. `false` serves plain HTTP (no certificates); local dev only. |
-| `keycloak.url` | — (required when `api.auth.enabled`) | Browser-facing Keycloak base URL, e.g. `https://keycloak.example.ai/auth`. |
+| `keycloak.url` | — (required when `api.auth.enabled`) | Browser-facing Keycloak base URL, e.g. `https://keycloak.example.ai/auth`. The authz sidecar also accepts tokens issued under it; apps that list `access.groups`/`access.users` need it or `keycloak.internalUrl`. |
 | `keycloak.realm` | `nebari` | Realm the API validates tokens against and the UI/MCP log in to. |
-| `keycloak.internalUrl` | — | In-cluster Keycloak URL (split horizon) used only to fetch JWKS. |
+| `keycloak.internalUrl` | — | In-cluster Keycloak URL (split horizon). The API and MCP server fetch JWKS from it; the authz sidecar fetches keys from it and accepts it as a token issuer. |
 
 ## Launched apps
 
@@ -32,6 +32,8 @@ only `clusterDomain` and `keycloak.url` need changing.
 | `staticImage` | `nginxinc/nginx-unprivileged:1.27-alpine` | Serves static app content; must listen on 8080 as non-root. The operator mounts its nginx server config (security headers, `try_files`) over `/etc/nginx/conf.d`, so a replacement image should be nginx-based or ignore that directory. |
 | `gitImage` | `alpine/git:v2.47.2` | Init-container image that clones `git` sources. |
 | `pythonImage` | `ghcr.io/prefix-dev/pixi:0.68.1-noble` | Runs Python/pixi apps (`runtime.pixiTask`); must provide `pixi` and run as non-root. |
+| `authz.image.repository` / `tag` / `pullPolicy` | `ghcr.io/nebari-dev/apps-pack/apps-authz` / appVersion / `IfNotPresent` | The sidecar the operator adds to apps that list `access.groups` or `access.users`: it takes port 8080, checks the forwarded access token and returns `403` to everyone else (see [Access control](/launching-apps/#access-control)). |
+| `authz.resources` | `10m`/`32Mi` requests, `100m`/`64Mi` limits | The sidecar's requests/limits, on top of the app container's, in every restricted app pod. |
 
 ## apps-operator
 
@@ -207,9 +209,13 @@ The pack integrates with the platform through two kinds of `NebariApp`
 | `gateway` | `gateway` | chart |
 | `auth.enabled` | `!spec.access.public` | App |
 | `auth.provider` / `provisionClient` / `scopes` | `keycloak` / `true` / `openid profile email groups` | fixed (private apps) |
-| `auth.groups` | `spec.access.groups` | App — **not enforced by the gateway in nebari-operator 0.1.0**; see [Access control](/launching-apps/#access-control) |
+| `auth.groups` | `spec.access.groups` | App — landing-page tile visibility; the gateway does not enforce it, the authz sidecar in the app pod does (see [Access control](/launching-apps/#access-control)) |
+| `auth.forwardAccessToken` | `true` when `spec.access.groups` or `spec.access.users` is set (private apps) | App — the gateway forwards the access token the authz sidecar checks |
+| `auth.enforceAtGateway` | `true`, with `forwardAccessToken` | fixed — the `NebariApp` CRD requires it for `forwardAccessToken` (it is also the default) |
 | `landingPage.enabled` | `spec.landingPage.enabled`, else `apps.landingPage.enabled` | App, then chart |
 | `landingPage.displayName` / `description` / `icon` / `category` | `spec.displayName` / `spec.description` / `spec.thumbnail` / `Apps` | App (only when the tile is enabled) |
 
-Fields the pack never sets: `auth.users`, `auth.enforceAtGateway` on apps (defaults to
-enforced), `landingPage.priority`, `landingPage.iconLight`/`iconDark`, `landingPage.externalUrl`.
+Fields the pack never sets: `auth.users` (nebari-operator has no per-user rule;
+`spec.access.users` is enforced only by the authz sidecar, so it does not hide the landing
+tile), `auth.enforceAtGateway` on unrestricted apps (defaults to enforced),
+`landingPage.priority`, `landingPage.iconLight`/`iconDark`, `landingPage.externalUrl`.

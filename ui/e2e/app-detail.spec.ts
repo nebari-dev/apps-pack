@@ -26,6 +26,11 @@ test.describe("app detail", () => {
       page.getByRole("link", { name: "https://docs-site.apps.example.com" }),
     ).toBeVisible();
     await expect(page.getByText("1/1", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText(
+        "Keycloak SSO at the gateway · restricted to groups: analytics · users: grace",
+      ),
+    ).toBeVisible();
     const conditions = page.getByRole("tabpanel", { name: "Conditions" });
     await expect(conditions.getByRole("listitem")).toHaveCount(3);
     await expect(conditions).toContainText("Passing: RoutingReady");

@@ -1,7 +1,7 @@
 # A public Python app launched from a pixi task. runtime.pixiTask switches the
 # workload from nginx static serving to the pixi runtime: the operator copies
 # the source into a writable workspace, runs `pixi install`, then
-# `pixi run start`. The task must listen on 0.0.0.0:8080 (PORT is injected).
+# `pixi run start`. The task must listen on 0.0.0.0:$PORT (PORT is injected).
 apiVersion: apps.nebari.dev/v1alpha1
 kind: App
 metadata:

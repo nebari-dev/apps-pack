@@ -18,6 +18,9 @@ VERSION = "v1alpha1"
 PLURAL = "apps"
 MANAGED_LABEL = "nebari.dev/managed"
 APP_LABEL = "apps.nebari.dev/app"
+# The operator always names the app's own container "app" (and puts it
+# first); restricted apps add an "authz" sidecar next to it.
+APP_CONTAINER = "app"
 # Seconds a readiness check may wait on a dependency.
 READY_TIMEOUT = 3
 # (connect, read) seconds for every other apiserver call, so a slow apiserver
@@ -173,7 +176,10 @@ class KubernetesAppStore:
             resp: Any = self._core.read_namespaced_pod_log(
                 pod_name,
                 namespace,
-                container=container,
+                # Restricted apps run an authz sidecar too, and the apiserver
+                # needs a container name for multi-container pods: default to
+                # the app's own container.
+                container=container or APP_CONTAINER,
                 tail_lines=lines,
                 _preload_content=False,
                 _request_timeout=REQUEST_TIMEOUT,

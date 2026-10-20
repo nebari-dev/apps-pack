@@ -35,7 +35,7 @@ docs-site/                     py-app/
 
 Apps get real files (never hand-written inline YAML). The starters follow the platform
 conventions: static assets served as-is, Python apps launched by a pixi task that serves
-on `0.0.0.0:8080`, and **no auth code in the app** — the gateway handles SSO.
+on `0.0.0.0:$PORT`, and **no auth code in the app** — the gateway handles SSO.
 
 ## The manifest
 
