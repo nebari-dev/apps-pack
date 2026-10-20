@@ -77,7 +77,9 @@ fixtures (`ui/e2e/fixtures.ts`, App data in `ui/e2e/data.ts`), so no cluster is 
 covers the dashboard's Needs attention card, the apps list with its empty and error states,
 launching an app (validation included), an app's detail and logs, and keyboard-only use of the
 launch form, the app actions and the account menu. Tests tagged `@a11y` run axe over every page in light and dark and fail on a
-`critical` or `serious` WCAG 2.0/2.1 A or AA violation; unlike the jsdom check in
+`critical` or `serious` WCAG 2.0/2.1 A or AA violation; a second `mobile` project reruns them
+at 390px wide alongside `ui/e2e/responsive.spec.ts`, which fails when a page or table scrolls
+sideways or the header's nav runs under the account menu; unlike the jsdom check in
 `ui/tests/pages/a11y.test.tsx`, they see real color contrast and focus order. One-time setup is
 `npx playwright install chromium`; after a run, `npx playwright show-report` opens the HTML
 report (CI uploads it as the `playwright-report` artifact).

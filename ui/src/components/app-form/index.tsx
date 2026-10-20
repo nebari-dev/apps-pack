@@ -119,7 +119,8 @@ export function AppForm({
       <RuntimeSection form={form} />
       <AccessSection form={form} />
 
-      <div className="flex flex-wrap items-center gap-3">
+      {/* Below sm the preview takes its own line and the buttons go full width. */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
         <p
           data-testid="url-preview"
           className="min-w-0 break-all font-mono text-muted-foreground text-sm"
@@ -127,11 +128,11 @@ export function AppForm({
           {appsScheme}://<span className="text-foreground">{subdomain || "<subdomain>"}</span>.
           {appsDomain}
         </p>
-        <div className="ml-auto flex flex-wrap gap-2">
-          <Button variant="outline" onClick={onCancel}>
+        <div className="flex flex-col gap-2 sm:ml-auto sm:flex-row">
+          <Button variant="outline" className="w-full sm:w-auto" onClick={onCancel}>
             Cancel
           </Button>
-          <Button loading={submitting} onClick={handleSubmit}>
+          <Button className="w-full sm:w-auto" loading={submitting} onClick={handleSubmit}>
             {isEdit ? "Save changes" : "Launch app"}
           </Button>
         </div>

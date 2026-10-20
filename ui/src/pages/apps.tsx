@@ -194,7 +194,7 @@ export function AppsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 ref={heading} tabIndex={-1} className="font-semibold text-2xl outline-none">
             Apps
@@ -203,11 +203,11 @@ export function AppsPage() {
             Everything launched through the Apps Pack, across your namespaces.
           </p>
         </div>
-        <Button render={<Link to="/launch">Launch app</Link>} />
+        <Button className="self-start sm:self-auto" render={<Link to="/launch">Launch app</Link>} />
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <div className="relative w-full max-w-sm">
+        <div className="relative w-full sm:max-w-sm">
           <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 z-10 size-4 text-muted-foreground" />
           <Input
             ref={searchRef}
@@ -257,7 +257,7 @@ export function AppsPage() {
       {selectedApps.length > 0 ? (
         <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-2">
           <span className="font-medium text-sm">{selectedApps.length} selected</span>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
             {startable.length > 0 ? (
               <Button
                 variant="outline"

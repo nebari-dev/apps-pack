@@ -22,5 +22,19 @@ export default defineConfig({
     url: baseURL,
     reuseExistingServer: !process.env.CI,
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    {
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"] },
+      // The overflow checks are about narrow screens; the desktop run skips them.
+      testIgnore: /responsive\.spec\.ts/,
+    },
+    {
+      // Phone width (an iPhone 13's 390x844 viewport) in Chromium, so CI still
+      // installs one browser. Runs the axe suite and the overflow checks.
+      name: "mobile",
+      use: { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 } },
+      testMatch: /(a11y|responsive)\.spec\.ts/,
+    },
+  ],
 });

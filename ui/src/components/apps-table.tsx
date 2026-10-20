@@ -73,8 +73,11 @@ export function AppsTable({
   onDelete,
 }: AppsTableProps) {
   const navigate = useNavigate();
+  // Below md only Status, App and Actions show; below sm the cells tighten
+  // and the row keeps one action (Logs on a Failed App, else Stop/Start) -
+  // the rest are on the App's page, which the row opens.
   return (
-    <Table>
+    <Table className="max-sm:[&_td]:px-2 max-sm:[&_th]:px-2">
       <TableHeader>
         <TableRow>
           <TableHead className="w-10">
@@ -86,11 +89,29 @@ export function AppsTable({
             />
           </TableHead>
           <SortableHead label="App" col="name" sort={sort} onToggle={onToggleSort} />
-          <SortableHead label="Type" col="type" sort={sort} onToggle={onToggleSort} />
-          <SortableHead label="Source" col="source" sort={sort} onToggle={onToggleSort} />
+          <SortableHead
+            label="Type"
+            col="type"
+            sort={sort}
+            onToggle={onToggleSort}
+            className="hidden md:table-cell"
+          />
+          <SortableHead
+            label="Source"
+            col="source"
+            sort={sort}
+            onToggle={onToggleSort}
+            className="hidden md:table-cell"
+          />
           <SortableHead label="Status" col="status" sort={sort} onToggle={onToggleSort} />
-          <TableHead>Replicas</TableHead>
-          <SortableHead label="Owner" col="owner" sort={sort} onToggle={onToggleSort} />
+          <TableHead className="hidden md:table-cell">Replicas</TableHead>
+          <SortableHead
+            label="Owner"
+            col="owner"
+            sort={sort}
+            onToggle={onToggleSort}
+            className="hidden md:table-cell"
+          />
           <TableHead className="text-right">Actions</TableHead>
         </TableRow>
       </TableHeader>
@@ -125,22 +146,24 @@ export function AppsTable({
               <TableCell>
                 <AppNameCell app={app} subline={`${app.name} · ${app.namespace}`} />
               </TableCell>
-              <TableCell>
+              <TableCell className="hidden md:table-cell">
                 <TypeBadge type={appType(app)} />
               </TableCell>
-              <TableCell>
+              <TableCell className="hidden md:table-cell">
                 <SourceBadge source={app.source?.type ?? "—"} />
               </TableCell>
               <TableCell>
                 <PhaseBadge phase={app.status.phase} />
                 {reason ? <p className="mt-1 text-muted-foreground text-xs">{reason}</p> : null}
               </TableCell>
-              <TableCell className="tabular-nums">
+              <TableCell className="hidden md:table-cell tabular-nums">
                 {app.status.replicas
                   ? `${app.status.replicas.ready}/${app.status.replicas.desired}`
                   : "—"}
               </TableCell>
-              <TableCell className="text-muted-foreground">{app.owner || "—"}</TableCell>
+              <TableCell className="hidden md:table-cell text-muted-foreground">
+                {app.owner || "—"}
+              </TableCell>
               <TableCell className="text-right">
                 <div className="flex items-center justify-end gap-1">
                   {failed ? (
@@ -148,7 +171,7 @@ export function AppsTable({
                       <ScrollText />
                     </IconLink>
                   ) : null}
-                  <IconLink to={`${detail}/edit`} label="Edit">
+                  <IconLink to={`${detail}/edit`} label="Edit" className="max-sm:hidden">
                     <Pencil />
                   </IconLink>
                   {app.status.url && app.status.phase === "Running" ? (
@@ -158,6 +181,7 @@ export function AppsTable({
                           <Button
                             variant="ghost"
                             size="icon-sm"
+                            className="max-sm:hidden"
                             render={
                               <a
                                 href={app.status.url}
@@ -199,6 +223,7 @@ export function AppsTable({
                             variant="ghost"
                             size="icon-sm"
                             aria-label="Stop app"
+                            className={cn(failed && "max-sm:hidden")}
                             disabled={!canStop(app)}
                             loading={actions.isPendingFor(actions.stop, app)}
                             onClick={() => actions.stop.mutate(app)}
@@ -217,7 +242,7 @@ export function AppsTable({
                           variant="ghost"
                           size="icon-sm"
                           aria-label="Delete app"
-                          className="text-muted-foreground hover:bg-destructive hover:text-destructive-foreground focus-visible:bg-destructive focus-visible:text-destructive-foreground"
+                          className="text-muted-foreground hover:bg-destructive max-sm:hidden hover:text-destructive-foreground focus-visible:bg-destructive focus-visible:text-destructive-foreground"
                           onClick={() => onDelete(app)}
                         >
                           <Trash2 />
@@ -241,15 +266,20 @@ function SortableHead({
   col,
   sort,
   onToggle,
+  className,
 }: {
   label: string;
   col: SortCol;
   sort: Sort;
   onToggle: (c: SortCol) => void;
+  className?: string;
 }) {
   const active = sort.col === col;
   return (
-    <TableHead aria-sort={active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}>
+    <TableHead
+      className={className}
+      aria-sort={active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
+    >
       <button
         type="button"
         className="inline-flex items-center gap-1 hover:text-foreground"
@@ -270,12 +300,27 @@ function SortableHead({
   );
 }
 
-function IconLink({ to, label, children }: { to: string; label: string; children: ReactNode }) {
+function IconLink({
+  to,
+  label,
+  className,
+  children,
+}: {
+  to: string;
+  label: string;
+  className?: string;
+  children: ReactNode;
+}) {
   return (
     <Tooltip>
       <TooltipTrigger
         render={
-          <Button variant="ghost" size="icon-sm" render={<Link to={to} aria-label={label} />}>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className={className}
+            render={<Link to={to} aria-label={label} />}
+          >
             {children}
           </Button>
         }

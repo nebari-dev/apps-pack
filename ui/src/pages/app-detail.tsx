@@ -174,7 +174,7 @@ export function AppDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex min-w-0 gap-4">
           <AppThumbnail
             name={a.name}
@@ -204,7 +204,7 @@ export function AppDetailPage() {
             </p>
           </div>
         </div>
-        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+        <div className="flex flex-wrap items-center gap-2 lg:justify-end">
           {ready && url ? (
             <Button
               render={
@@ -409,7 +409,7 @@ export function AppDetailPage() {
           if (isDetailTab(next)) selectTab(next);
         }}
       >
-        <TabsList>
+        <TabsList className="max-w-full overflow-x-auto">
           <TabsTab value="conditions">Health</TabsTab>
           <TabsTab value="logs">Logs</TabsTab>
           <TabsTab value="events">Events</TabsTab>
@@ -456,11 +456,11 @@ export function AppDetailPage() {
           <Card>
             <CardHeader className="flex-row flex-wrap items-center justify-between gap-3">
               <CardTitle>Pod logs</CardTitle>
-              <div className="flex items-center gap-3">
+              <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
                 <Input
                   aria-label="Filter log lines"
                   placeholder="Filter lines…"
-                  className="h-8 w-48"
+                  className="h-8 w-full sm:w-48"
                   value={logSearch}
                   onChange={(e) => setLogSearch(e.target.value)}
                 />

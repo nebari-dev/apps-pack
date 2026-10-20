@@ -11,7 +11,10 @@ import type { App } from "@/lib/types";
 export const APP_ROW_CLASS =
   "data-[phase=Failed]:bg-destructive/40 data-[phase=Failed]:hover:bg-destructive/60";
 
-/** First cell of an apps table: thumbnail, display-name link and a mono sub-line. */
+/**
+ * First cell of an apps table: thumbnail, display-name link and a mono
+ * sub-line. Below sm the thumbnail hides and the sub-line truncates.
+ */
 export function AppNameCell({
   app,
   subline = app.name,
@@ -26,9 +29,11 @@ export function AppNameCell({
         name={app.name}
         displayName={app.displayName}
         thumbnail={app.thumbnail}
-        className="size-9"
+        className="size-9 max-sm:hidden"
       />
-      <div className="min-w-0">
+      {/* Table cells grow to fit nowrap text, so cap the width below sm for
+          the sub-line to truncate instead of pushing the table wide. */}
+      <div className="min-w-0 max-sm:max-w-32">
         <Link to={`/apps/${app.namespace}/${app.name}`} className="font-medium hover:underline">
           {app.displayName || app.name}
         </Link>
