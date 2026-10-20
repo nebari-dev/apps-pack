@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { initialState, reducer, splitList } from "@/components/app-form/state";
+import { initialState, reducer, slugify, splitList, validate } from "@/components/app-form/state";
 import { accessLine } from "@/lib/access";
 import type { App } from "@/lib/types";
 
@@ -15,9 +15,56 @@ describe("AppForm reducer", () => {
     expect(s.subdomain).toBe("reports");
   });
 
+  it("mirrors a slug of the name, not the raw text", () => {
+    let s = initialState(undefined, false);
+    s = reducer(s, { type: "name", value: "Not Valid" });
+    expect(s.subdomain).toBe("not-valid");
+    s = reducer(s, { type: "name", value: "Not Valid 2" });
+    expect(s.subdomain).toBe("not-valid-2");
+  });
+
+  it("records touched fields and a submit attempt", () => {
+    let s = initialState(undefined, false);
+    expect([s.touched, s.submitted]).toEqual([{}, false]);
+    s = reducer(s, { type: "touch", field: "name" });
+    expect(reducer(s, { type: "touch", field: "name" })).toBe(s);
+    s = reducer(s, { type: "submit" });
+    expect([s.touched, s.submitted]).toEqual([{ name: true }, true]);
+  });
+
   it("fills requests and limits from a preset", () => {
     const s = reducer(initialState(undefined, false), { type: "preset", preset: "Large" });
     expect([s.cpuReq, s.memReq, s.cpuLim, s.memLim]).toEqual(["500m", "1Gi", "1", "2Gi"]);
+  });
+});
+
+describe("slugify", () => {
+  it.each([
+    ["Sales Dashboard", "sales-dashboard"],
+    ["  --My__App!!  ", "my-app"],
+    ["already-fine-1", "already-fine-1"],
+    ["", ""],
+  ])("%j -> %j", (raw, want) => {
+    expect(slugify(raw)).toBe(want);
+  });
+});
+
+describe("validate", () => {
+  it("returns every problem, one per field, in form order", () => {
+    const s = { ...initialState(undefined, false), sourceTab: "git" as const };
+    expect(validate(s, false).map((p) => p.field)).toEqual([
+      "name",
+      "displayName",
+      "namespace",
+      "gitUrl",
+      "subdomain",
+    ]);
+    expect(validate({ ...s, kind: "pixi" }, true).map((p) => p.field)).toEqual([
+      "displayName",
+      "namespace",
+      "pixiTask",
+      "gitUrl",
+    ]);
   });
 });
 

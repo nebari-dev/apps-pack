@@ -46,10 +46,9 @@ test.describe("launch form", () => {
     await page.getByLabel("Repository URL").fill("https://github.com/example/team-site");
     await page.getByLabel("Allowed groups").fill("analysts, finance");
     await page.getByLabel("Allowed users").fill("alice , bob,");
-    // The landing-page switch is shown but locked, with the reason.
-    const landing = page.getByRole("switch", { name: "Show on the landing page" });
-    await expect(landing).toBeDisabled();
-    await expect(landing).toHaveAccessibleDescription(/^Temporarily unavailable/);
+    // The landing-page option is locked: a note, not a switch.
+    await expect(page.getByRole("switch", { name: /landing page/ })).toHaveCount(0);
+    await expect(page.getByText(/Changing this here is not available yet/)).toBeVisible();
     await page.getByRole("button", { name: "Launch app" }).click();
 
     await expect(page).toHaveURL("/apps/apps/team-site");
@@ -96,36 +95,97 @@ test.describe("launch form", () => {
     });
   });
 
-  test("shows the first problem and blocks submit until it is fixed", async ({ page, api }) => {
+  test("validates on blur or submit, with each message under its field", async ({ page, api }) => {
     await openLaunchForm(page);
     const launch = page.getByRole("button", { name: "Launch app" });
-    const error = page.getByRole("alert");
     const name = page.getByLabel("Name", { exact: true });
+    const nameError = page.locator("#name-error");
 
-    await expect(error).toHaveText("Give the app a name.");
-    await expect(launch).toBeDisabled();
+    // A fresh form is clean and the button is usable.
+    await expect(page.locator("[aria-invalid]")).toHaveCount(0);
+    await expect(page.getByRole("alert")).toHaveCount(0);
+    await expect(launch).toBeEnabled();
 
     await name.fill("Not Valid");
-    await expect(error).toHaveText("Name must be lowercase letters, digits, and hyphens.");
-    // The message is tied to the control it is about.
+    // The subdomain mirrors a slug of the name, so the preview is a valid host.
+    await expect(page.getByLabel("Subdomain")).toHaveValue("not-valid");
+    await expect(page.getByText("https://not-valid.apps.example.com")).toBeVisible();
+    await expect(name).not.toHaveAttribute("aria-invalid");
+    await page.keyboard.press("Tab");
     await expect(name).toHaveAttribute("aria-invalid", "true");
+    await expect(nameError).toHaveText("Name must be lowercase letters, digits, and hyphens.");
     await expect(name).toHaveAccessibleDescription(
-      "Name must be lowercase letters, digits, and hyphens.",
+      /Name must be lowercase letters, digits, and hyphens\.$/,
     );
 
     await name.fill("valid-name");
     await expect(name).not.toHaveAttribute("aria-invalid");
-    await expect(error).toHaveText("Give the app a display name.");
+    await expect(nameError).toHaveCount(0);
 
-    await page.getByLabel("Display name").fill("Valid");
-    await expect(error).toHaveText("Choose a .zip or .html file to upload.");
-
+    // Submitting with problems shows them all and focuses the first.
     await page.getByRole("tab", { name: "Git" }).click();
-    await expect(error).toHaveText("Enter the git repository URL.");
-    await page.getByLabel("Repository URL").fill("https://github.com/example/site");
-    await expect(error).toHaveCount(0);
-    await expect(launch).toBeEnabled();
+    await launch.click();
+    await expect(page.locator("#displayName-error")).toHaveText("Give the app a display name.");
+    await expect(page.locator("#gitUrl-error")).toHaveText("Enter the git repository URL.");
+    await expect(page.getByLabel("Display name")).toBeFocused();
+    await expect(page.getByText("2 problems to fix")).toBeAttached();
     expect(api.requests).toEqual([]);
+  });
+
+  test("keeps replicas and resources under Advanced, with a pressed preset", async ({
+    page,
+    api,
+  }) => {
+    await openLaunchForm(page);
+    // Collapsed by default: only environment variables show in Runtime.
+    await expect(page.getByLabel("Replicas")).toBeHidden();
+    await expect(page.getByRole("button", { name: "Medium" })).toBeHidden();
+    await page.getByText("Advanced", { exact: true }).click();
+    await expect(page.getByLabel("Replicas")).toBeVisible();
+
+    const medium = page.getByRole("button", { name: "Medium" });
+    await expect(medium).toHaveAttribute("aria-pressed", "false");
+    await medium.click();
+    await expect(medium).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByLabel("CPU request")).toHaveValue("250m");
+
+    await page.getByLabel("Name", { exact: true }).fill("sized");
+    await page.getByLabel("Display name").fill("Sized");
+    await page.getByRole("tab", { name: "Git" }).click();
+    await page.getByLabel("Repository URL").fill("https://github.com/example/sized");
+    await page.getByRole("button", { name: "Launch app" }).click();
+    await expect(page).toHaveURL("/apps/apps/sized");
+    expect(api.requests).toMatchObject([
+      {
+        body: {
+          runtime: {
+            resources: {
+              requests: { cpu: "250m", memory: "512Mi" },
+              limits: { cpu: "500m", memory: "1Gi" },
+            },
+          },
+        },
+      },
+    ]);
+  });
+
+  test("Cancel goes back to the apps list", async ({ page }) => {
+    await openLaunchForm(page);
+    await page.getByRole("button", { name: "Cancel" }).click();
+    await expect(page).toHaveURL("/apps");
+  });
+
+  test("the footer fits a phone-width screen", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openLaunchForm(page);
+    const launch = page.getByRole("button", { name: "Launch app" });
+    await launch.scrollIntoViewIfNeeded();
+    await expect(launch).toBeInViewport({ ratio: 1 });
+    await expect(page.getByRole("button", { name: "Cancel" })).toBeInViewport({ ratio: 1 });
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
   });
 
   test("can be filled and submitted with the keyboard alone", async ({ page, api }) => {
@@ -165,11 +225,14 @@ test.describe("launch form", () => {
     // Source tabs: Tab lands on the selected tab, the arrows move between tabs.
     await page.keyboard.press("Tab");
     await expect(page.getByRole("tab", { name: "Upload" })).toBeFocused();
-    // Then the panel, then the upload drop zone's file input.
+    // Then the PVC info button, the panel, then the upload drop zone's file input.
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("button", { name: "About PVC" })).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(page.getByRole("tabpanel", { name: "Upload" })).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(page.getByLabel(/Drop a \.zip/)).toBeFocused();
+    await page.keyboard.press("Shift+Tab");
     await page.keyboard.press("Shift+Tab");
     await page.keyboard.press("Shift+Tab");
     await page.keyboard.press("ArrowRight");
@@ -177,13 +240,15 @@ test.describe("launch form", () => {
     await page.keyboard.press("Enter");
     await expect(page.getByRole("tab", { name: "Git" })).toHaveAttribute("aria-selected", "true");
     await page.keyboard.press("Tab");
+    await expect(page.getByRole("button", { name: "About PVC" })).toBeFocused();
+    await page.keyboard.press("Tab");
     await expect(page.getByRole("tabpanel", { name: "Git" })).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(page.getByLabel("Repository URL")).toBeFocused();
     await page.keyboard.type("https://github.com/example/kb-site");
 
     // On through the rest of the form to the submit button, typing into the
-    // access lists on the way. The locked landing-page switch is skipped.
+    // access lists on the way.
     const launch = page.getByRole("button", { name: "Launch app" });
     const visited: string[] = [];
     for (
@@ -199,11 +264,6 @@ test.describe("launch form", () => {
     await expect(launch).toBeFocused();
     expect(visited).toEqual(expect.arrayContaining(["groups", "users", "subdomain"]));
     expect(visited.indexOf("users")).toBe(visited.indexOf("groups") + 1);
-    expect(
-      await page
-        .getByRole("switch", { name: "Show on the landing page" })
-        .evaluate((el) => el.matches(":focus, [tabindex='0']")),
-    ).toBe(false);
     await page.keyboard.press("Enter");
 
     await expect(page).toHaveURL("/apps/team-data/kb-site");

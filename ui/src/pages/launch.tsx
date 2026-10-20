@@ -55,6 +55,7 @@ export function LaunchPage() {
         appsScheme={appsScheme}
         submitting={launch.isPending}
         onSubmit={(payload) => launch.mutate(payload)}
+        onCancel={() => void navigate("/apps")}
       />
     </div>
   );

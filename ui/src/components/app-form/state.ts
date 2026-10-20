@@ -47,13 +47,48 @@ export interface FormState {
   users: string;
   subdomain: string;
   onLandingPage: boolean;
+  /** Fields the user has left (blurred); their problems are shown. */
+  touched: Partial<Record<Field, true>>;
+  /** Set by a submit attempt: every problem is shown from then on. */
+  submitted: boolean;
+}
+
+/** The controls validate() can report a problem for, in form order. */
+export type Field =
+  | "name"
+  | "displayName"
+  | "namespace"
+  | "pixiTask"
+  | "file"
+  | "gitUrl"
+  | "pvcClaim"
+  | "subdomain";
+
+export interface Problem {
+  field: Field;
+  message: string;
 }
 
 export type FormAction =
   | { [K in keyof FormState]: { type: "set"; field: K; value: FormState[K] } }[keyof FormState]
   // The subdomain follows the name until the user edits it.
   | { type: "name"; value: string }
-  | { type: "preset"; preset: Preset };
+  | { type: "preset"; preset: Preset }
+  | { type: "touch"; field: Field }
+  | { type: "submit" };
+
+/**
+ * "Sales Dashboard!" -> "sales-dashboard": lowercase, anything outside
+ * [a-z0-9-] becomes a hyphen, runs of hyphens collapse, and leading and
+ * trailing hyphens go, so the mirrored subdomain is always a usable label.
+ */
+export function slugify(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
 
 export function initialState(initial: App | undefined, isEdit: boolean): FormState {
   const res = initial?.runtime?.resources;
@@ -87,6 +122,8 @@ export function initialState(initial: App | undefined, isEdit: boolean): FormSta
     // shows the App's current value, a new app is registered off, and an
     // edit leaves whatever the App has.
     onLandingPage: initial?.landingPage?.enabled ?? false,
+    touched: {},
+    submitted: false,
   };
 }
 
@@ -95,57 +132,60 @@ export function reducer(state: FormState, action: FormAction): FormState {
     case "set":
       return { ...state, [action.field]: action.value };
     case "name": {
-      const follows = !state.subdomain || state.subdomain === state.nameInput;
+      // The subdomain mirrors the slugified name until the user edits it.
+      const follows = !state.subdomain || state.subdomain === slugify(state.nameInput);
       return {
         ...state,
         nameInput: action.value,
-        subdomain: follows ? action.value : state.subdomain,
+        subdomain: follows ? slugify(action.value) : state.subdomain,
       };
     }
     case "preset":
       return { ...state, ...PRESETS[action.preset] };
+    case "touch":
+      return state.touched[action.field]
+        ? state
+        : { ...state, touched: { ...state.touched, [action.field]: true } };
+    case "submit":
+      return { ...state, submitted: true };
   }
 }
 
-/** The first problem with the form, and the control it belongs to. */
-export function validate(s: FormState, isEdit: boolean): { field: string; message: string } | null {
+/**
+ * Every problem with the form, at most one per control, in form order. The
+ * form shows a problem once its control is touched or after a submit attempt.
+ */
+export function validate(s: FormState, isEdit: boolean): Problem[] {
+  const problems: Problem[] = [];
+  const add = (field: Field, message: string) => problems.push({ field, message });
   if (!isEdit) {
-    if (!s.nameInput) return { field: "name", message: "Give the app a name." };
-    if (!SUBDOMAIN_RE.test(s.nameInput))
-      return { field: "name", message: "Name must be lowercase letters, digits, and hyphens." };
-    if (!s.subdomain) return { field: "subdomain", message: "Pick a subdomain." };
-    if (!SUBDOMAIN_RE.test(s.subdomain))
-      return {
-        field: "subdomain",
-        message: "Subdomain must be lowercase letters, digits, and hyphens.",
-      };
+    if (!s.nameInput) add("name", "Give the app a name.");
+    else if (!SUBDOMAIN_RE.test(s.nameInput))
+      add("name", "Name must be lowercase letters, digits, and hyphens.");
   }
-  if (!s.displayName) return { field: "displayName", message: "Give the app a display name." };
-  if (!s.namespace) return { field: "namespace", message: "Pick a namespace." };
+  if (!s.displayName) add("displayName", "Give the app a display name.");
+  if (!s.namespace) add("namespace", "Pick a namespace.");
   if (s.kind === "pixi" && !s.pixiTask)
-    return { field: "pixiTask", message: "Enter the pixi task that launches the app." };
-  if (s.sourceTab === "upload" && !s.file) {
-    return {
-      field: "file",
-      message:
+    add("pixiTask", "Enter the pixi task that launches the app.");
+  if (s.sourceTab === "upload") {
+    if (!s.file)
+      add(
+        "file",
         s.kind === "pixi"
           ? "Choose a .zip of your pixi project to upload."
           : "Choose a .zip or .html file to upload.",
-    };
+      );
+    else if (s.kind === "pixi" && !s.file.name.toLowerCase().endsWith(".zip"))
+      add("file", "Pixi apps must be uploaded as a .zip archive.");
   }
-  if (
-    s.kind === "pixi" &&
-    s.sourceTab === "upload" &&
-    s.file &&
-    !s.file.name.toLowerCase().endsWith(".zip")
-  ) {
-    return { field: "file", message: "Pixi apps must be uploaded as a .zip archive." };
+  if (s.sourceTab === "git" && !s.gitUrl) add("gitUrl", "Enter the git repository URL.");
+  if (s.sourceTab === "pvc" && !s.pvcClaim) add("pvcClaim", "Enter the PVC claim name.");
+  if (!isEdit) {
+    if (!s.subdomain) add("subdomain", "Pick a subdomain.");
+    else if (!SUBDOMAIN_RE.test(s.subdomain))
+      add("subdomain", "Subdomain must be lowercase letters, digits, and hyphens.");
   }
-  if (s.sourceTab === "git" && !s.gitUrl)
-    return { field: "gitUrl", message: "Enter the git repository URL." };
-  if (s.sourceTab === "pvc" && !s.pvcClaim)
-    return { field: "pvcClaim", message: "Enter the PVC claim name." };
-  return null;
+  return problems;
 }
 
 // The form edits cpu and memory; any other resource the App already has

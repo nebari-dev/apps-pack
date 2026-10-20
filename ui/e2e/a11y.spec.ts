@@ -47,8 +47,11 @@ for (const theme of ["light", "dark"] satisfies Theme[]) {
       page,
     }) => {
       await page.goto("/launch");
-      await page.getByLabel("Name", { exact: true }).fill("Not Valid");
-      await expect(page.getByRole("alert")).toBeVisible();
+      const name = page.getByLabel("Name", { exact: true });
+      await name.fill("Not Valid");
+      await page.keyboard.press("Tab");
+      await expect(name).toHaveAttribute("aria-invalid", "true");
+      await expect(page.locator("#name-error")).toBeVisible();
       await expectNoCriticalOrSeriousA11yViolations(page);
     });
 

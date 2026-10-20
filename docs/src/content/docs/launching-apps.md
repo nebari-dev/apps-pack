@@ -33,10 +33,16 @@ Open `https://apps.<cluster-domain>`:
    Python app). For Python apps, enter the **launch task** — the pixi task that starts
    your server.
 2. **Source** — **Upload** (a `.zip` of your app, or a single `.html` file for static
-   sites), **Git**, or **PVC**.
-3. **Runtime** — replicas, CPU/memory requests, environment variables.
-4. **Access** — public toggle, allowed groups and users, and the subdomain. The
-   landing-page switch is shown but locked off for now (see [Landing page](#landing-page)).
+   sites), **Git**, or **Volume (PVC)**.
+3. **Runtime** — environment variables. **Advanced** holds replicas, the Small/Medium/Large
+   presets, CPU/memory requests and limits, and the port rule for Python apps; an edit opens
+   it when the app already has non-default replicas or resources.
+4. **Access** — public toggle, allowed groups and users, and the subdomain, which follows
+   the name (lowercased, other characters turned into hyphens) until you edit it. The
+   landing-page option is locked off for now (see [Landing page](#landing-page)).
+
+The form checks each field when you leave it and lists every remaining problem, each
+under its field, when you press **Launch app**; focus moves to the first one.
 
 The dashboard tracks the rollout; the app's detail page shows conditions, live pod logs,
 and Kubernetes events, plus stop/start/delete.
@@ -208,7 +214,7 @@ cluster default with the chart value `apps.landingPage.enabled: true`, after whi
 *out* with `enabled: false`. Either way the app is reachable at its URL and listed in the
 Apps UI.
 
-The launch form's "Show on the landing page" switch is **locked** for now: the landing
+The launch form's "Show on the landing page" option is **locked** for now: the landing
 page can hide a tile only from users outside an app's groups, not outside its allowed
 users, so the form registers new apps with `enabled: false` and an edit keeps whatever the
 App already has. Register a tile through the API, the MCP tool or `kubectl` if you need
