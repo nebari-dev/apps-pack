@@ -1,6 +1,6 @@
 # promtool unit tests for the chart's PrometheusRule. CI renders the chart as
 # release "t" in namespace "nebari-apps" and extracts the rules to rules.yaml
-# next to this file (see the Helm chart job in lint.yaml).
+# next to this file (see the Helm chart job in ci.yaml).
 rule_files:
   - rules.yaml
 evaluation_interval: 1m

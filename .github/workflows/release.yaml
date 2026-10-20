@@ -3,7 +3,7 @@ name: Release
 # Releasing is a chart version bump: merging a change to `version` in
 # charts/nebari-apps/Chart.yaml releases it through the org's reusable
 # workflow, which
-#   - pins the four image tags to sha-<release commit> (build-image.yaml
+#   - pins the four image tags to sha-<release commit> (images.yaml
 #     builds those images on the same push),
 #   - signs the packaged chart (keyless cosign, with provenance and SBOM) and
 #     attaches it to a GitHub Release nebari-apps-<version>, and
@@ -26,7 +26,7 @@ jobs:
       contents: write
       id-token: write
       attestations: write
-    # Same nebari-dev/.github commit as build-image.yaml: chart signing landed
+    # Same nebari-dev/.github commit as images.yaml: chart signing landed
     # after the v1 tag.
     uses: nebari-dev/.github/.github/workflows/pack-release.yaml@a6c757c72124a03542a79ac5385fd250ee9c45b7
     with:
@@ -69,15 +69,3 @@ jobs:
         run: |
           echo "$GH_TOKEN" | helm registry login ghcr.io --username "$ACTOR" --password-stdin
           helm push dist/*.tgz "oci://ghcr.io/${REPO}/charts"
-
-  # The release above is created with GITHUB_TOKEN, which does not trigger
-  # other workflows, so project-status's own `release: published` trigger
-  # would never fire for it. Run its sweep directly.
-  project-status:
-    needs: release
-    uses: ./.github/workflows/project-status.yaml
-    with:
-      release-sweep: true
-    secrets:
-      NEBARI_PROJECT_SYNC_APP_ID: ${{ secrets.NEBARI_PROJECT_SYNC_APP_ID }}
-      NEBARI_PROJECT_SYNC_APP_PRIVATE_KEY: ${{ secrets.NEBARI_PROJECT_SYNC_APP_PRIVATE_KEY }}

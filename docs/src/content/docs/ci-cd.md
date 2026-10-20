@@ -7,25 +7,36 @@ description: What CI checks on every pull request, how images and charts are bui
 
 | Workflow | Jobs | What fails it |
 |---|---|---|
-| **Lint** (`lint.yaml`) | Helm chart, Operator, Python lint (api, mcp), UI lint, Runtime pins, Version strings, Agent docs | `helm lint`/`helm template` errors, chart RBAC assertions, kubeconform on the examples and rendered chart, `go vet`, golangci-lint, stale generated CRD code, ruff, mypy (strict), Biome, a pin file that disagrees with its Dockerfile, version strings that disagree with the release manifest, a path in `AGENTS.md` or the skill that does not exist |
-| **Test** (`test.yaml`) | Operator unit tests, API tests, MCP tests, UI build | `go test -race`, pytest (with `uv lock --check`), vitest and the production build |
-| **Audit** (`audit.yaml`) | Python deps, UI deps, vendored nebari-ui skill | a known vulnerability in a locked dependency (`pip-audit`, `npm audit --audit-level=high`); also runs weekly |
-| **Build Images** (`build-image.yaml`) | build per image, Trivy scan per image | the image does not build, or has a HIGH/CRITICAL vulnerability with a fix available |
-| **Workflow lint** (`workflow-lint.yaml`) | actionlint, zizmor | workflow syntax or a security finding (on workflow changes only) |
+| **CI** (`ci.yaml`) | Operator | `go vet`, `go build`, golangci-lint, stale generated CRD/deepcopy code or UI types, an incompatible CRD change, `go test -race` and its `internal/` coverage floor, the envtest suite |
+| | Python (api), Python (mcp) | `uv lock --check`, ruff, mypy (strict), pytest and its coverage floor, a known vulnerability in the locked set (`pip-audit`) |
+| | UI | Biome, the production build, the bundle budget, vitest and its coverage thresholds, `npm audit --audit-level=high` |
+| | Helm chart | `helm lint`/`helm template` errors, `values.schema.json`, a stale chart README, chart RBAC assertions, the alert rules (promtool), kubeconform on the examples and rendered chart |
+| | Repo invariants | a path in `AGENTS.md` or the skill that does not exist, version strings that disagree with the release manifest, a pin file that disagrees with its Dockerfile, actionlint, zizmor |
+| **Images** (`images.yaml`) | one per image | the image does not build, has a HIGH/CRITICAL vulnerability with a fix available (Trivy), or (`apps-ui`) serves the wrong security headers; on changes to the images' sources only |
 | **Docs** (`docs.yml`) | docs | the site's tests or build, or a broken external link (on docs changes only) |
+
+CI and Images also run weekly, so advisories published after a merge surface even when
+nothing changes: `pip-audit`, `npm audit` and Trivy (against images rebuilt from their
+digest-pinned bases). The weekly run is also the only one that checks the vendored
+nebari-ui skill against the registry, since the registry moving is not something a pull
+request caused.
+
+The checks that are scripts live in `.github/scripts/` and run locally from the repo root,
+for example `python3 .github/scripts/check_versions.py`.
 
 Every action is pinned to a commit SHA, and every workflow starts from
 `permissions: contents: read`. Superseded runs on a pull request are cancelled.
 
 ## Images
 
-`build-image.yaml` builds the four images (`apps-operator`, `apps-api`, `apps-ui`,
-`apps-mcp`) for `linux/amd64` and `linux/arm64` through the org's reusable
-`pack-build-image` workflow. Pull requests build without pushing. Every merge to `main`
-pushes `ghcr.io/nebari-dev/apps-pack/<image>` and `quay.io/nebari/apps-pack-<image>`, tagged
-`sha-<short commit>` and `latest`, and signs each image keyless with cosign, with a
-build-provenance attestation and an SBOM. `latest` tracks `main` for development only;
-released charts pin `sha-` tags.
+`images.yaml` builds the four images (`apps-operator`, `apps-api`, `apps-ui`,
+`apps-mcp`). Pull requests build and scan each image once, on `linux/amd64`, without
+pushing. Every merge to `main` builds them for `linux/amd64` and `linux/arm64` through the
+org's reusable `pack-build-image` workflow, pushes `ghcr.io/nebari-dev/apps-pack/<image>`
+and `quay.io/nebari/apps-pack-<image>`, tagged `sha-<short commit>` and `latest`, and signs
+each image keyless with cosign, with a build-provenance attestation and an SBOM. The push
+does not wait for the scan, so a newly published CVE cannot block `latest` or a release's
+images. `latest` tracks `main` for development only; released charts pin `sha-` tags.
 
 To verify a signature, see
 [Verifying Nebari pack artifacts](https://github.com/nebari-dev/.github/blob/main/verifying-nebari-artifacts.md).
@@ -49,8 +60,6 @@ To verify a signature, see
    - opens a PR in [nebari-dev/helm-repository](https://github.com/nebari-dev/helm-repository)
      that publishes the chart to the org Helm repository once merged, and
    - mirrors the chart to `oci://ghcr.io/nebari-dev/apps-pack/charts`.
-4. **Project board.** Merging a PR moves its linked issues to *Merged*; each release moves
-   every *Merged* issue to *Released* (`project-status.yaml`).
 
 Install a release from either location:
 
