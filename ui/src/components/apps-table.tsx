@@ -3,15 +3,15 @@ import {
   ArrowUp,
   ChevronsUpDown,
   ExternalLink,
-  Eye,
   Pause,
   Pencil,
   Play,
+  ScrollText,
   Trash2,
 } from "lucide-react";
-import type { ReactNode } from "react";
-import { Link } from "react-router-dom";
-import { PhaseBadge, SourceBadge } from "@/components/app-bits";
+import type { MouseEvent, ReactNode } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { PhaseBadge, SourceBadge, TypeBadge } from "@/components/app-bits";
 import { APP_ROW_CLASS, AppNameCell } from "@/components/app-name-cell";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -25,14 +25,26 @@ import {
 } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { appKey, appLabel, isStopped, type useAppActions } from "@/hooks/use-app-actions";
+import { failureReason } from "@/lib/phase";
 import type { App } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
-export type SortCol = "name" | "namespace" | "type" | "source" | "status" | "owner";
+export type SortCol = "name" | "type" | "source" | "status" | "owner";
 export type SortDir = "asc" | "desc";
 export type Sort = { col: SortCol; dir: SortDir };
 
 /** App kind shown in the Type column: pixi-launched apps are python, the rest static. */
 export const appType = (app: App) => (app.runtime?.pixiTask ? "python" : "static");
+
+/** Start applies to an App scaled to zero. */
+export const canStart = (app: App) => isStopped(app);
+
+/** Stop applies to an App that is up or coming up, not one stopped or not yet scheduled. */
+export const canStop = (app: App) =>
+  !isStopped(app) && app.status.phase !== "Stopped" && app.status.phase !== "Pending";
+
+/** Clicks on these keep their own behavior instead of opening the row's App. */
+const INTERACTIVE = "a, button, input, label, [role='checkbox']";
 
 export interface AppsTableProps {
   rows: App[];
@@ -60,6 +72,7 @@ export function AppsTable({
   actions,
   onDelete,
 }: AppsTableProps) {
+  const navigate = useNavigate();
   return (
     <Table>
       <TableHeader>
@@ -73,7 +86,6 @@ export function AppsTable({
             />
           </TableHead>
           <SortableHead label="App" col="name" sort={sort} onToggle={onToggleSort} />
-          <SortableHead label="Namespace" col="namespace" sort={sort} onToggle={onToggleSort} />
           <SortableHead label="Type" col="type" sort={sort} onToggle={onToggleSort} />
           <SortableHead label="Source" col="source" sort={sort} onToggle={onToggleSort} />
           <SortableHead label="Status" col="status" sort={sort} onToggle={onToggleSort} />
@@ -85,13 +97,23 @@ export function AppsTable({
       <TableBody>
         {rows.map((app) => {
           const stopped = isStopped(app);
+          const failed = app.status.phase === "Failed";
+          const reason = failed ? failureReason(app) : "";
           const checked = selected.has(appKey(app));
+          const detail = `/apps/${app.namespace}/${app.name}`;
+          // The whole row opens the App for pointer users; keyboard and screen
+          // reader users get the same destination from the name link.
+          const openRow = (e: MouseEvent<HTMLTableRowElement>) => {
+            if ((e.target as Element).closest(INTERACTIVE)) return;
+            navigate(detail);
+          };
           return (
             <TableRow
               key={appKey(app)}
               data-selected={checked || undefined}
               data-phase={app.status.phase}
-              className={APP_ROW_CLASS}
+              className={cn("cursor-pointer", APP_ROW_CLASS)}
+              onClick={openRow}
             >
               <TableCell>
                 <Checkbox
@@ -101,17 +123,17 @@ export function AppsTable({
                 />
               </TableCell>
               <TableCell>
-                <AppNameCell app={app} />
+                <AppNameCell app={app} subline={`${app.name} · ${app.namespace}`} />
               </TableCell>
-              <TableCell className="text-muted-foreground">{app.namespace}</TableCell>
               <TableCell>
-                <SourceBadge source={appType(app)} />
+                <TypeBadge type={appType(app)} />
               </TableCell>
               <TableCell>
                 <SourceBadge source={app.source?.type ?? "—"} />
               </TableCell>
               <TableCell>
                 <PhaseBadge phase={app.status.phase} />
+                {reason ? <p className="mt-1 text-muted-foreground text-xs">{reason}</p> : null}
               </TableCell>
               <TableCell className="tabular-nums">
                 {app.status.replicas
@@ -121,10 +143,12 @@ export function AppsTable({
               <TableCell className="text-muted-foreground">{app.owner || "—"}</TableCell>
               <TableCell className="text-right">
                 <div className="flex items-center justify-end gap-1">
-                  <IconLink to={`/apps/${app.namespace}/${app.name}`} label="View">
-                    <Eye />
-                  </IconLink>
-                  <IconLink to={`/apps/${app.namespace}/${app.name}/edit`} label="Edit">
+                  {failed ? (
+                    <IconLink to={`${detail}?tab=logs`} label="Logs">
+                      <ScrollText />
+                    </IconLink>
+                  ) : null}
+                  <IconLink to={`${detail}/edit`} label="Edit">
                     <Pencil />
                   </IconLink>
                   {app.status.url && app.status.phase === "Running" ? (
@@ -175,6 +199,7 @@ export function AppsTable({
                             variant="ghost"
                             size="icon-sm"
                             aria-label="Stop app"
+                            disabled={!canStop(app)}
                             loading={actions.isPendingFor(actions.stop, app)}
                             onClick={() => actions.stop.mutate(app)}
                           >
@@ -192,7 +217,7 @@ export function AppsTable({
                           variant="ghost"
                           size="icon-sm"
                           aria-label="Delete app"
-                          className="text-destructive-foreground hover:bg-destructive hover:text-destructive-foreground"
+                          className="text-muted-foreground hover:bg-destructive hover:text-destructive-foreground focus-visible:bg-destructive focus-visible:text-destructive-foreground"
                           onClick={() => onDelete(app)}
                         >
                           <Trash2 />

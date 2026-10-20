@@ -16,3 +16,20 @@ const rank = (phase: string | undefined): number => {
 export function comparePhase(a: string | undefined, b: string | undefined): number {
   return rank(a) - rank(b);
 }
+
+type FailureSource = {
+  status: {
+    conditions?: { status: string; reason?: string; message?: string }[];
+    message?: string;
+  };
+};
+
+/**
+ * A one-line reason an App is failing: the first condition that is not True
+ * (its reason, else its message), else the App's status message.
+ */
+export function failureReason(app: FailureSource | undefined): string {
+  if (!app) return "";
+  const failing = (app.status.conditions ?? []).find((c) => c.status !== "True");
+  return failing?.reason || failing?.message || app.status.message || "";
+}

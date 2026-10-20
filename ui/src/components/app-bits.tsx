@@ -47,22 +47,31 @@ export function PhaseBadge({ phase }: { phase: string }) {
   );
 }
 
+const SOURCE_LABELS: Record<string, string> = { inline: "Upload", git: "Git", pvc: "PVC" };
+
+/** Human label for an App source type (`inline` reads as "Upload"); unknown types pass through. */
+export function sourceLabel(type: string): string {
+  return SOURCE_LABELS[type] ?? type;
+}
+
+/** Where an App's files come from, as a mono outline pill. */
 export function SourceBadge({ source }: { source: string }) {
   return (
     <Badge variant="ghost" className="border border-border font-mono text-xs">
-      {source}
+      {sourceLabel(source)}
     </Badge>
   );
+}
+
+/** What kind of App it is, styled apart from the Source pill so the two never look alike. */
+export function TypeBadge({ type }: { type: "static" | "python" }) {
+  return <Badge variant="secondary">{type === "python" ? "Python" : "Static"}</Badge>;
 }
 
 /** Shown for Python/pixi apps (runtime.pixiTask set); static apps get no extra badge. */
 export function KindBadge({ pixiTask }: { pixiTask?: string }) {
   if (!pixiTask) return null;
-  return (
-    <Badge variant="ghost" className="border border-border font-mono text-xs">
-      python
-    </Badge>
-  );
+  return <TypeBadge type="python" />;
 }
 
 /** Deterministic accent color from a string so fallback tiles stay stable. */

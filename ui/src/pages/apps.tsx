@@ -1,9 +1,16 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Pause, Play, Search, Trash2, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ConfirmDeleteDialog } from "@/components/app-bits";
-import { AppsTable, appType, type Sort, type SortCol } from "@/components/apps-table";
+import { ConfirmDeleteDialog, sourceLabel } from "@/components/app-bits";
+import {
+  AppsTable,
+  appType,
+  canStart,
+  canStop,
+  type Sort,
+  type SortCol,
+} from "@/components/apps-table";
 import { Onboarding } from "@/components/onboarding";
 import { errorMessage, QueryError } from "@/components/query-error";
 import { Button } from "@/components/ui/button";
@@ -46,7 +53,9 @@ export function AppsPage() {
   });
   const [filter, setFilter] = useState("");
   const [phaseFilter, setPhaseFilter] = useState<string | null>(null);
-  const [sort, setSort] = useState<Sort>({ col: "name", dir: "asc" });
+  // Most severe first, so a Failed app is never buried under healthy ones.
+  const [sort, setSort] = useState<Sort>({ col: "status", dir: "asc" });
+  const searchRef = useRef<HTMLInputElement>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<App | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
@@ -73,6 +82,7 @@ export function AppsPage() {
         a.namespace,
         appType(a),
         a.source?.type ?? "",
+        sourceLabel(a.source?.type ?? ""),
         a.owner,
         a.status.phase,
       ]
@@ -82,8 +92,6 @@ export function AppsPage() {
     });
     const val = (a: App): string => {
       switch (sort.col) {
-        case "namespace":
-          return a.namespace;
         case "type":
           return appType(a);
         case "source":
@@ -99,13 +107,39 @@ export function AppsPage() {
       sort.col === "status"
         ? comparePhase(a.status.phase, b.status.phase)
         : val(a).localeCompare(val(b));
-    out = [...out].sort((a, b) => cmp(a, b) * (sort.dir === "asc" ? 1 : -1));
+    // Ties fall back to the display name (always A→Z) so the order is stable.
+    const byName = (a: App) => (a.displayName || a.name).toLowerCase();
+    out = [...out].sort(
+      (a, b) => cmp(a, b) * (sort.dir === "asc" ? 1 : -1) || byName(a).localeCompare(byName(b)),
+    );
     return out;
   }, [list, filter, phaseFilter, sort]);
 
   const selectedApps = useMemo(() => rows.filter((a) => selected.has(appKey(a))), [rows, selected]);
   const allSelected = rows.length > 0 && rows.every((a) => selected.has(appKey(a)));
   const someSelected = selectedApps.length > 0 && !allSelected;
+  // The bulk bar only offers what applies, and each action only touches the
+  // selected apps it applies to.
+  const startable = selectedApps.filter(canStart);
+  const stoppable = selectedApps.filter(canStop);
+
+  // "/" jumps to the search field from anywhere on the page but a form control.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = e.target as HTMLElement | null;
+      if (el?.closest("input, textarea, select, [contenteditable='true']")) return;
+      e.preventDefault();
+      searchRef.current?.focus();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  const clearFilters = () => {
+    setFilter("");
+    setPhaseFilter(null);
+  };
 
   const toggleAll = () => {
     setSelected(allSelected ? new Set() : new Set(rows.map(appKey)));
@@ -124,7 +158,7 @@ export function AppsPage() {
   // meanwhile) must not hide that the others succeeded.
   const bulkAction = useMutation({
     mutationFn: async (action: "start" | "stop" | "delete") => {
-      const targets = selectedApps;
+      const targets = action === "start" ? startable : action === "stop" ? stoppable : selectedApps;
       const results = await Promise.allSettled(targets.map((a) => runAppAction(action, a)));
       const failed = targets.flatMap((app, i) => {
         const r = results[i];
@@ -176,7 +210,9 @@ export function AppsPage() {
         <div className="relative w-full max-w-sm">
           <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 z-10 size-4 text-muted-foreground" />
           <Input
+            ref={searchRef}
             placeholder="Search by name, source, status…"
+            aria-keyshortcuts="/"
             className="pr-9 pl-9"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
@@ -190,7 +226,14 @@ export function AppsPage() {
             >
               <X className="size-3.5" />
             </button>
-          ) : null}
+          ) : (
+            <kbd
+              aria-hidden
+              className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-2.5 z-10 rounded-sm border border-border bg-muted px-1.5 font-mono text-muted-foreground text-xs leading-5"
+            >
+              /
+            </kbd>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           <FilterChip
@@ -215,22 +258,26 @@ export function AppsPage() {
         <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-2">
           <span className="font-medium text-sm">{selectedApps.length} selected</span>
           <div className="ml-auto flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              loading={bulkAction.isPending && bulkAction.variables === "start"}
-              onClick={() => bulkAction.mutate("start")}
-            >
-              <Play /> Start
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              loading={bulkAction.isPending && bulkAction.variables === "stop"}
-              onClick={() => bulkAction.mutate("stop")}
-            >
-              <Pause /> Stop
-            </Button>
+            {startable.length > 0 ? (
+              <Button
+                variant="outline"
+                size="sm"
+                loading={bulkAction.isPending && bulkAction.variables === "start"}
+                onClick={() => bulkAction.mutate("start")}
+              >
+                <Play /> Start
+              </Button>
+            ) : null}
+            {stoppable.length > 0 ? (
+              <Button
+                variant="outline"
+                size="sm"
+                loading={bulkAction.isPending && bulkAction.variables === "stop"}
+                onClick={() => bulkAction.mutate("stop")}
+              >
+                <Pause /> Stop
+              </Button>
+            ) : null}
             <Button variant="destructive" size="sm" onClick={() => setBulkDeleteOpen(true)}>
               <Trash2 /> Delete
             </Button>
@@ -254,9 +301,12 @@ export function AppsPage() {
       ) : list.length === 0 ? (
         <Onboarding />
       ) : rows.length === 0 ? (
-        <p className="py-10 text-center text-muted-foreground text-sm">
-          No apps match your filter.
-        </p>
+        <div className="flex flex-col items-center gap-2 py-10">
+          <p className="text-muted-foreground text-sm">No apps match your filter.</p>
+          <Button variant="ghost" size="sm" onClick={clearFilters}>
+            Clear filters
+          </Button>
+        </div>
       ) : (
         <AppsTable
           rows={rows}
@@ -348,7 +398,7 @@ function FilterChip({
       )}
     >
       {label}
-      <span className="tabular-nums opacity-70">{count}</span>
+      <span className={cn("tabular-nums", !active && "text-muted-foreground")}>{count}</span>
     </button>
   );
 }
