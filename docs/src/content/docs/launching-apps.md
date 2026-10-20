@@ -191,7 +191,7 @@ Apps UI.
 | Update | detail page → Edit | `PATCH .../apps/{ns}/{name}` | edit the CR |
 | Restart (roll pods) | detail page → Restart | `POST .../apps/{ns}/{name}/restart` | `kubectl rollout restart deploy/app-<name>` |
 | Logs | detail page → Logs | `GET .../apps/{ns}/{name}/logs` | `kubectl logs -l apps.nebari.dev/app=<name>` |
-| Metrics | Metrics page / detail cards | `GET .../apps/{ns}/{name}/metrics`, `GET /analytics/metrics` | `kubectl top pods -l apps.nebari.dev/app=<name>` |
+| Metrics | Detail page CPU/memory cards; the Dashboard's Needs attention card (restarts, `Failed`) | `GET .../apps/{ns}/{name}/metrics`, `GET /analytics/metrics` | `kubectl top pods -l apps.nebari.dev/app=<name>` |
 | Delete | detail page → Delete (type to confirm) | `DELETE .../apps/{ns}/{name}` | `kubectl delete app <name>` |
 
 Changing inline content rolls the pods automatically (the pod template carries a content

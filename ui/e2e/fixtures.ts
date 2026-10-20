@@ -18,6 +18,7 @@ import {
   DEFAULT_APPS,
   EVENTS,
   LOGS,
+  RESTARTS,
   UI_CONFIG,
 } from "./data";
 
@@ -34,6 +35,8 @@ export interface MockApi {
   /** When set, GET /apps (and the dashboard's analytics) fail with this status and detail. */
   failList: { status: number; detail: string } | null;
   logs: string;
+  /** Container restarts per App ("namespace/name") for GET /analytics/metrics. */
+  restarts: Record<string, number>;
   /** Mutating requests, in the order they arrived. */
   requests: RecordedRequest[];
 }
@@ -95,7 +98,9 @@ async function installApiRoutes(page: Page, api: MockApi) {
       if (api.failList) return route.fulfill(json(api.failList.status, api.failList));
       return route.fulfill(json(200, analyticsFor(api.apps)));
     }
-    if (path === "/analytics/metrics") return route.fulfill(json(200, clusterMetricsFor(api.apps)));
+    if (path === "/analytics/metrics") {
+      return route.fulfill(json(200, clusterMetricsFor(api.apps, api.restarts)));
+    }
 
     if (path === "/apps" && method === "GET") {
       if (api.failList) return route.fulfill(json(api.failList.status, api.failList));
@@ -207,6 +212,7 @@ export const test = base.extend<{
         apps: structuredClone(DEFAULT_APPS),
         failList: null,
         logs: LOGS,
+        restarts: { ...RESTARTS },
         requests: [],
       };
       // Saved before any script runs, as a returning user's preference would be,

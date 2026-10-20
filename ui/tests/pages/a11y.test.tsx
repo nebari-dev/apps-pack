@@ -37,6 +37,16 @@ const APP: App = {
   },
 } as unknown as App;
 
+// A failed app that is also restarting, so the dashboard's Needs attention card
+// renders a row with the destructive badge.
+const BROKEN: App = {
+  ...APP,
+  name: "broken-app",
+  displayName: "Broken App",
+  access: { public: false, subdomain: "broken-app" },
+  status: { ...APP.status, phase: "Failed", url: "", replicas: { desired: 1, ready: 0 } },
+} as App;
+
 vi.mock("@/lib/api", () => ({
   api: {
     capabilities: vi.fn(async () => ({
@@ -45,19 +55,22 @@ vi.mock("@/lib/api", () => ({
       namespaces: ["apps"],
     })),
     analytics: vi.fn(async () => ({
-      total: 1,
-      byPhase: { Running: 1 },
-      bySourceType: { inline: 1 },
-      byNamespace: { apps: 1 },
+      total: 2,
+      byPhase: { Running: 1, Failed: 1 },
+      bySourceType: { inline: 2 },
+      byNamespace: { apps: 2 },
       readyReplicas: 1,
-      desiredReplicas: 1,
+      desiredReplicas: 2,
     })),
     clusterMetrics: vi.fn(async () => ({
       usageAvailable: true,
-      apps: [{ namespace: "apps", name: "docs-site", cpu: 12, memory: 34, restarts: 0 }],
+      apps: [
+        { namespace: "apps", name: "docs-site", cpu: 12, memory: 34, restarts: 1 },
+        { namespace: "apps", name: "broken-app", cpu: 0, memory: 0, restarts: 4 },
+      ],
       byNamespace: [{ namespace: "apps", cpu: 12, memory: 34 }],
     })),
-    listApps: vi.fn(async () => [APP]),
+    listApps: vi.fn(async () => [APP, BROKEN]),
     getApp: vi.fn(async () => APP),
     metrics: vi.fn(async () => ({ available: true, pods: [] })),
     logs: vi.fn(async () => ({ logs: "hello" })),
@@ -70,10 +83,10 @@ const { AppsPage } = await import("@/pages/apps");
 const { DashboardPage } = await import("@/pages/dashboard");
 const { EditPage } = await import("@/pages/edit");
 const { LaunchPage } = await import("@/pages/launch");
-const { MetricsPage } = await import("@/pages/metrics");
 
-const PAGES: [string, string, string, ReactElement, string][] = [
-  ["dashboard", "/", "", <DashboardPage key="d" />, "Dashboard"],
+// name, URL, route path, page, h1, and text that shows the page's data has loaded.
+const PAGES: [string, string, string, ReactElement, string, string?][] = [
+  ["dashboard", "/", "", <DashboardPage key="d" />, "Dashboard", "Failed · 4 restarts"],
   ["apps", "/apps", "apps", <AppsPage key="a" />, "Apps"],
   [
     "app detail",
@@ -90,7 +103,6 @@ const PAGES: [string, string, string, ReactElement, string][] = [
     "Edit app",
   ],
   ["launch", "/launch", "launch", <LaunchPage key="l" />, "Launch an app"],
-  ["metrics", "/metrics", "metrics", <MetricsPage key="m" />, "Metrics"],
 ];
 
 afterEach(() => {
@@ -108,26 +120,30 @@ async function violations(): Promise<string[]> {
 }
 
 describe.each(["light", "dark"])("%s theme", (theme) => {
-  it.each(PAGES)("%s page has no axe violations", async (_name, url, path, page, heading) => {
-    if (theme === "dark") document.documentElement.classList.add("dark");
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <ThemeProvider storageKey="a11y-test">
-        <QueryClientProvider client={client}>
-          <MemoryRouter initialEntries={[url]}>
-            <Routes>
-              <Route element={<Layout />}>
-                <Route path={path || undefined} index={!path} element={page} />
-              </Route>
-            </Routes>
-          </MemoryRouter>
-        </QueryClientProvider>
-      </ThemeProvider>,
-    );
-    await screen.findByRole("heading", { level: 1, name: heading });
-    expect(await violations()).toEqual([]);
-    expect(document.title).toContain(heading === "Docs Site" ? "docs-site" : heading);
-  });
+  it.each(PAGES)(
+    "%s page has no axe violations",
+    async (_name, url, path, page, heading, ready) => {
+      if (theme === "dark") document.documentElement.classList.add("dark");
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(
+        <ThemeProvider storageKey="a11y-test">
+          <QueryClientProvider client={client}>
+            <MemoryRouter initialEntries={[url]}>
+              <Routes>
+                <Route element={<Layout />}>
+                  <Route path={path || undefined} index={!path} element={page} />
+                </Route>
+              </Routes>
+            </MemoryRouter>
+          </QueryClientProvider>
+        </ThemeProvider>,
+      );
+      await screen.findByRole("heading", { level: 1, name: heading });
+      if (ready) await screen.findByText(ready);
+      expect(await violations()).toEqual([]);
+      expect(document.title).toContain(heading === "Docs Site" ? "docs-site" : heading);
+    },
+  );
 });
 
 it("has a skip link to the main content", async () => {
@@ -177,11 +193,11 @@ it("moves focus to the new page's heading after navigating", async () => {
     "/apps",
     <>
       <Route path="apps" element={<AppsPage />} />
-      <Route path="metrics" element={<MetricsPage />} />
+      <Route index element={<DashboardPage />} />
     </>,
   );
   await screen.findByRole("heading", { level: 1, name: "Apps" });
-  await user.click(screen.getByRole("link", { name: /metrics/i }));
-  const heading = await screen.findByRole("heading", { level: 1, name: "Metrics" });
+  await user.click(screen.getByRole("link", { name: /dashboard/i }));
+  const heading = await screen.findByRole("heading", { level: 1, name: "Dashboard" });
   expect(heading).toHaveFocus();
 });
