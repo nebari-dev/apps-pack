@@ -47,7 +47,7 @@ export default defineConfig({
       include: ["src/**"],
       exclude: ["src/components/ui/**", "src/main.tsx"],
       reporter: ["text-summary", "text"],
-      thresholds: { statements: 78, branches: 69, functions: 71, lines: 79 },
+      thresholds: { statements: 80, branches: 70, functions: 75, lines: 81 },
     },
   },
   server: {

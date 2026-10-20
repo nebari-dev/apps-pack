@@ -17,10 +17,10 @@ Keycloak auth. See [`docs/src/content/docs/architecture.md`](docs/src/content/do
 
 | Path | What | Key files |
 |---|---|---|
-| `operator/` | Go operator (controller-runtime) | `api/v1alpha1/app_types.go` (the CRD), `internal/controller/app_controller.go` (reconcile pipeline), `internal/controller/workload.go` (pod spec), `internal/controller/routing.go` (NebariApp) |
+| `operator/` | Go operator (controller-runtime) | `api/v1alpha1/app_types.go` (the CRD), `internal/controller/app_controller.go` (reconcile pipeline), `internal/controller/workload.go` (pod spec), `internal/controller/sources.go` (source volumes and init containers), `internal/controller/routing.go` (NebariApp) |
 | `api/` | FastAPI REST API over App CRs | `src/nebari_apps_api/main.py` (routes), `auth.py` (JWT + owner/admin checks), `models.py` (request/response models), `cr.py` (model ↔ CR), `k8s.py` (store) |
 | `mcp/` | FastMCP server, agent tools at `/mcp` | `src/nebari_apps_mcp/server.py` (tools), `auth.py` (device flow, sessions), `untrusted.py` (fencing app output) |
-| `ui/` | React + Vite UI on the Nebari design registry | `src/pages/`, `src/components/`, `src/lib/api.ts`, `src/lib/types.ts` |
+| `ui/` | React + Vite UI on the Nebari design registry | `src/pages/`, `src/components/` (`app-form/`: state, sections), `src/hooks/use-app-actions.ts`, `src/lib/api.ts`, `src/lib/types.ts` (over the generated `crd.gen.ts`) |
 | `charts/nebari-apps/` | Helm chart: CRD, operator, api, ui, mcp | `values.yaml`, `templates/`, `crds/apps.nebari.dev_apps.yaml` (generated) |
 | `skill/new-nebari-app/` | Claude Code skill that scaffolds an app + launch manifest | `SKILL.md`, `references/manifest.md` |
 | `examples/` | Sample App CRs, Helm values, Argo CD Application | `README.md` |
@@ -55,9 +55,11 @@ helm lint charts/nebari-apps --set clusterDomain=nebari.example.com
 
 - **The CRD is generated.** Edit `operator/api/v1alpha1/app_types.go`, then run
   `controller-gen` (commands in CONTRIBUTING) and commit `operator/api/v1alpha1/zz_generated.deepcopy.go`
-  and `charts/nebari-apps/crds/apps.nebari.dev_apps.yaml`. CI fails on drift. A new spec field
-  also has to be added by hand to `api/src/nebari_apps_api/models.py`, `cr.py`,
-  `ui/src/lib/types.ts`, the MCP `launch_app` arguments, `skill/new-nebari-app/references/manifest.md`
+  and `charts/nebari-apps/crds/apps.nebari.dev_apps.yaml`, then run
+  `python3 .github/scripts/gen_crd_types.py` to regenerate `ui/src/lib/crd.gen.ts` (the UI's App
+  types derive from it). CI fails on drift in all three. A new spec field also has to be added by
+  hand to `api/src/nebari_apps_api/models.py` (`api/tests/test_crd_conformance.py` fails until it
+  is) and `cr.py`, the MCP `launch_app` arguments, `skill/new-nebari-app/references/manifest.md`
   and `docs/src/content/docs/app-crd-reference.md`.
 - **The NebariApp shape is a pinned contract** (nebari-operator `v0.1.0-alpha.20`, pinned once in
   `.nebari-operator-version` and mirrored by `NebariOperatorContract` in `routing.go`), guarded by

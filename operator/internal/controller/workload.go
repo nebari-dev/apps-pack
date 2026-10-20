@@ -1,10 +1,7 @@
 package controller
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
-	"sort"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -45,61 +42,6 @@ func selectorLabels(app *appsv1alpha1.App) map[string]string {
 	return map[string]string{
 		"apps.nebari.dev/app": app.Name,
 	}
-}
-
-// inlineConfigMapData maps inline file paths onto valid ConfigMap keys.
-// ConfigMap keys cannot contain '/', so files are stored under generated
-// keys and mapped back to their real (possibly nested) paths via volume
-// items when mounted.
-func inlineConfigMapData(files map[string]string) (map[string]string, []corev1.KeyToPath) {
-	paths := make([]string, 0, len(files))
-	for p := range files {
-		paths = append(paths, p)
-	}
-	sort.Strings(paths)
-	data := make(map[string]string, len(files))
-	items := make([]corev1.KeyToPath, 0, len(files))
-	for i, p := range paths {
-		key := fmt.Sprintf("f%04d", i)
-		data[key] = files[p]
-		items = append(items, corev1.KeyToPath{Key: key, Path: p})
-	}
-	return data, items
-}
-
-// buildContentConfigMap renders inline source files into a ConfigMap that is
-// mounted as the app source root. Returns nil for non-inline sources.
-func buildContentConfigMap(app *appsv1alpha1.App) *corev1.ConfigMap {
-	if app.Spec.Source.Type != appsv1alpha1.SourceTypeInline || app.Spec.Source.Inline == nil {
-		return nil
-	}
-	data, _ := inlineConfigMapData(app.Spec.Source.Inline.Files)
-	return &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      childName(app) + "-content",
-			Namespace: app.Namespace,
-			Labels:    appLabels(app),
-		},
-		Data: data,
-	}
-}
-
-// contentChecksum produces a stable hash of inline content so the pod
-// template rolls when the files change.
-func contentChecksum(files map[string]string) string {
-	keys := make([]string, 0, len(files))
-	for k := range files {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	h := sha256.New()
-	for _, k := range keys {
-		h.Write([]byte(k))
-		h.Write([]byte{0})
-		h.Write([]byte(files[k]))
-		h.Write([]byte{0})
-	}
-	return hex.EncodeToString(h.Sum(nil))
 }
 
 // buildDeployment renders the Deployment for an App.
@@ -204,51 +146,23 @@ func (r *AppReconciler) buildStaticPodSpec(app *appsv1alpha1.App, annotations ma
 		annotations["apps.nebari.dev/content-checksum"] = contentChecksum(app.Spec.Source.Inline.Files)
 
 	case appsv1alpha1.SourceTypeGit:
-		git := app.Spec.Source.Git
-		ref := git.Ref
-		if ref == "" {
-			ref = "main"
-		}
 		podSpec.Volumes = []corev1.Volume{{
 			Name:         contentVolume,
 			VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
 		}}
-		podSpec.InitContainers = []corev1.Container{{
-			Name:  "git-clone",
-			Image: r.Config.GitImage,
-			// Values are passed via env so the script never interpolates
-			// user-controlled strings. Clone lands in /tmp because the
-			// container runs as a non-root user that cannot write /.
-			Command: []string{"sh", "-c",
-				gitCloneScript + `cp -r "/tmp/clone/$GIT_SUBDIR/." /content/`,
-			},
-			Env: []corev1.EnvVar{
-				{Name: "GIT_URL", Value: git.URL},
-				{Name: "GIT_REF", Value: ref},
-				{Name: "GIT_SUBDIR", Value: sanitizeSubdir(git.Subdir)},
-				{Name: "HOME", Value: "/tmp"},
-			},
-			SecurityContext: &corev1.SecurityContext{
+		podSpec.InitContainers = []corev1.Container{r.gitCloneInit(app.Spec.Source.Git,
+			corev1.VolumeMount{Name: contentVolume, MountPath: "/content"},
+			&corev1.SecurityContext{
 				// alpine/git defaults to root, which runAsNonRoot rejects.
-				RunAsUser:                ptr.To(int64(65532)),
-				RunAsGroup:               ptr.To(int64(65532)),
+				RunAsUser:                ptr.To(pixiUID),
+				RunAsGroup:               ptr.To(pixiUID),
 				AllowPrivilegeEscalation: ptr.To(false),
 				Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
-			},
-			VolumeMounts: []corev1.VolumeMount{{Name: contentVolume, MountPath: "/content"}},
-		}}
+			})}
 
 	case appsv1alpha1.SourceTypePVC:
 		pvc := app.Spec.Source.PVC
-		podSpec.Volumes = []corev1.Volume{{
-			Name: contentVolume,
-			VolumeSource: corev1.VolumeSource{
-				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-					ClaimName: pvc.ClaimName,
-					ReadOnly:  true,
-				},
-			},
-		}}
+		podSpec.Volumes = []corev1.Volume{pvcContentVolume(pvc)}
 		podSpec.Containers[0].VolumeMounts[0].SubPath = pvc.SubPath
 
 	default:
@@ -264,21 +178,6 @@ func (r *AppReconciler) buildStaticPodSpec(app *appsv1alpha1.App, annotations ma
 		},
 	})
 	return podSpec, nil
-}
-
-// inlineContentVolume mounts the content ConfigMap with items mapping the
-// generated keys back onto their real file paths.
-func inlineContentVolume(app *appsv1alpha1.App) corev1.Volume {
-	_, items := inlineConfigMapData(app.Spec.Source.Inline.Files)
-	return corev1.Volume{
-		Name: contentVolume,
-		VolumeSource: corev1.VolumeSource{
-			ConfigMap: &corev1.ConfigMapVolumeSource{
-				LocalObjectReference: corev1.LocalObjectReference{Name: childName(app) + "-content"},
-				Items:                items,
-			},
-		},
-	}
 }
 
 const (
@@ -394,41 +293,12 @@ func (r *AppReconciler) buildPixiPodSpec(app *appsv1alpha1.App, annotations map[
 		annotations["apps.nebari.dev/content-checksum"] = contentChecksum(app.Spec.Source.Inline.Files)
 
 	case appsv1alpha1.SourceTypeGit:
-		git := app.Spec.Source.Git
-		ref := git.Ref
-		if ref == "" {
-			ref = "main"
-		}
-		podSpec.InitContainers = []corev1.Container{{
-			Name:  "git-clone",
-			Image: r.Config.GitImage,
-			// Values are passed via env so the script never interpolates
-			// user-controlled strings. Clone lands in /tmp because the
-			// container runs as a non-root user that cannot write /.
-			Command: []string{"sh", "-c",
-				gitCloneScript + `cp -r "/tmp/clone/$GIT_SUBDIR/." /app/`,
-			},
-			Env: []corev1.EnvVar{
-				{Name: "GIT_URL", Value: git.URL},
-				{Name: "GIT_REF", Value: ref},
-				{Name: "GIT_SUBDIR", Value: sanitizeSubdir(git.Subdir)},
-				{Name: "HOME", Value: "/tmp"},
-			},
-			SecurityContext: containerSecurity,
-			VolumeMounts:    []corev1.VolumeMount{{Name: workspaceVolume, MountPath: appWorkdir}},
-		}}
+		podSpec.InitContainers = []corev1.Container{r.gitCloneInit(app.Spec.Source.Git,
+			corev1.VolumeMount{Name: workspaceVolume, MountPath: appWorkdir}, containerSecurity)}
 
 	case appsv1alpha1.SourceTypePVC:
 		pvc := app.Spec.Source.PVC
-		podSpec.Volumes = append(podSpec.Volumes, corev1.Volume{
-			Name: contentVolume,
-			VolumeSource: corev1.VolumeSource{
-				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-					ClaimName: pvc.ClaimName,
-					ReadOnly:  true,
-				},
-			},
-		})
+		podSpec.Volumes = append(podSpec.Volumes, pvcContentVolume(pvc))
 		copySource.VolumeMounts[0].SubPath = pvc.SubPath
 		podSpec.InitContainers = []corev1.Container{copySource}
 
@@ -458,19 +328,6 @@ func buildService(app *appsv1alpha1.App) *corev1.Service {
 			}},
 		},
 	}
-}
-
-// gitCloneScript clones GIT_URL at GIT_REF into /tmp/clone. User values
-// arrive only through env vars, and `--` ends option parsing so a URL can
-// never be read as a git option (validate() also rejects anything but https).
-const gitCloneScript = `git clone --depth 1 --branch "$GIT_REF" -- "$GIT_URL" /tmp/clone && `
-
-// sanitizeSubdir normalizes a git subdir so it stays inside the clone.
-func sanitizeSubdir(subdir string) string {
-	if subdir == "" || subdir == "." {
-		return "."
-	}
-	return subdir
 }
 
 func mergeMaps(ms ...map[string]string) map[string]string {

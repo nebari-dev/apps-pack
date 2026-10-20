@@ -39,6 +39,8 @@ htmlcov/
 # ---- Node / React (ui) ----
 node_modules/
 ui/dist/
+# TypeScript incremental build state (tsc -b).
+*.tsbuildinfo
 ui/coverage/
 *.log
 npm-debug.log*
