@@ -41,6 +41,8 @@ images. `latest` tracks `main` for development only; released charts pin `sha-` 
 
 To verify a signature, see
 [Verifying Nebari pack artifacts](https://github.com/nebari-dev/.github/blob/main/verifying-nebari-artifacts.md).
+The signer identity is the org workflow at the commit this repository pins
+(`nebari-dev/.github/.github/workflows/pack-build-image.yaml@a6c757c72124a03542a79ac5385fd250ee9c45b7`).
 
 ## Cutting a release
 

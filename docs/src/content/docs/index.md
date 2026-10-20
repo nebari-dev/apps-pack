@@ -13,6 +13,8 @@ Everything converges on one declarative resource: the **`App`** custom resource
 Service, and a `NebariApp` — and the [nebari-operator](https://github.com/nebari-dev/nebari-operator)
 turns that into routing, TLS, authentication, and (when the app opts in) a landing-page tile.
 
+![The Apps page: a table of launched apps with their namespace, type, source, status, replicas and owner](../../assets/screenshots/apps-list.png)
+
 Each app gets its own URL under the cluster's apps domain:
 
 ```

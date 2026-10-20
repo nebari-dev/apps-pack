@@ -16,12 +16,16 @@ title: Getting started
   `nebari.dev/managed=true` — label the release namespace and every namespace apps may be
   launched into.
 - Sizing: the pack requests 300m CPU / 448Mi memory (limits 1.5 CPU / 896Mi) for its four
-  pods, plus one pod per launched app sized by the App's `runtime.resources` (no default).
-- Optional: metrics-server for per-app CPU/memory in the UI.
+  pods. Each launched app adds a pod; an App that sets no `runtime.resources` gets the chart
+  defaults (`apps.defaultResources`: 50m / 64Mi requested, up to 500m / 256Mi, for a static
+  site; 250m / 512Mi requested, up to 2 CPU / 2Gi, for a Python app, whose cold
+  `pixi install` needs the memory).
+- Optional: metrics-server for per-app CPU/memory in the UI (the UI degrades gracefully
+  without it) and the LGTM observability pack for logs.
 
-Read the [Known limitations](https://github.com/nebari-dev/apps-pack#known-limitations) before a
-demo: group and user restrictions are enforced in the app pod (by a sidecar), not at the
-gateway, and users manage only their own apps (admins manage all of them).
+Read the [Known limitations](#known-limitations) before a demo: group and user restrictions
+are enforced in the app pod (by a sidecar), not at the gateway, and users manage only their
+own apps (admins manage all of them).
 
 ## Install
 
@@ -44,7 +48,8 @@ helm install nebari-apps charts/nebari-apps \
   --set clusterDomain=example.ai \
   --set keycloak.url=https://keycloak.example.ai/auth \
   --set operator.image.tag=latest --set api.image.tag=latest \
-  --set ui.image.tag=latest --set mcp.image.tag=latest
+  --set ui.image.tag=latest --set mcp.image.tag=latest \
+  --set authz.image.tag=latest
 
 # The nebari-operator only processes namespaces that opt in:
 kubectl label namespace nebari-apps nebari.dev/managed=true
@@ -67,7 +72,8 @@ with the same values (edit the two hostnames and `targetRevision`).
 kubectl apply -n argocd -f examples/argocd-application.yaml
 ```
 
-This deploys four components:
+This deploys four components. A fifth image, **apps-authz**, is not a Deployment: the
+operator adds it as a sidecar to Apps that list `access.groups` or `access.users`.
 
 | Component | Where it ends up |
 |---|---|
@@ -154,3 +160,36 @@ kubectl get deploy,svc,cm,nebariapp -n apps
 
 Deleting an `App` cascades: the Deployment, Service, ConfigMap, and `NebariApp` (and through
 it the HTTPRoute, certificate, and OIDC client) are all garbage-collected.
+
+## Known limitations
+
+The pack is alpha: the happy path works, and these are the gaps to know about before a demo
+or pilot.
+
+- **`access.groups` / `access.users` are enforced in the app pod, not at the gateway.** The
+  nebari-operator `SecurityPolicy` only signs users in
+  ([nebari-operator#153](https://github.com/nebari-dev/nebari-operator/issues/153)), so a
+  private app that lists groups or users gets the apps-authz sidecar, which checks the
+  forwarded access token and returns `403` to everyone else. Group changes apply when the
+  user's token refreshes (5 minutes by default). A private app with neither list is open to
+  any signed-in realm user. See [Access control](/launching-apps/#access-control).
+- **Landing-page tile visibility is group-based only.** `access.users` cannot hide a tile, so
+  the launch form's landing-page switch is locked for now. Tiles are off by default for
+  launched apps (`apps.landingPage.enabled` / `spec.landingPage.enabled`); only the pack's own
+  "Apps" tile is registered. See [Landing page](/launching-apps/#landing-page).
+- **Authorization is owner-or-admin only.** The API lets a user see and manage only the Apps
+  they launched; members of `api.adminGroups` manage all of them. There is no sharing or
+  delegation yet, and anyone with `kubectl` access to an app namespace bypasses the API.
+- **Inline sources are capped at ~900 KB of UTF-8 text** (a ConfigMap). Binary assets or
+  larger sites need a `git` or `pvc` source.
+- **No per-user quota.** Launched pods get default requests/limits and at most 10 replicas
+  each, but nothing caps how many Apps one user launches. Add a `ResourceQuota` to app
+  namespaces if that matters (the chart can render a `LimitRange` and a `NetworkPolicy`:
+  `apps.limitRange` / `apps.networkPolicy`).
+- **One API version (`v1alpha1`) and no conversion webhook yet.** `helm upgrade` does not
+  update CRDs; re-apply `charts/nebari-apps/crds/` on upgrades (see [Upgrading](/upgrading/)).
+- **The MCP server must run as a single replica**: device-flow sessions are held in process
+  memory.
+- **Local dev disables authentication** (`api.auth.enabled=false` with `tls.enabled=false`;
+  the chart refuses that with TLS on unless `api.auth.insecureAllowAnonymous=true`). Never
+  carry that flag to a real cluster.
