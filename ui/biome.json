@@ -14,6 +14,8 @@
       "tests/**",
       "e2e/**",
       "playwright.config.ts",
+      "playwright.screenshot.config.ts",
+      "scripts/readme-screenshot.ts",
       "biome.json",
       "package.json",
       "tsconfig*.json",

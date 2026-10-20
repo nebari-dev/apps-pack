@@ -13,7 +13,8 @@
     "size": "node scripts/check-bundle-size.mjs",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
-    "test:a11y": "playwright test --grep @a11y"
+    "test:a11y": "playwright test --grep @a11y",
+    "screenshot": "playwright test --config playwright.screenshot.config.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

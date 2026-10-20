@@ -14,5 +14,10 @@
     "noUnusedParameters": true,
     "types": ["node"]
   },
-  "include": ["e2e", "playwright.config.ts"]
+  "include": [
+    "e2e",
+    "scripts/readme-screenshot.ts",
+    "playwright.config.ts",
+    "playwright.screenshot.config.ts"
+  ]
 }

@@ -31,7 +31,7 @@ make redeploy    # rebuild every image and roll the Deployments after a change
 make down        # delete the cluster
 ```
 
-The repository layout is described in the [README](README.md#repository-layout).
+The repository layout is described in [AGENTS.md](AGENTS.md#repository-map).
 
 ## Quality gates
 
@@ -81,6 +81,10 @@ launch form, the app actions and the account menu. Tests tagged `@a11y` run axe 
 `ui/tests/pages/a11y.test.tsx`, they see real color contrast and focus order. One-time setup is
 `npx playwright install chromium`; after a run, `npx playwright show-report` opens the HTML
 report (CI uploads it as the `playwright-report` artifact).
+
+The README and docs screenshot (`docs/src/assets/screenshots/apps-list.png`) comes from the same
+mocked API: after a UI change that alters the apps list, run `npm run build && npm run screenshot`
+in `ui/` and commit the new image.
 
 The operator's envtest suite runs the reconciler against a real kube-apiserver and etcd (no
 kubelet), so it covers CRD validation, generations and watches that the fake client does not:
