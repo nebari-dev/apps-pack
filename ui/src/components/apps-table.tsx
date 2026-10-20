@@ -11,7 +11,8 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { AppThumbnail, PhaseBadge, SourceBadge } from "@/components/app-bits";
+import { PhaseBadge, SourceBadge } from "@/components/app-bits";
+import { APP_ROW_CLASS, AppNameCell } from "@/components/app-name-cell";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -86,7 +87,12 @@ export function AppsTable({
           const stopped = isStopped(app);
           const checked = selected.has(appKey(app));
           return (
-            <TableRow key={appKey(app)} data-selected={checked || undefined}>
+            <TableRow
+              key={appKey(app)}
+              data-selected={checked || undefined}
+              data-phase={app.status.phase}
+              className={APP_ROW_CLASS}
+            >
               <TableCell>
                 <Checkbox
                   aria-label={`Select ${appLabel(app)}`}
@@ -95,23 +101,7 @@ export function AppsTable({
                 />
               </TableCell>
               <TableCell>
-                <div className="flex items-center gap-3">
-                  <AppThumbnail
-                    name={app.name}
-                    displayName={app.displayName}
-                    thumbnail={app.thumbnail}
-                    className="size-9"
-                  />
-                  <div className="min-w-0">
-                    <Link
-                      to={`/apps/${app.namespace}/${app.name}`}
-                      className="font-medium hover:underline"
-                    >
-                      {app.displayName || app.name}
-                    </Link>
-                    <p className="text-muted-foreground text-xs">{app.name}</p>
-                  </div>
-                </div>
+                <AppNameCell app={app} />
               </TableCell>
               <TableCell className="text-muted-foreground">{app.namespace}</TableCell>
               <TableCell>
