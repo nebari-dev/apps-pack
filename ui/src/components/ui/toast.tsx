@@ -112,18 +112,19 @@ function withToastA11yDefaults<T extends ToastA11yOptions>(options: T): T {
   return Object.keys(patch).length > 0 ? { ...options, ...patch } : options;
 }
 
+/** The argument `update` accepts: a patch, or an updater that returns one. */
+type ToastUpdate<Data extends object> =
+  | ToastManagerUpdateOptions<Data>
+  | ((prevToast: ToastObject<Data>) => ToastManagerUpdateOptions<Data>);
+
 /**
  * Applies {@link withToastA11yDefaults} to an `update` argument. Base UI also
  * accepts an updater that derives the patch from the current toast; its return
  * value is merged like an object patch, so it gets the same treatment.
  */
 function withUpdateA11yDefaults<Data extends object>(
-  updates:
-    | ToastManagerUpdateOptions<Data>
-    | ((prevToast: ToastObject<Data>) => ToastManagerUpdateOptions<Data>),
-):
-  | ToastManagerUpdateOptions<Data>
-  | ((prevToast: ToastObject<Data>) => ToastManagerUpdateOptions<Data>) {
+  updates: ToastUpdate<Data>,
+): ToastUpdate<Data> {
   if (typeof updates === "function") {
     return (prevToast) => withToastA11yDefaults(updates(prevToast));
   }
