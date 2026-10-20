@@ -58,6 +58,15 @@ def _request_id() -> str:
     return get_http_headers().get(REQUEST_ID_HEADER, "")
 
 
+def _passthrough() -> str:
+    """The caller's Authorization header, for bearer passthrough.
+
+    get_http_headers() drops credential headers unless they are asked for by
+    name, so a plain .get("authorization") is always empty.
+    """
+    return get_http_headers(include={"authorization"}).get("authorization", "")
+
+
 class ToolLogMiddleware(Middleware):
     """One log line per tool call, carrying the HTTP request's id.
 
@@ -106,7 +115,7 @@ class TokenVerificationMiddleware(Middleware):
         session_id = ""
         if context.fastmcp_context is not None:
             session_id = context.fastmcp_context.session_id or ""
-        passthrough = get_http_headers().get("authorization", "")
+        passthrough = _passthrough()
         try:
             bearer = await auth.bearer(session_id, passthrough)
         except MissingSessionError as exc:
@@ -130,7 +139,7 @@ def _session_id(ctx: Context) -> str:
 
 
 async def _api(ctx: Context) -> ApiClient:
-    passthrough = get_http_headers().get("authorization", "")
+    passthrough = _passthrough()
     bearer = await auth.bearer(_session_id(ctx), passthrough)
     return ApiClient(bearer, request_id=_request_id())
 
