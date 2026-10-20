@@ -80,8 +80,8 @@ helm lint charts/nebari-apps --set clusterDomain=nebari.example.com
   `mcp/.python-version`, `docs/.bun-version`, and the `toolchain` line in `operator/go.mod`.
   Change the pin and the matching Dockerfile `FROM` (digest-pinned) together.
 - **Workflows:** every `uses:` is pinned to a full commit SHA with a `# vX.Y.Z` comment;
-  each workflow starts at `permissions: contents: read`. actionlint and zizmor
-  (`.github/zizmor.yml`) run on workflow changes.
+  each workflow starts at `permissions: contents: read`. actionlint and zizmor run in the
+  `repo` job of `.github/workflows/ci.yaml` on every PR.
 
 ## Don't
 

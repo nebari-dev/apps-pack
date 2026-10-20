@@ -38,9 +38,16 @@ The repository layout is described in the [README](README.md#repository-layout).
 CI runs these on every pull request. Run the ones for the components you touched before
 pushing.
 
+CI is one job per component in `.github/workflows/ci.yaml` (Operator, Python per package, UI,
+Helm chart, Repo invariants), plus `.github/workflows/images.yaml`, which builds and scans each
+image. The checks that are scripts live in `.github/scripts/` and run locally from the repo
+root, e.g. `python3 .github/scripts/check_versions.py` or
+`python3 .github/scripts/check_doc_paths.py` (the chart checks need PyYAML and a rendered
+chart; see the `chart` job for the arguments).
+
 | Component | Directory | Checks |
 |---|---|---|
-| Operator (Go) | `operator/` | `go vet ./...`, `go build ./...`, `go test ./... -race` (CI also enforces an `internal/` coverage floor, in `.github/workflows/test.yaml`), `golangci-lint run` (config in `operator/.golangci.yml`), and the envtest suite (below) |
+| Operator (Go) | `operator/` | `go vet ./...`, `go build ./...`, `go test ./... -race` (CI also enforces an `internal/` coverage floor, in `.github/workflows/ci.yaml`), `golangci-lint run` (config in `operator/.golangci.yml`), and the envtest suite (below) |
 | CRD / deepcopy | `operator/` | Regenerate with `controller-gen` v0.21.0 (commands below) and commit the result; CI fails on drift. |
 | apps-api | `api/` | `uv lock --check`, `uv sync --frozen --extra dev`, `uv run --frozen --no-sync python -m pytest -q --cov` (fails under `fail_under` in `pyproject.toml`), then `ruff check .`, `ruff format --check .` and `mypy` (strict) through `uv run --frozen --no-sync` |
 | apps-mcp | `mcp/` | Same as apps-api, plus `uv pip install --no-deps -e ../api` before the tests (they drive the real API in process). |
@@ -48,7 +55,7 @@ pushing.
 | Helm chart | `charts/nebari-apps/` | `helm lint charts/nebari-apps --set clusterDomain=nebari.example.com`, and `helm template` with `examples/nebari-values.yaml` (both validate against `values.schema.json`); the chart README must match `values.yaml` (regenerate below) |
 | Docs | `docs/` | `bun install --frozen-lockfile`, `bun test test`, `bun run build` |
 | Dependencies | `api/`, `mcp/`, `ui/` | `pip-audit` over the locked Python deps, `npm audit --audit-level=high` |
-| Workflows | `.github/workflows/` | `actionlint` and `zizmor .github/workflows` (config in `.github/zizmor.yml`). Pin every action to a full commit SHA with a `# vX.Y.Z` comment (Dependabot keeps them current), and give each workflow `permissions: contents: read`, widening per job only where needed. |
+| Workflows | `.github/workflows/` | `actionlint` and `zizmor .github/workflows`. Pin every action to a full commit SHA with a `# vX.Y.Z` comment (Dependabot keeps them current), and give each workflow `permissions: contents: read`, widening per job only where needed. |
 
 Runtime versions are pinned once and read everywhere: `ui/.node-version`, `api/.python-version`
 and `mcp/.python-version` (CI's setup-node and uv read them), `docs/.bun-version`, and the

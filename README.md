@@ -289,17 +289,17 @@ auto-upgrade bare hostnames to https, which is disabled locally. See the
 
 ## Releases
 
-Images are built by [`build-image.yaml`](.github/workflows/build-image.yaml) through the
+Images are built by [`images.yaml`](.github/workflows/images.yaml) through the
 org's reusable `pack-build-image` workflow. Every merge to `main` pushes all four images
 (`apps-operator`, `apps-api`, `apps-ui`, `apps-mcp`) to `ghcr.io/nebari-dev/apps-pack/<image>`
 and `quay.io/nebari/apps-pack-<image>`, tagged `sha-<short>`, and signs each one keyless
 with cosign, with a build-provenance attestation and an SBOM. The same push also moves
 `latest`, which tracks `main` and is for development only: deploy a released chart, which
-pins exact `sha-` tags. Pull requests build the images without pushing, and every image is
-scanned with Trivy; a HIGH or CRITICAL vulnerability with an available fix fails the check.
+pins exact `sha-` tags. Pull requests build each image once (amd64, without pushing) and
+scan it with Trivy; a HIGH or CRITICAL vulnerability with an available fix fails the check.
 
 **Releasing is merging the release PR.**
-[`release-please.yaml`](.github/workflows/release-please.yaml) keeps one open
+[`release-pr.yaml`](.github/workflows/release-pr.yaml) keeps one open
 `chore: release X.Y.Z` pull request, opened by
 [release-please](https://github.com/googleapis/release-please). It bumps every version string
 together (Chart `version` and `appVersion`, the api and mcp `__version__`, `ui/package.json`
@@ -340,16 +340,6 @@ To check an image's or chart's signature, see
 [Verifying Nebari pack artifacts](https://github.com/nebari-dev/.github/blob/main/verifying-nebari-artifacts.md).
 The signer identity is the org workflow at the commit this repo pins
 (`nebari-dev/.github/.github/workflows/pack-build-image.yaml@a6c757c72124a03542a79ac5385fd250ee9c45b7`).
-
-Issue tracking follows along automatically
-([`project-status.yaml`](.github/workflows/project-status.yaml)): merging a PR into `main`
-moves its linked issues' project status from **In Progress** / **In Review** to **Merged**,
-and each chart release moves every **Merged** issue to **Released**. Updates are made as
-the **nebari-project-sync** GitHub App (via the `NEBARI_PROJECT_SYNC_APP_ID` /
-`NEBARI_PROJECT_SYNC_APP_PRIVATE_KEY` org secrets), so project history attributes them to
-the bot rather than a person; the built-in `GITHUB_TOKEN` cannot access organization
-Projects v2. The release job also requires the project board to be linked to this
-repository (repo **Projects** tab → *Link a project*).
 
 ## Documentation
 

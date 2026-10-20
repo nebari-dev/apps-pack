@@ -1,0 +1,392 @@
+name: CI
+
+# One job per component: each sets its toolchain up once, runs the fast checks
+# (lint, types, generated-code drift) first, then the tests. Runs on every PR
+# and push to main, and weekly so dependency advisories (pip-audit, npm audit)
+# published after a merge surface even when nothing changes; the weekly run is
+# also the only one that checks the vendored nebari-ui skill.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # Supersede stale PR runs; every push to main still runs to completion.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  operator:
+    name: Operator
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: operator/go.mod
+
+      - name: go vet
+        working-directory: operator
+        run: go vet ./...
+
+      - name: go build
+        working-directory: operator
+        run: go build ./...
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.14.0
+          working-directory: operator
+
+      - name: Verify generated code is up to date
+        working-directory: operator
+        run: |
+          go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.21.0
+          controller-gen object paths="./api/..."
+          controller-gen crd paths="./api/..." output:crd:artifacts:config=../charts/nebari-apps/crds
+          git diff --exit-code || (echo "::error::Generated code is stale; run controller-gen" && exit 1)
+
+      - name: Install PyYAML
+        run: pip install pyyaml==6.0.3
+
+      # The UI's App types are generated from the CRD regenerated above.
+      - name: UI types match the CRD
+        run: python3 .github/scripts/gen_crd_types.py --check
+
+      # v1alpha1 only changes additively (App CRD reference, "Versioning and
+      # deprecation"): compare the CRD with the base branch's.
+      - name: CRD stays compatible with stored Apps
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          CRD: charts/nebari-apps/crds/apps.nebari.dev_apps.yaml
+        run: |
+          git fetch --no-tags --depth=1 origin "$BASE_REF"
+          if ! git show "FETCH_HEAD:$CRD" > "$RUNNER_TEMP/base-crd.yaml" 2>/dev/null; then
+            echo "No CRD on $BASE_REF; nothing to compare."; exit 0
+          fi
+          python3 .github/scripts/check_crd_compat.py "$RUNNER_TEMP/base-crd.yaml" "$CRD"
+
+      - name: go test
+        working-directory: operator
+        run: go test ./... -race -count=1 -coverprofile="$RUNNER_TEMP/cover.out"
+
+      # The floor is for internal/ (the reconciler): cmd/ is wiring covered by
+      # envtest below, and api/ is mostly generated deepcopy code. It sits a
+      # little under today's 87%; raise it as tests land.
+      - name: Coverage floor
+        working-directory: operator
+        env:
+          FLOOR: "85"
+        run: |
+          grep -E '^mode:|/internal/' "$RUNNER_TEMP/cover.out" > "$RUNNER_TEMP/internal.out"
+          total=$(go tool cover -func="$RUNNER_TEMP/internal.out" | awk '/^total:/ { sub("%", "", $3); print $3 }')
+          echo "internal/ coverage: ${total}% (floor ${FLOOR}%)"
+          awk -v t="$total" -v f="$FLOOR" 'BEGIN { exit !(t >= f) }' || {
+            echo "::error::operator internal/ coverage ${total}% is below the ${FLOOR}% floor"; exit 1; }
+
+      # The reconciler against a real kube-apiserver and etcd (no kubelet or
+      # controllers): CRD validation, generations and watches. setup-envtest is
+      # pinned to a commit on controller-runtime's release-0.25 branch.
+      - name: go test -tags envtest
+        working-directory: operator
+        env:
+          ENVTEST_K8S_VERSION: "1.37.0"
+        run: |
+          go install sigs.k8s.io/controller-runtime/tools/setup-envtest@v0.25.3-0.20261012174806-32759fab3119
+          KUBEBUILDER_ASSETS=$(setup-envtest use "$ENVTEST_K8S_VERSION" --bin-dir "$RUNNER_TEMP/envtest" -p path)
+          export KUBEBUILDER_ASSETS
+          go test -tags envtest ./internal/controller/ -race -count=1 -run Envtest -v
+
+  python:
+    name: Python (${{ matrix.package }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [api, mcp]
+    defaults:
+      run:
+        working-directory: ${{ matrix.package }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.10.11"
+          enable-cache: true
+          cache-dependency-glob: ${{ matrix.package }}/uv.lock
+
+      - name: Check the lockfile is current
+        run: uv lock --check
+
+      - name: Install from the lockfile
+        run: uv sync --frozen --extra dev
+
+      # The mcp tests drive the real apps-api in process. Its dependencies are
+      # pinned by mcp/uv.lock (the dev extra), so the package itself goes in
+      # without resolving anything.
+      - name: Install apps-api for the in-process tests
+        if: matrix.package == 'mcp'
+        run: uv pip install --no-deps -e ../api
+
+      - name: ruff check
+        run: uv run --frozen --no-sync ruff check --output-format=github .
+
+      - name: ruff format
+        run: uv run --frozen --no-sync ruff format --check .
+
+      - name: mypy (strict)
+        run: uv run --frozen --no-sync mypy
+
+      - name: pytest
+        run: uv run --frozen --no-sync python -m pytest -q --cov --cov-report=term
+
+      # Audit exactly what uv.lock pins (all extras, hashes included), with no
+      # resolution of its own.
+      - name: pip-audit the locked set
+        run: |
+          uv export --frozen --all-extras --no-emit-project -o "$RUNNER_TEMP/requirements.txt"
+          uvx pip-audit@2.10.0 --disable-pip --strict -r "$RUNNER_TEMP/requirements.txt"
+
+  ui:
+    name: UI
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: ui/.node-version
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - run: npm ci
+
+      - name: Biome
+        run: npm run check:ci
+
+      - name: Build
+        run: npm run build
+
+      # Budgets are in ui/package.json "bundleBudget".
+      - name: Bundle size budget
+        run: npm run size
+
+      # Thresholds are in ui/vite.config.ts (test.coverage).
+      - name: Unit tests with coverage
+        run: npm run test:coverage
+
+      - name: npm audit
+        run: npm audit --audit-level=high
+
+  chart:
+    name: Helm chart
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+
+      - name: helm lint
+        run: helm lint charts/nebari-apps --set clusterDomain=nebari.example.com
+
+      - name: helm template
+        run: |
+          helm template test charts/nebari-apps \
+            --set clusterDomain=nebari.example.com \
+            --set keycloak.url=https://keycloak.nebari.example.com/auth > /tmp/rendered.yaml
+          echo "Rendered $(grep -c '^kind:' /tmp/rendered.yaml) resources"
+
+      - name: helm template (examples/nebari-values.yaml)
+        run: helm template test charts/nebari-apps -f examples/nebari-values.yaml > /dev/null
+
+      # values.schema.json is enforced by every helm lint/template above; this
+      # proves it rejects what it should (typo'd keys, bad enums and types).
+      - name: values.schema.json rejects bad values
+        run: |
+          set -u
+          for bad in api.replicaCont=2 gateway=privat tls.enabled=yes \
+              ui.branding.banners.top.txt=CUI 'operator.extraEnv[0].value=x' keycloak.url=keycloak.example.ai; do
+            if helm template test charts/nebari-apps -f examples/nebari-values.yaml --set "$bad" > /dev/null 2>&1; then
+              echo "::error::values.schema.json accepted --set $bad"; exit 1
+            fi
+          done
+          echo "schema rejected every bad value"
+
+      - name: Chart README is generated from values.yaml (helm-docs)
+        run: |
+          docker run --rm -v "$PWD:/helm-docs" -u "$(id -u)" \
+            jnorwood/helm-docs@sha256:7e562b49ab6b1dbc50c3da8f2dd6ffa8a5c6bba327b1c6335cc15ce29267979c \
+            --chart-search-root charts
+          git diff --exit-code -- charts/nebari-apps/README.md || {
+            echo "::error::charts/nebari-apps/README.md is stale; regenerate it with helm-docs (see CONTRIBUTING.md)"; exit 1; }
+
+      # The checks below parse rendered manifests with the scripts in
+      # .github/scripts/.
+      - name: Install PyYAML
+        run: pip install pyyaml==6.0.3
+
+      - name: API RBAC is namespaced when allowedNamespaces is set
+        run: |
+          helm template test charts/nebari-apps \
+            --set clusterDomain=nebari.example.com \
+            --set keycloak.url=https://keycloak.nebari.example.com/auth \
+            --set 'api.allowedNamespaces={apps,team-a}' > /tmp/scoped.yaml
+          python3 .github/scripts/check_api_rbac.py /tmp/scoped.yaml apps team-a
+
+      # Renders the PrometheusRule, then has promtool check the PromQL and run
+      # the alert unit tests in .github/prometheus/ against it.
+      - name: Alert rules (promtool)
+        run: |
+          helm template t charts/nebari-apps -n nebari-apps -f examples/nebari-values.yaml \
+            --set telemetry.enabled=true --set telemetry.prometheusRule.enabled=true > "$RUNNER_TEMP/mon.yaml"
+          python3 .github/scripts/render_prom_rules.py "$RUNNER_TEMP/mon.yaml" .github/prometheus/rules.yaml
+          docker run --rm --entrypoint promtool -v "$PWD/.github/prometheus:/r:ro" -w /r \
+            prom/prometheus@sha256:49214755b6153f90a597adcbff0252cc61069f8ab69ce8411285cd4a560e8038 \
+            check rules rules.yaml
+          docker run --rm --entrypoint promtool -v "$PWD/.github/prometheus:/r:ro" -w /r \
+            prom/prometheus@sha256:49214755b6153f90a597adcbff0252cc61069f8ab69ce8411285cd4a560e8038 \
+            test rules alerts.test.yaml
+
+      - name: helm template refuses anonymous auth on a TLS install
+        run: |
+          set -u
+          base=(--set clusterDomain=nebari.example.com --set keycloak.url=https://keycloak.nebari.example.com/auth)
+          if out=$(helm template test charts/nebari-apps "${base[@]}" --set api.auth.enabled=false 2>&1); then
+            echo "::error::render succeeded with api.auth.enabled=false and tls.enabled=true"; exit 1
+          fi
+          echo "$out" | grep -q "insecureAllowAnonymous" || { echo "$out"; exit 1; }
+          # The local-dev combination and the explicit override still render.
+          helm template test charts/nebari-apps "${base[@]}" --set api.auth.enabled=false --set tls.enabled=false > /dev/null
+          helm template test charts/nebari-apps "${base[@]}" --set api.auth.enabled=false --set api.auth.insecureAllowAnonymous=true > /dev/null
+
+      - name: Validate the examples and the rendered chart (kubeconform)
+        env:
+          # datreeio/CRDs-catalog at a fixed commit, for third-party CRDs
+          # (Argo CD's Application). NebariApp has no published schema.
+          CRDS_CATALOG: https://raw.githubusercontent.com/datreeio/CRDs-catalog/501527ab9c40c827144c8f45945b25a023e344ce
+        run: |
+          curl -sSLo "$RUNNER_TEMP/kubeconform.tar.gz" \
+            https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz
+          echo "95f14e87aa28c09d5941f11bd024c1d02fdc0303ccaa23f61cef67bc92619d73  $RUNNER_TEMP/kubeconform.tar.gz" | sha256sum -c -
+          tar xzf "$RUNNER_TEMP/kubeconform.tar.gz" -C /usr/local/bin kubeconform
+          # The App CRD, converted to the schema layout kubeconform looks up,
+          # rejecting fields the CRD does not declare.
+          schemas="$RUNNER_TEMP/schemas"
+          python3 .github/scripts/crd_to_kubeconform.py "$schemas"
+          mkdir -p "$RUNNER_TEMP/rendered"
+          base=(--set clusterDomain=nebari.example.com --set keycloak.url=https://keycloak.nebari.example.com/auth)
+          helm template test charts/nebari-apps "${base[@]}" > "$RUNNER_TEMP/rendered/default.yaml"
+          helm template test charts/nebari-apps -f examples/nebari-values.yaml > "$RUNNER_TEMP/rendered/nebari-values.yaml"
+          helm template test charts/nebari-apps "${base[@]}" --set tls.enabled=false --set api.auth.enabled=false \
+            > "$RUNNER_TEMP/rendered/local-dev.yaml"
+          helm template test charts/nebari-apps "${base[@]}" --set telemetry.enabled=true \
+            --set 'telemetry.metricsReaders[0].name=prometheus' --set 'telemetry.metricsReaders[0].namespace=monitoring' \
+            > "$RUNNER_TEMP/rendered/telemetry.yaml"
+          # Kubernetes types from the default catalog, App from the CRD, the
+          # rest from the CRDs catalog; NebariApp is the only kind skipped.
+          # Every manifest under examples/ (nebari-values.yaml is Helm values).
+          manifests=()
+          for f in examples/*.yaml; do
+            [ "$f" = examples/nebari-values.yaml ] || manifests+=("$f")
+          done
+          kubeconform -strict -summary -ignore-missing-schemas \
+            -schema-location default \
+            -schema-location "$schemas/{{ .Group }}/{{ .ResourceKind }}_{{ .ResourceAPIVersion }}.json" \
+            -schema-location "$CRDS_CATALOG/{{ .Group }}/{{ .ResourceKind }}_{{ .ResourceAPIVersion }}.json" \
+            "${manifests[@]}" "$RUNNER_TEMP"/rendered/*.yaml
+
+  repo:
+    name: Repo invariants
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Paths named in AGENTS.md and the skill exist
+        run: python3 .github/scripts/check_doc_paths.py
+
+      # release-please bumps all of these together; a hand edit to one of them
+      # would ship mismatched versions.
+      - name: Every version string matches .release-please-manifest.json
+        run: python3 .github/scripts/check_versions.py
+
+      # One version per runtime: the pin file CI reads must match the image
+      # the Dockerfile builds from, and every base image is pinned by digest.
+      - name: Pin files agree with the Dockerfiles
+        run: |
+          set -u
+          fail=0
+          check() { # <dockerfile> <image> <expected tag prefix>
+            tags=$(sed -nE "s|^FROM (--platform=[^ ]+ )?$2:([^@ ]+).*|\2|p" "$1")
+            [ -n "$tags" ] || { echo "::error file=$1::no FROM $2 line"; fail=1; return; }
+            for t in $tags; do
+              case "$t" in
+                "$3"|"$3"-*) echo "ok   $1 $2:$t";;
+                *) echo "::error file=$1::$2:$t does not match pin $3"; fail=1;;
+              esac
+            done
+          }
+          check ui/Dockerfile node "$(cat ui/.node-version)"
+          check api/Dockerfile python "$(cat api/.python-version)"
+          check mcp/Dockerfile python "$(cat mcp/.python-version)"
+          check operator/Dockerfile golang "$(sed -nE 's/^toolchain go(.+)/\1/p' operator/go.mod)"
+          if grep -nE '^FROM ' ui/Dockerfile api/Dockerfile mcp/Dockerfile operator/Dockerfile | grep -v '@sha256:'; then
+            echo "::error::base images above are not pinned by digest"; fail=1
+          fi
+          exit "$fail"
+
+      # actionlint (syntax, expressions, shellcheck on run blocks) over every
+      # workflow.
+      - name: actionlint
+        run: |
+          docker run --rm -v "$PWD:/repo" -w /repo \
+            rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 \
+            -color=false
+
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.10.11"
+
+      # zizmor (security: injection, credential persistence, unpinned actions,
+      # token scope) over every workflow.
+      - name: zizmor
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # Online audits (e.g. known-vulnerable action versions) use GH_TOKEN.
+        run: uvx zizmor@1.31.1 --format github .github/workflows
+
+      # The design-system skill in ui/.claude is a copy of a registry item; this
+      # flags when the registry has moved on. That is about the registry, not
+      # the pull request, so it runs only on the weekly schedule.
+      - name: Vendored nebari-ui skill is current
+        if: github.event_name == 'schedule'
+        run: |
+          curl -fsSL https://nebari-dev.github.io/nebari-design/r/claude-skill.json \
+            | python3 -c 'import json, sys; sys.stdout.write(json.load(sys.stdin)["files"][0]["content"])' \
+            > "$RUNNER_TEMP/SKILL.md"
+          if ! diff -u ui/.claude/skills/nebari-ui/SKILL.md "$RUNNER_TEMP/SKILL.md"; then
+            echo "::error file=ui/.claude/skills/nebari-ui/SKILL.md::out of date; run 'npx shadcn add @nebari/claude-skill --overwrite' in ui/"
+            exit 1
+          fi
