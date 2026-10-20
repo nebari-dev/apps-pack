@@ -80,6 +80,7 @@ export function EditPage() {
         initial={app.data}
         submitting={save.isPending}
         onSubmit={(payload) => save.mutate(payload)}
+        onCancel={() => void navigate(`/apps/${namespace}/${name}`)}
       />
     </div>
   );

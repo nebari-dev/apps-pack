@@ -178,12 +178,16 @@ function renderAt(url: string, routes: ReactElement) {
   );
 }
 
-it("ties a validation error to its field", async () => {
+it("ties a validation error to its field only after the field is left", async () => {
+  const user = (await import("@testing-library/user-event")).default.setup();
   renderAt("/launch", <Route path="launch" element={<LaunchPage />} />);
   const name = await screen.findByLabelText("Name");
+  expect(name).not.toHaveAttribute("aria-invalid");
+  await user.click(name);
+  await user.tab();
   expect(name).toHaveAttribute("aria-invalid", "true");
-  expect(name).toHaveAttribute("aria-describedby", "form-error");
-  expect(screen.getByRole("alert")).toHaveTextContent("Give the app a name.");
+  expect(name).toHaveAttribute("aria-describedby", "name-help name-error");
+  expect(document.getElementById("name-error")).toHaveTextContent("Give the app a name.");
   expect(screen.getByLabelText("Display name")).not.toHaveAttribute("aria-invalid");
 });
 
