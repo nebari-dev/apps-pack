@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { EVENTS } from "./data";
 import { expect, test } from "./fixtures";
 
 async function openDocsSite(page: Page) {
@@ -18,29 +19,67 @@ async function tabToButton(page: Page, name: string) {
 }
 
 test.describe("app detail", () => {
-  test("shows the app's status, URL and conditions", async ({ page }) => {
+  test("shows the app's status, URL and health", async ({ page }) => {
     await openDocsSite(page);
 
     await expect(page.getByText("apps/docs-site · launched by alice")).toBeVisible();
     await expect(
       page.getByRole("link", { name: "https://docs-site.apps.example.com" }),
     ).toBeVisible();
-    await expect(page.getByText("1/1", { exact: true })).toBeVisible();
+    await expect(page.getByText("of 1 ready", { exact: true })).toBeVisible();
     await expect(
       page.getByText(
         "Keycloak SSO at the gateway · restricted to groups: analytics · users: grace",
       ),
     ).toBeVisible();
-    const conditions = page.getByRole("tabpanel", { name: "Conditions" });
-    await expect(conditions.getByRole("listitem")).toHaveCount(3);
-    await expect(conditions).toContainText("Passing: RoutingReady");
+    await expect(page.getByRole("link", { name: "Open" })).toHaveAttribute(
+      "href",
+      "https://docs-site.apps.example.com",
+    );
+    await expect(page.getByRole("alert")).toHaveCount(0);
+    const health = page.getByRole("tabpanel", { name: "Health" });
+    await expect(health.getByRole("listitem")).toHaveCount(3);
+    await expect(health).toContainText("Passing: RoutingReady");
   });
 
-  test("shows the reason a failed app is failing", async ({ page }) => {
+  test("alerts with the reason a failed app is failing and links to its logs", async ({
+    page,
+    api,
+  }) => {
     await page.goto("/apps/apps/broken-app");
     await expect(page.getByRole("heading", { level: 1, name: "Broken App" })).toBeVisible();
-    await expect(page.getByRole("tabpanel", { name: "Conditions" })).toContainText(
+
+    const alert = page.getByRole("alert");
+    await expect(alert).toContainText("WorkloadReady failed: CrashLoopBackOff");
+    await expect(alert).toContainText("Back-off restarting container");
+    await expect(page.getByText("CPU and memory are shown once the app is running.")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Open" })).toHaveCount(0);
+    await expect(page.getByRole("tabpanel", { name: "Health" })).toContainText(
       "Failing: WorkloadReady · CrashLoopBackOff",
+    );
+
+    await alert.getByRole("button", { name: "View logs" }).click();
+    await expect(page).toHaveURL("/apps/apps/broken-app?tab=logs");
+    await expect(page.getByRole("tab", { name: "Logs" })).toHaveAttribute("aria-selected", "true");
+
+    await alert.getByRole("button", { name: "Restart" }).click();
+    await expect(page.getByText("Restarting Broken App")).toBeVisible();
+    expect(api.requests.map(({ method, path }) => `${method} ${path}`)).toEqual([
+      "POST /apps/apps/broken-app/restart",
+    ]);
+  });
+
+  test("offers Start, not Open, for a stopped app", async ({ page }) => {
+    await page.goto("/apps/team-data/sales-dashboard");
+    await expect(page.getByRole("heading", { level: 1, name: "Sales Dashboard" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Start" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Open" })).toHaveCount(0);
+    await expect(page.getByText("CPU and memory are shown once the app is running.")).toBeVisible();
+
+    await page.getByRole("button", { name: "More actions" }).click();
+    await expect(page.getByRole("menuitem", { name: /Restart/ })).toHaveAttribute(
+      "aria-disabled",
+      "true",
     );
   });
 
@@ -49,24 +88,33 @@ test.describe("app detail", () => {
     await page.getByRole("tab", { name: "Logs" }).click();
 
     const logs = page.getByRole("tabpanel", { name: "Logs" });
-    await expect(logs).toContainText("nginx: starting");
-    await expect(logs).toContainText("GET /missing.png 404");
+    const log = logs.getByRole("log", { name: "Pod logs" });
+    await expect(log).toContainText("nginx: starting");
+    await expect(log).toContainText("GET /missing.png 404");
+    await log.focus();
+    await expect(log).toBeFocused();
 
-    await logs.getByPlaceholder("Filter lines…").fill("404");
-    await expect(logs).toContainText("GET /missing.png 404");
-    await expect(logs).not.toContainText("nginx: starting");
+    const filter = logs.getByRole("textbox", { name: "Filter log lines" });
+    await filter.fill("404");
+    await expect(log).toContainText("GET /missing.png 404");
+    await expect(log).not.toContainText("nginx: starting");
 
-    await logs.getByPlaceholder("Filter lines…").fill("no-such-line");
-    await expect(logs).toContainText("No matching lines.");
+    await filter.fill("no-such-line");
+    await expect(log).toContainText("No matching lines.");
   });
 
-  test("shows events and the App manifest", async ({ page }) => {
+  test("shows events and the App manifest as YAML", async ({ page }) => {
     await openDocsSite(page);
     await page.getByRole("tab", { name: "Events" }).click();
-    await expect(page.getByRole("tabpanel", { name: "Events" })).toContainText("Scheduled");
+    const events = page.getByRole("tabpanel", { name: "Events" });
+    await expect(events).toContainText("Scheduled");
+    await expect(events.locator("time")).toHaveAttribute("title", EVENTS[0].lastTimestamp);
 
     await page.getByRole("tab", { name: "Manifest" }).click();
-    await expect(page.getByRole("tabpanel", { name: "Manifest" })).toContainText('"kind": "App"');
+    const manifest = page.getByRole("tabpanel", { name: "Manifest" });
+    await expect(manifest).toContainText("kind: App");
+    await expect(manifest).toContainText("apiVersion: apps.nebari.dev/v1alpha1");
+    await expect(manifest).not.toContainText('"kind"');
   });
 
   test("shows an error for an app that does not exist", async ({ page }) => {
@@ -77,15 +125,21 @@ test.describe("app detail", () => {
 });
 
 test.describe("app actions by keyboard", () => {
-  test("stop and restart are operable with the keyboard", async ({ page, api }) => {
+  test("stop, and restart from the More menu, are operable with the keyboard", async ({
+    page,
+    api,
+  }) => {
     await openDocsSite(page);
 
     const stop = await tabToButton(page, "Stop");
     await page.keyboard.press("Enter");
     await expect(page.getByText("Stopped Docs Site")).toBeVisible();
 
-    await tabToButton(page, "Restart");
-    await page.keyboard.press("Space");
+    await tabToButton(page, "More actions");
+    await page.keyboard.press("Enter");
+    const restart = page.getByRole("menuitem", { name: "Restart" });
+    await expect(restart).toBeFocused();
+    await page.keyboard.press("Enter");
     await expect(page.getByText("Restarting Docs Site")).toBeVisible();
 
     await expect(stop).toBeVisible();
@@ -101,18 +155,25 @@ test.describe("app actions by keyboard", () => {
   }) => {
     await openDocsSite(page);
 
-    const remove = await tabToButton(page, "Delete");
+    const more = await tabToButton(page, "More actions");
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("End");
+    await expect(page.getByRole("menuitem", { name: "Delete" })).toBeFocused();
     await page.keyboard.press("Enter");
     const dialog = page.getByRole("dialog", { name: "Delete Docs Site?" });
     await expect(dialog).toBeVisible();
     const confirm = dialog.getByLabel("Type docs-site to confirm");
     await expect(confirm).toBeFocused();
 
-    // Escape closes it and puts focus back on the button that opened it.
+    // Escape closes it and puts focus back on the menu button that opened it.
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
-    await expect(remove).toBeFocused();
+    await expect(more).toBeFocused();
 
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("menuitem", { name: "Restart" })).toBeFocused();
+    await page.keyboard.press("End");
+    await expect(page.getByRole("menuitem", { name: "Delete" })).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(confirm).toBeFocused();
     // Tab cycles inside the dialog.

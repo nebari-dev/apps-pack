@@ -18,6 +18,12 @@ const PAGES: { name: string; path: string; heading: string; ready?: string }[] =
   { name: "apps list", path: "/apps", heading: "Apps" },
   { name: "launch form", path: "/launch", heading: "Launch an app" },
   { name: "app detail", path: "/apps/apps/docs-site", heading: "Docs Site" },
+  {
+    name: "failed app detail",
+    path: "/apps/apps/broken-app",
+    heading: "Broken App",
+    ready: "WorkloadReady failed: CrashLoopBackOff",
+  },
   { name: "edit form", path: "/apps/apps/docs-site/edit", heading: "Edit app" },
   { name: "not found", path: "/no-such-page", heading: "Page not found" },
 ];
@@ -40,6 +46,13 @@ for (const theme of ["light", "dark"] satisfies Theme[]) {
       await page.goto("/apps/apps/docs-site");
       await page.getByRole("tab", { name: "Logs" }).click();
       await expect(page.getByText("GET /index.html 200")).toBeVisible();
+      await expectNoCriticalOrSeriousA11yViolations(page);
+    });
+
+    test(`app detail More menu has no critical or serious violations @a11y`, async ({ page }) => {
+      await page.goto("/apps/apps/docs-site");
+      await page.getByRole("button", { name: "More actions" }).click();
+      await expect(page.getByRole("menuitem", { name: "Delete" })).toBeVisible();
       await expectNoCriticalOrSeriousA11yViolations(page);
     });
 
@@ -80,7 +93,8 @@ for (const theme of ["light", "dark"] satisfies Theme[]) {
       page,
     }) => {
       await page.goto("/apps/apps/docs-site");
-      await page.getByRole("button", { name: "Delete" }).click();
+      await page.getByRole("button", { name: "More actions" }).click();
+      await page.getByRole("menuitem", { name: "Delete" }).click();
       await expect(page.getByRole("dialog", { name: "Delete Docs Site?" })).toBeVisible();
       await expectNoCriticalOrSeriousA11yViolations(page);
     });

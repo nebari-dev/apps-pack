@@ -38,8 +38,11 @@ Open `https://apps.<cluster-domain>`:
 4. **Access** — public toggle, allowed groups and users, and the subdomain. The
    landing-page switch is shown but locked off for now (see [Landing page](#landing-page)).
 
-The dashboard tracks the rollout; the app's detail page shows conditions, live pod logs,
-and Kubernetes events, plus stop/start/delete.
+The dashboard tracks the rollout; the app's detail page shows its health (the App's
+conditions), live pod logs, Kubernetes events and the App manifest as YAML, plus
+stop/start/edit and a **More actions** menu with restart, copy URL and delete. When the app
+is `Failed` or a condition is not ready, an alert under the header names the failing
+condition and its reason, with **View logs** and **Restart**.
 
 ## Uploading files
 
@@ -221,10 +224,10 @@ one.
 | Stop (scale to 0) | detail page → Stop | `POST .../apps/{ns}/{name}/stop` | set `spec.runtime.replicas: 0` |
 | Start | detail page → Start | `POST .../apps/{ns}/{name}/start` | set `spec.runtime.replicas: 1` |
 | Update | detail page → Edit | `PATCH .../apps/{ns}/{name}` | edit the CR |
-| Restart (roll pods) | detail page → Restart | `POST .../apps/{ns}/{name}/restart` | `kubectl rollout restart deploy/app-<name>` |
+| Restart (roll pods) | detail page → More actions → Restart | `POST .../apps/{ns}/{name}/restart` | `kubectl rollout restart deploy/app-<name>` |
 | Logs | detail page → Logs | `GET .../apps/{ns}/{name}/logs` | `kubectl logs -l apps.nebari.dev/app=<name>` |
-| Metrics | Detail page CPU/memory cards; the Dashboard's Needs attention card (restarts, `Failed`) | `GET .../apps/{ns}/{name}/metrics`, `GET /analytics/metrics` | `kubectl top pods -l apps.nebari.dev/app=<name>` |
-| Delete | detail page → Delete (type to confirm) | `DELETE .../apps/{ns}/{name}` | `kubectl delete app <name>` |
+| Metrics | Detail page CPU/memory cards (while the app has pods); the Dashboard's Needs attention card (restarts, `Failed`) | `GET .../apps/{ns}/{name}/metrics`, `GET /analytics/metrics` | `kubectl top pods -l apps.nebari.dev/app=<name>` |
+| Delete | detail page → More actions → Delete (type to confirm) | `DELETE .../apps/{ns}/{name}` | `kubectl delete app <name>` |
 
 Changing inline content rolls the pods automatically (the pod template carries a content
 checksum), so an update is always a clean redeploy.
