@@ -20,8 +20,8 @@ title: Getting started
 - Optional: metrics-server for per-app CPU/memory in the UI.
 
 Read the [Known limitations](https://github.com/nebari-dev/apps-pack#known-limitations) before a
-demo: group restrictions are not enforced by the gateway yet, and users manage only their
-own apps (admins manage all of them).
+demo: group and user restrictions are enforced in the app pod (by a sidecar), not at the
+gateway, and users manage only their own apps (admins manage all of them).
 
 ## Install
 

@@ -31,5 +31,5 @@ with st.expander("How this runs"):
         "- `runtime.pixiTask: start` on the `App` resource selects the pixi runtime\n"
         "- the operator runs `pixi install --locked` (a `pixi.lock` ships with the app) "
         "then `pixi run start`\n"
-        "- Streamlit serves on `0.0.0.0:8080`; routing, TLS, and SSO come from the gateway"
+        "- Streamlit serves on `0.0.0.0:$PORT`; routing, TLS, and SSO come from the gateway"
     )

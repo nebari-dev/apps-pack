@@ -38,7 +38,7 @@ mcp = FastMCP(
     instructions=(
         "Launch and manage web apps on this Nebari cluster: static sites (HTML/CSS/JS) "
         "and Python apps launched by a pixi task (pixi_task; the task must serve on "
-        "0.0.0.0:8080). "
+        "0.0.0.0:$PORT). "
         "Typical flow: describe_cluster to see what is available, then launch_app; "
         "poll get_app_status until phase is Running and share the app URL with the user. "
         "If a tool reports an authentication problem, call authenticate and follow its "
@@ -236,13 +236,28 @@ async def launch_app(
     ] = None,
     public: Annotated[bool, Field(description="true = anonymous access; false = Keycloak SSO at the gateway")] = False,
     groups: Annotated[
-        list[str] | None, Field(description="Keycloak groups allowed to use the app; empty = any signed-in user")
+        list[str] | None,
+        Field(
+            description=(
+                "Keycloak groups allowed to open the app (private apps; enforced in the app pod, "
+                "everyone else gets 403). Empty, with no users = any signed-in user"
+            )
+        ),
+    ] = None,
+    users: Annotated[
+        list[str] | None,
+        Field(
+            description=(
+                "Keycloak usernames allowed to open the app, in addition to groups "
+                "(a listed user OR a member of a listed group gets in)"
+            )
+        ),
     ] = None,
     description: Annotated[str, Field(description="Short description for catalogs")] = "",
     pixi_task: Annotated[
         str,
         Field(
-            description="Run the app as a Python/pixi service: the pixi task to execute (e.g. 'start'). The task must start a server on 0.0.0.0:8080. Empty = static app served by nginx"
+            description="Run the app as a Python/pixi service: the pixi task to execute (e.g. 'start'). The task must start a server on 0.0.0.0:$PORT (8080, or 8081 when groups or users restrict the app). Empty = static app served by nginx"
         ),
     ] = "",
     landing_page: Annotated[
@@ -278,7 +293,7 @@ async def launch_app(
             "pixiTask": pixi_task,
             **({"resources": resources} if resources else {}),
         },
-        "access": {"public": public, "groups": groups or [], "subdomain": subdomain},
+        "access": {"public": public, "groups": groups or [], "users": users or [], "subdomain": subdomain},
     }
     if landing_page is not None:
         body["landingPage"] = {"enabled": landing_page}
@@ -363,7 +378,7 @@ async def update_app(
     patch: Annotated[
         dict[str, Any],
         Field(
-            description="Fields to change: any of displayName, description, source, runtime, access, landingPage ({enabled: bool}; {} = cluster default)"
+            description="Fields to change: any of displayName, description, source, runtime, access ({public, groups, users, subdomain}; send the whole object, an empty list clears it), landingPage ({enabled: bool}; {} = cluster default)"
         ),
     ],
 ) -> Any:

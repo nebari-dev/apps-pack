@@ -1,7 +1,7 @@
 # A public Python app sourced from a git repository and launched by a pixi
 # task. An init container clones the repo into a writable workspace; the
 # operator then runs `pixi install --locked` (examples/python-app ships a
-# pixi.lock) and `pixi run start`, which serves Streamlit on 0.0.0.0:8080.
+# pixi.lock) and `pixi run start`, which serves Streamlit on 0.0.0.0:$PORT.
 apiVersion: apps.nebari.dev/v1alpha1
 kind: App
 metadata:

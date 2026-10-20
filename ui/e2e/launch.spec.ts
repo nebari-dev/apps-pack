@@ -29,8 +29,47 @@ test.describe("launch form", () => {
           namespace: "apps",
           displayName: "My Site",
           runtime: { replicas: 1, env: [], resources: null, pixiTask: "" },
-          access: { public: false, groups: [], subdomain: "my-site" },
+          access: { public: false, groups: [], users: [], subdomain: "my-site" },
+          landingPage: { enabled: false },
           source: { type: "git", git: { url: "https://github.com/example/my-site", ref: "main" } },
+        },
+      },
+    ]);
+  });
+
+  test("restricts a private app to groups and users", async ({ page, api }) => {
+    await openLaunchForm(page);
+
+    await page.getByLabel("Name", { exact: true }).fill("team-site");
+    await page.getByLabel("Display name").fill("Team Site");
+    await page.getByRole("tab", { name: "Git" }).click();
+    await page.getByLabel("Repository URL").fill("https://github.com/example/team-site");
+    await page.getByLabel("Allowed groups").fill("analysts, finance");
+    await page.getByLabel("Allowed users").fill("alice , bob,");
+    // The landing-page switch is shown but locked, with the reason.
+    const landing = page.getByRole("switch", { name: "Show on the landing page" });
+    await expect(landing).toBeDisabled();
+    await expect(landing).toHaveAccessibleDescription(/^Temporarily unavailable/);
+    await page.getByRole("button", { name: "Launch app" }).click();
+
+    await expect(page).toHaveURL("/apps/apps/team-site");
+    await expect(
+      page.getByText(
+        "Keycloak SSO at the gateway · restricted to groups: analysts, finance · users: alice, bob",
+      ),
+    ).toBeVisible();
+    expect(api.requests).toMatchObject([
+      {
+        method: "POST",
+        path: "/apps",
+        body: {
+          access: {
+            public: false,
+            groups: ["analysts", "finance"],
+            users: ["alice", "bob"],
+            subdomain: "team-site",
+          },
+          landingPage: { enabled: false },
         },
       },
     ]);
@@ -143,16 +182,28 @@ test.describe("launch form", () => {
     await expect(page.getByLabel("Repository URL")).toBeFocused();
     await page.keyboard.type("https://github.com/example/kb-site");
 
-    // On through the rest of the form to the submit button.
+    // On through the rest of the form to the submit button, typing into the
+    // access lists on the way. The locked landing-page switch is skipped.
     const launch = page.getByRole("button", { name: "Launch app" });
+    const visited: string[] = [];
     for (
       let i = 0;
       i < 40 && !(await launch.evaluate((el) => el === document.activeElement));
       i++
     ) {
       await page.keyboard.press("Tab");
+      const id = await focused.getAttribute("id");
+      if (id) visited.push(id);
+      if (id === "users") await page.keyboard.type("alice");
     }
     await expect(launch).toBeFocused();
+    expect(visited).toEqual(expect.arrayContaining(["groups", "users", "subdomain"]));
+    expect(visited.indexOf("users")).toBe(visited.indexOf("groups") + 1);
+    expect(
+      await page
+        .getByRole("switch", { name: "Show on the landing page" })
+        .evaluate((el) => el.matches(":focus, [tabindex='0']")),
+    ).toBe(false);
     await page.keyboard.press("Enter");
 
     await expect(page).toHaveURL("/apps/team-data/kb-site");
@@ -164,6 +215,7 @@ test.describe("launch form", () => {
           name: "kb-site",
           namespace: "team-data",
           displayName: "Keyboard Site",
+          access: { users: ["alice"] },
           source: { type: "git", git: { url: "https://github.com/example/kb-site" } },
         },
       },

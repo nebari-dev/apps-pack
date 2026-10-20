@@ -274,7 +274,7 @@ def create_app(store: AppStore | None = None) -> FastAPI:
 
     @app.patch(PREFIX + "/apps/{namespace}/{name}", response_model=AppOut)
     def patch_app(namespace: str, name: str, patch: AppPatch, store: Store, user: Me) -> AppOut:
-        _reject_users(patch.access)
+        _check_access(patch.access)
         _check_source(patch.source)
 
         def change(existing: dict[str, Any]) -> dict[str, Any]:
@@ -421,15 +421,17 @@ def create_app(store: AppStore | None = None) -> FastAPI:
     return app
 
 
-USERS_NOT_SUPPORTED = (
-    "access.users is not supported yet: nothing enforces it, so it is rejected rather than "
-    "silently ignored. Use access.groups (see https://github.com/nebari-dev/apps-pack/issues/67)."
-)
-
-
-def _reject_users(access: Any) -> None:
-    if access is not None and access.users:
-        raise HTTPException(422, USERS_NOT_SUPPORTED)
+def _check_access(access: Any) -> None:
+    """Groups and users reach the authz sidecar as comma-separated lists, so
+    an entry may not be blank or contain a comma (the operator refuses such an
+    App; this says so up front).
+    """
+    if access is None:
+        return
+    for field in ("groups", "users"):
+        for entry in getattr(access, field):
+            if not entry.strip() or "," in entry:
+                raise HTTPException(422, f"access.{field}: entries must be non-empty and must not contain ','")
 
 
 def _check_source(source: Any) -> None:
@@ -451,7 +453,7 @@ def _check_source(source: Any) -> None:
 
 
 def _validate_request(req: AppCreate) -> None:
-    _reject_users(req.access)
+    _check_access(req.access)
     _check_source(req.source)
     if getattr(req.source, req.source.type, None) is None:
         raise HTTPException(422, f"source.{req.source.type} is required for source type {req.source.type!r}")

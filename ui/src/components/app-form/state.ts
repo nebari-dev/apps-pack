@@ -44,6 +44,7 @@ export interface FormState {
   memLim: string;
   isPublic: boolean;
   groups: string;
+  users: string;
   subdomain: string;
   onLandingPage: boolean;
 }
@@ -80,10 +81,11 @@ export function initialState(initial: App | undefined, isEdit: boolean): FormSta
     memLim: res?.limits?.memory ?? "",
     isPublic: initial?.access?.public ?? false,
     groups: (initial?.access?.groups ?? []).join(", "),
+    users: (initial?.access?.users ?? []).join(", "),
     subdomain: initial?.access?.subdomain ?? "",
-    // Landing-page tile is opt-in: unset on the App means "cluster default"
-    // (off unless the chart enables it), so a new app only sends the field
-    // when the switch is on; edits always send it so an opt-out is explicit.
+    // The landing-page switch is read-only for now (LANDING_PAGE_LOCKED): it
+    // shows the App's current value, a new app is registered off, and an
+    // edit leaves whatever the App has.
     onLandingPage: initial?.landingPage?.enabled ?? false,
   };
 }
@@ -174,7 +176,15 @@ function buildSource(s: FormState): AppSource | undefined {
   return undefined; // 'upload' handled separately; 'keep' leaves source untouched
 }
 
-export function splitGroups(raw: string): string[] {
+/**
+ * The landing page cannot yet hide a tile from users outside an app's allowed
+ * users (nebari-operator only knows groups), so the form does not offer the
+ * switch: new apps are not listed and edits keep the App's current value.
+ */
+export const LANDING_PAGE_LOCKED = true;
+
+/** "a, b ,c," -> ["a", "b", "c"]: the comma-separated groups and users fields. */
+export function splitList(raw: string): string[] {
   return raw
     .split(",")
     .map((g) => g.trim())
@@ -202,11 +212,14 @@ export function buildPayload(
       runtime,
       access: {
         public: s.isPublic,
-        groups: splitGroups(s.groups),
+        groups: splitList(s.groups),
+        users: splitList(s.users),
         subdomain: initial?.access?.subdomain ?? s.subdomain,
       },
-      landingPage: { enabled: s.onLandingPage },
     };
+    // An omitted landingPage keeps the stored value; while the switch is
+    // locked the form never changes it.
+    if (!LANDING_PAGE_LOCKED) body.landingPage = { enabled: s.onLandingPage };
     const source = buildSource(s);
     if (source) body.source = source;
     return { kind: "patch", body };
@@ -219,8 +232,20 @@ export function buildPayload(
     description: s.description || undefined,
     thumbnail: s.thumbnail || undefined,
     runtime,
-    access: { public: s.isPublic, groups: splitGroups(s.groups), subdomain: s.subdomain },
-    ...(s.onLandingPage ? { landingPage: { enabled: true } } : {}),
+    access: {
+      public: s.isPublic,
+      groups: splitList(s.groups),
+      users: splitList(s.users),
+      subdomain: s.subdomain,
+    },
+    // Locked: registered off explicitly, so a cluster default of "on" does
+    // not list it either. Unlocked, the tile is opt-in (unset = cluster
+    // default).
+    ...(LANDING_PAGE_LOCKED
+      ? { landingPage: { enabled: false } }
+      : s.onLandingPage
+        ? { landingPage: { enabled: true } }
+        : {}),
   };
 
   if (s.sourceTab === "upload")

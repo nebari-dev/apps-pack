@@ -101,12 +101,15 @@ class AppRuntime(BaseModel):
     keepAlive: bool | None = None
     # When set, the app runs as a Python/pixi service: the operator installs
     # the pixi environment and executes `pixi run <pixiTask>`. The task must
-    # start a server listening on 0.0.0.0:8080.
+    # start a server on $PORT (8080, or 8081 behind the authz sidecar).
     pixiTask: str = Field(default="", max_length=64)
 
 
 class AppAccess(BaseModel):
     public: bool = False
+    # A private app with groups or users is enforced in the app pod by the
+    # authz sidecar: a member of any group OR a listed username gets in,
+    # everyone else gets 403. Both empty: any signed-in user.
     groups: list[str] = Field(default_factory=list)
     users: list[str] = Field(default_factory=list)
     subdomain: str = Field(max_length=63, pattern=r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$")

@@ -89,6 +89,7 @@ apps-pack/
   pack-metadata.yaml          # dashboard registration
   charts/nebari-apps/         # Helm chart (App CRD + operator + api + ui + mcp)
   operator/                   # Go operator (controller-runtime)
+  authz/                      # Go sidecar enforcing access.groups/users in app pods
   api/                        # FastAPI backend (CRUD + observability + upload)
   ui/                         # React frontend (Nebari design system)
   mcp/                        # FastMCP server (agent tools at /mcp)
@@ -192,12 +193,14 @@ form, the API, or GitOps.
 
 Alpha means the happy path works; these are the gaps to know about before a demo or pilot.
 
-- **`access.groups` / `access.users` are not enforced at the gateway.** The nebari-operator
-  `0.1.0` SecurityPolicy authenticates but does not authorize by group, so a private app
-  (`access.public: false`) is reachable by **any signed-in realm user**; `groups` is only
-  forwarded to the `NebariApp`. `access.users` is not used at all, so the API rejects it with
-  `422`. Treat `public: false` as "authenticated", not "authorized". Upstream:
-  [nebari-operator#153](https://github.com/nebari-dev/nebari-operator/issues/153).
+- **`access.groups` / `access.users` are enforced in the app pod, not at the gateway.** The
+  nebari-operator SecurityPolicy only signs users in
+  ([nebari-operator#153](https://github.com/nebari-dev/nebari-operator/issues/153)), so a
+  private app that lists groups or users gets an authz sidecar that checks the forwarded
+  access token and returns `403` to everyone else. Group changes apply when the user's token
+  refreshes (5 minutes by default). A private app with neither list is open to any signed-in
+  realm user, and `access.users` cannot hide the landing-page tile (the launch form's
+  landing-page switch is locked until it can).
 - **Authorization is owner-or-admin only.** The API lets a user see and manage only the
   Apps they launched; members of `api.adminGroups` manage all of them. There is no sharing
   or delegation yet, and anyone with `kubectl` access to an app namespace bypasses the API.
@@ -290,8 +293,8 @@ auto-upgrade bare hostnames to https, which is disabled locally. See the
 ## Releases
 
 Images are built by [`images.yaml`](.github/workflows/images.yaml) through the
-org's reusable `pack-build-image` workflow. Every merge to `main` pushes all four images
-(`apps-operator`, `apps-api`, `apps-ui`, `apps-mcp`) to `ghcr.io/nebari-dev/apps-pack/<image>`
+org's reusable `pack-build-image` workflow. Every merge to `main` pushes all five images
+(`apps-operator`, `apps-authz`, `apps-api`, `apps-ui`, `apps-mcp`) to `ghcr.io/nebari-dev/apps-pack/<image>`
 and `quay.io/nebari/apps-pack-<image>`, tagged `sha-<short>`, and signs each one keyless
 with cosign, with a build-provenance attestation and an SBOM. The same push also moves
 `latest`, which tracks `main` and is for development only: deploy a released chart, which
@@ -315,7 +318,7 @@ Merging it changes `version` in
 [`release.yaml`](.github/workflows/release.yaml). That uses the org's `pack-release`
 workflow to:
 
-- pin the chart's four image tags to `sha-<release commit>` (those images are built by the
+- pin the chart's five image tags to `sha-<release commit>` (those images are built by the
   same push),
 - sign the packaged chart and attach it to a GitHub Release `nebari-apps-<version>`,
 - open a PR in [nebari-dev/helm-repository](https://github.com/nebari-dev/helm-repository),

@@ -9,15 +9,13 @@ source:
   files:
     path: .            # directory containing pixi.toml, relative to this file
 runtime:
-  pixiTask: start      # pixi task that starts the server on 0.0.0.0:8080
+  pixiTask: start      # pixi task that starts the server on 0.0.0.0:$PORT
   resources:           # a shell can run anything; cap it. Limits leave headroom
     requests: { cpu: 250m, memory: 512Mi }   # for the cold-start `pixi install`.
     limits: { cpu: "2", memory: 2Gi }
 access:
   public: false        # a shell: keep it behind Keycloak SSO at the gateway
-  # Intended audience. NOTE: as of nebari-operator 0.1.0 this only controls
-  # landing-page tile visibility — the gateway SecurityPolicy has no group
-  # authorization rule, so ANY signed-in realm user who knows the URL can open
-  # the shell. Treat `public: false` as "authenticated", not "authorized".
+  # Only members of `admin` get in: the authz sidecar checks the access token
+  # the gateway forwards and returns 403 to everyone else.
   groups: ["admin"]
   subdomain: web-terminal

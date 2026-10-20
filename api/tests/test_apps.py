@@ -3,6 +3,8 @@ from __future__ import annotations
 import io
 import zipfile
 
+import pytest
+
 
 def make_app_body(name: str = "docs-site", namespace: str = "apps") -> dict:
     return {
@@ -396,16 +398,19 @@ def test_landing_page_opt_in_and_out(client, store):
     assert "landingPage" not in store.apps[("apps", "docs-site")]["spec"]
 
 
-def test_access_users_rejected_on_create(client, store):
+def test_access_users_round_trip_on_create(client, store):
     body = make_app_body()
-    body["access"]["users"] = ["alice"]
+    body["access"]["users"] = ["alice", "bob"]
+    body["access"]["groups"] = ["analysts"]
     resp = client.post("/api/v1/apps", json=body)
-    assert resp.status_code == 422
-    assert "access.users" in resp.json()["detail"]
-    assert store.apps == {}
+    assert resp.status_code == 201
+    stored = store.apps[("apps", "docs-site")]["spec"]["access"]
+    assert stored["users"] == ["alice", "bob"]
+    assert stored["groups"] == ["analysts"]
+    assert client.get("/api/v1/apps/apps/docs-site").json()["access"]["users"] == ["alice", "bob"]
 
 
-def test_access_users_rejected_on_upload(client, store):
+def test_access_users_round_trip_on_upload(client, store):
     import json
 
     manifest = {k: v for k, v in make_app_body().items() if k != "source"}
@@ -415,25 +420,45 @@ def test_access_users_rejected_on_upload(client, store):
         data={"manifest": json.dumps(manifest)},
         files={"file": ("index.html", b"<h1>hi</h1>", "text/html")},
     )
-    assert resp.status_code == 422
-    assert "access.users" in resp.json()["detail"]
-    assert store.apps == {}
+    assert resp.status_code == 201
+    assert store.apps[("apps", "docs-site")]["spec"]["access"]["users"] == ["alice"]
 
 
-def test_access_users_rejected_on_patch(client, store):
+def test_access_users_round_trip_on_patch(client, store):
     assert client.post("/api/v1/apps", json=make_app_body()).status_code == 201
     resp = client.patch(
         "/api/v1/apps/apps/docs-site",
         json={"access": {"public": False, "users": ["alice"], "subdomain": "docs-site"}},
     )
-    assert resp.status_code == 422
-    assert "users" not in store.apps[("apps", "docs-site")]["spec"]["access"]
-    # An empty list is fine.
+    assert resp.status_code == 200
+    assert store.apps[("apps", "docs-site")]["spec"]["access"]["users"] == ["alice"]
+    assert resp.json()["access"]["users"] == ["alice"]
+    # An empty list clears it.
     resp = client.patch(
         "/api/v1/apps/apps/docs-site",
         json={"access": {"public": False, "users": [], "groups": ["team"], "subdomain": "docs-site"}},
     )
     assert resp.status_code == 200
+    access = store.apps[("apps", "docs-site")]["spec"]["access"]
+    assert "users" not in access
+    assert access["groups"] == ["team"]
+
+
+@pytest.mark.parametrize("field", ["groups", "users"])
+@pytest.mark.parametrize("entry", ["a,b", " ", ""])
+def test_access_list_entries_must_be_single_names(client, store, field, entry):
+    body = make_app_body()
+    body["access"][field] = [entry]
+    resp = client.post("/api/v1/apps", json=body)
+    assert resp.status_code == 422
+    assert f"access.{field}" in resp.json()["detail"]
+    assert store.apps == {}
+    assert client.post("/api/v1/apps", json=make_app_body()).status_code == 201
+    resp = client.patch(
+        "/api/v1/apps/apps/docs-site",
+        json={"access": {"public": False, field: [entry], "subdomain": "docs-site"}},
+    )
+    assert resp.status_code == 422
 
 
 def test_cr_with_users_still_readable(client, store):

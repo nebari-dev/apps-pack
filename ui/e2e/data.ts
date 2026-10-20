@@ -59,7 +59,7 @@ export const DOCS_SITE: App = {
   createdAt: "2026-10-19T12:00:00Z",
   source: { type: "git", git: { url: "https://github.com/example/docs", ref: "main" } },
   runtime: { replicas: 1, env: [{ name: "LOG_LEVEL", value: "info" }] },
-  access: { public: false, groups: ["analytics"], subdomain: "docs-site" },
+  access: { public: false, groups: ["analytics"], users: ["grace"], subdomain: "docs-site" },
   status: {
     phase: "Running",
     url: `https://docs-site.${APPS_DOMAIN}`,

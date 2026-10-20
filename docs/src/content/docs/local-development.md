@@ -79,7 +79,7 @@ Linux, route the domain to `127.0.0.1:53535` with a systemd-resolved drop-in —
 ## Everyday loop
 
 ```bash
-make redeploy       # rebuild all four images + restart the Deployments
+make redeploy       # rebuild all five images + restart the Deployments
 make up-git         # also deploy the git-sourced, SSO-protected example
 make down           # delete the kind cluster
 ```

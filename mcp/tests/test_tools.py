@@ -113,6 +113,25 @@ async def test_launch_git_source(store):
     assert {"name": "LOG_LEVEL", "value": "debug"} in cr["spec"]["runtime"]["env"]
 
 
+async def test_launch_and_update_access_users(store):
+    await call("launch_app", {**LAUNCH_ARGS, "public": False, "groups": ["analysts"], "users": ["alice"]})
+    access = store.apps[("apps", "docs-site")]["spec"]["access"]
+    assert access["groups"] == ["analysts"]
+    assert access["users"] == ["alice"]
+
+    await call(
+        "update_app",
+        {
+            "namespace": "apps",
+            "name": "docs-site",
+            "patch": {"access": {"public": False, "users": ["bob"], "subdomain": "docs-site"}},
+        },
+    )
+    access = store.apps[("apps", "docs-site")]["spec"]["access"]
+    assert access["users"] == ["bob"]
+    assert access["groups"] == ["analysts"]  # a field the patch did not send is kept
+
+
 async def test_stop_start_remove(store):
     await call("launch_app", LAUNCH_ARGS)
 

@@ -97,7 +97,8 @@ create.
 
 To launch a **Python/pixi app**, add `"pixiTask": "<task>"` to `runtime` — the source
 (any type) must then contain a `pixi.toml` or `pyproject.toml` at its root, and the task
-must start a server on `0.0.0.0:8080`. See [Launching apps](/launching-apps/#python-apps-pixi).
+must start a server on `0.0.0.0:$PORT` (8080, or 8081 when `access.groups` or
+`access.users` is set). See [Launching apps](/launching-apps/#python-apps-pixi).
 
 `name` must be a valid Kubernetes name — lowercase letters, digits, and hyphens
 (`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`), at most 53 characters.
@@ -136,6 +137,6 @@ curl -X POST https://apps.example.ai/api/v1/apps/upload \
 | `404` | App (or its pods, for logs) not found. |
 | `409` | An app with that name already exists in the namespace, or the subdomain is already used by another app. |
 | `413` | Request body over 2 MiB, or inline files over the ~900 KB inline cap (`MAX_UPLOAD_BYTES`), whether they come from an upload (or its extracted contents) or from `source.inline.files` in a JSON `POST`/`PATCH`. Zip members are checked against the cap before they are decompressed. |
-| `422` | Invalid request: unsupported source type, missing required fields, or a non-empty `access.users` (reserved, not enforced). |
+| `422` | Invalid request: unsupported source type, missing required fields, or an `access.groups`/`access.users` entry that is blank or contains a comma. |
 
 Error bodies are `{"detail": "..."}` with an actionable message.

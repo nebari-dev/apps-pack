@@ -50,8 +50,18 @@ kubectl -n <ns> logs deploy/app-<name> -c app           # the app itself
   your task, and the install needs more memory than the app does. Raise
   `runtime.resources.limits.memory` (cluster default: `apps.defaultResources.python`). A
   `pixi.lock` makes the install `--locked` and faster.
-- **Python app is `Running` but never ready.** The task must listen on `0.0.0.0:8080` (the
-  pod gets `PORT=8080`). A server bound to `127.0.0.1` fails the readiness probe.
+- **Python app is `Running` but never ready.** The task must listen on `0.0.0.0:$PORT` (the
+  pod gets `PORT=8080`). A server bound to `127.0.0.1` fails the readiness probe. An App
+  that lists `access.groups` or `access.users` gets `PORT=8081`, because the authz sidecar
+  takes 8080: a task that hard-codes 8080 then collides with the sidecar.
+- **A restricted app returns `403` to someone who should get in.** The sidecar's log says
+  why (`kubectl logs deploy/app-<name> -c authz`): not in an allowed group or user list,
+  token issued to another client, issuer not accepted (check `keycloak.url` and
+  `keycloak.internalUrl`), or expired. Group changes reach the token on its next refresh
+  (5 minutes by default). A `401` means the gateway forwarded no token: the `NebariApp` has
+  no `auth.forwardAccessToken` (nebari-operator older than `%NEBARI_OPERATOR_VERSION%`).
+- **A restricted app stays `Failed` with "need the realm's URL" or "--authz-image".** Set
+  the chart's `keycloak.url` (or `keycloak.internalUrl`) and keep `authz.image`.
 - **`Pending` with `FailedScheduling`.** The namespace's quota or the nodes cannot fit the
   requests; lower `runtime.resources.requests` or `replicas`.
 

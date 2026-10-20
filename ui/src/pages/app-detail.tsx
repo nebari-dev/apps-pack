@@ -33,6 +33,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
 import { useAppActions } from "@/hooks/use-app-actions";
 import { usePageTitle } from "@/hooks/use-page-title";
+import { accessLine } from "@/lib/access";
 import { api } from "@/lib/api";
 import { pollFor } from "@/lib/polling";
 import type { App } from "@/lib/types";
@@ -230,11 +231,7 @@ export function AppDetailPage() {
             ) : (
               <p className="text-muted-foreground text-sm">Not routed yet</p>
             )}
-            <p className="mt-2 text-muted-foreground text-xs">
-              {a.access?.public
-                ? "Public - no authentication"
-                : `Keycloak SSO at the gateway${a.access?.groups?.length ? ` · groups: ${a.access.groups.join(", ")}` : ""}`}
-            </p>
+            <p className="mt-2 text-muted-foreground text-xs">{accessLine(a)}</p>
             <p className="mt-1 text-muted-foreground text-xs">
               {a.landingPage?.enabled === true
                 ? "Shown on the landing page"

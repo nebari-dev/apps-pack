@@ -19,6 +19,7 @@ import {
   describeValueFrom,
   type FormAction,
   type FormState,
+  LANDING_PAGE_LOCKED,
   PRESETS,
   type Preset,
   type SourceTab,
@@ -138,7 +139,8 @@ export function BasicsSection({ form }: { form: FormContext }) {
             />
             <p className="text-muted-foreground text-xs">
               Runs <span className="font-mono">pixi run {pixiTask || "<task>"}</span>; the task must
-              serve on <span className="font-mono">0.0.0.0:8080</span>.
+              serve on <span className="font-mono">0.0.0.0:$PORT</span> (8080, or 8081 when groups
+              or users restrict the app).
             </p>
           </div>
         ) : null}
@@ -414,9 +416,9 @@ export function RuntimeSection({ form }: { form: FormContext }) {
   );
 }
 
-/** Public or signed-in access, the subdomain, and the landing-page tile. */
+/** Public or signed-in access, who may open it, the subdomain, and the landing-page tile. */
 export function AccessSection({ form }: { form: FormContext }) {
-  const { isPublic, groups, subdomain, onLandingPage } = form.state;
+  const { isPublic, groups, users, subdomain, onLandingPage } = form.state;
   const { set, errorProps, isEdit, appsDomain } = form;
   return (
     <Card>
@@ -424,8 +426,8 @@ export function AccessSection({ form }: { form: FormContext }) {
         <CardTitle>Access</CardTitle>
         <CardDescription>
           Apps are served behind the shared gateway. Private apps require a Keycloak sign-in at the
-          gateway - the app itself needs no auth code. Sign-in is authentication only: every user in
-          the realm can open a private app.
+          gateway - the app itself needs no auth code. List groups or users to restrict a private
+          app to them.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -446,19 +448,36 @@ export function AccessSection({ form }: { form: FormContext }) {
           />
         </div>
         {!isPublic ? (
-          <div className="space-y-1.5">
-            <Label htmlFor="groups">Intended groups</Label>
-            <Input
-              id="groups"
-              placeholder="comma-separated"
-              aria-describedby="groups-help"
-              value={groups}
-              onChange={(e) => set("groups", e.target.value)}
-            />
-            <p id="groups-help" className="text-muted-foreground text-xs">
-              Not enforced yet: any signed-in user can open a private app, whatever groups you list.
-            </p>
-          </div>
+          <>
+            <div className="space-y-1.5">
+              <Label htmlFor="groups">Allowed groups</Label>
+              <Input
+                id="groups"
+                placeholder="comma-separated"
+                aria-describedby="groups-help"
+                value={groups}
+                onChange={(e) => set("groups", e.target.value)}
+              />
+              <p id="groups-help" className="text-muted-foreground text-xs">
+                Only members of these Keycloak groups can open the app; everyone else gets 403.
+                Leave groups and users empty to allow any signed-in user. Changes apply when a
+                user's session token refreshes (a few minutes).
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="users">Allowed users</Label>
+              <Input
+                id="users"
+                placeholder="comma-separated usernames"
+                aria-describedby="users-help"
+                value={users}
+                onChange={(e) => set("users", e.target.value)}
+              />
+              <p id="users-help" className="text-muted-foreground text-xs">
+                Keycloak usernames who can open the app even if they are not in an allowed group.
+              </p>
+            </div>
+          </>
         ) : null}
         <div className="space-y-1.5">
           <Label htmlFor="subdomain">Subdomain</Label>
@@ -477,18 +496,23 @@ export function AccessSection({ form }: { form: FormContext }) {
             <p className="text-muted-foreground text-xs">Subdomain is fixed after launch.</p>
           ) : null}
         </div>
-        <div className="flex items-center justify-between rounded-md border border-border p-3">
+        <div className="flex items-center justify-between gap-3 rounded-md border border-border p-3">
           <div>
-            <p className="font-medium text-sm">Show on the landing page</p>
-            <p className="text-muted-foreground text-xs">
-              Add a tile for this app to the Nebari landing page. Off by default - the app is
-              reachable at its URL and listed here either way.
+            <p id="landing-label" className="font-medium text-sm">
+              Show on the landing page
+            </p>
+            <p id="landing-help" className="text-muted-foreground text-xs">
+              {LANDING_PAGE_LOCKED
+                ? "Temporarily unavailable: the landing page can't yet hide tiles from users outside an app's allowed users, so new apps aren't listed there. Register with kubectl or the API if you need it."
+                : "Add a tile for this app to the Nebari landing page. Off by default - the app is reachable at its URL and listed here either way."}
             </p>
           </div>
           <Switch
             checked={onLandingPage}
             onCheckedChange={(v) => set("onLandingPage", v)}
-            aria-label="Show on the landing page"
+            disabled={LANDING_PAGE_LOCKED}
+            aria-labelledby="landing-label"
+            aria-describedby="landing-help"
           />
         </div>
       </CardContent>

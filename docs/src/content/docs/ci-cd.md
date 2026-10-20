@@ -30,8 +30,8 @@ Every action is pinned to a commit SHA, and every workflow starts from
 
 ## Images
 
-`images.yaml` builds the four images (`apps-operator`, `apps-api`, `apps-ui`,
-`apps-mcp`). Pull requests build and scan each image once, on `linux/amd64`, without
+`images.yaml` builds the five images (`apps-operator`, `apps-authz`, `apps-api`,
+`apps-ui`, `apps-mcp`). Pull requests build and scan each image once, on `linux/amd64`, without
 pushing. Every merge to `main` builds them for `linux/amd64` and `linux/arm64` through the
 org's reusable `pack-build-image` workflow, pushes `ghcr.io/nebari-dev/apps-pack/<image>`
 and `quay.io/nebari/apps-pack-<image>`, tagged `sha-<short commit>` and `latest`, and signs
@@ -55,7 +55,7 @@ To verify a signature, see
    checks.
 3. **Merging the release PR is the release.** The `Chart.yaml` version bump runs
    `release.yaml` (the org's `pack-release` workflow), which:
-   - pins the chart's four image tags to `sha-<release commit>`, built by the same push,
+   - pins the chart's five image tags to `sha-<release commit>`, built by the same push,
    - packages and signs the chart and attaches it to a GitHub Release `nebari-apps-X.Y.Z`
      with generated notes,
    - opens a PR in [nebari-dev/helm-repository](https://github.com/nebari-dev/helm-repository)
