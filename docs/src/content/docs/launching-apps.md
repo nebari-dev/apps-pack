@@ -50,8 +50,8 @@ Open `https://apps.<cluster-domain>`:
    edit, saved secrets show their names only: leave a value empty to keep it, type to
    replace it, or remove the row.
 5. **Access** — public toggle, allowed groups, and the subdomain, which follows
-   the name (lowercased, other characters turned into hyphens) until you edit it. The
-   landing-page option is locked off for now (see [Landing page](#landing-page)).
+   the name (lowercased, other characters turned into hyphens) until you edit it, and
+   whether the app gets a tile on the Nebari landing page (see [Landing page](#landing-page)).
 6. **Managers** — other users and groups who may manage the app with you (see
    [Managers](#managers)). Read-only when a manager edits the app.
 
@@ -348,9 +348,10 @@ cluster default with the chart value `apps.landingPage.enabled: true`, after whi
 *out* with `enabled: false`. Either way the app is reachable at its URL and listed in the
 Apps UI.
 
-The launch form's "Show on the landing page" option is **locked** for now: the form
-registers new apps with `enabled: false` and an edit keeps whatever the App already has. Register a tile through the API, the MCP tool or `kubectl` if you need
-one.
+In the launch form, **Show on the landing page** sets it. A new app gets exactly what the
+switch shows, even when the cluster default is on; an edit changes the stored value only when
+you flip the switch. A private app's tile is shown only to members of its `access.groups`
+(any signed-in user when it lists none).
 
 ## Idle apps
 

@@ -174,9 +174,6 @@ or pilot.
   user's token refreshes (5 minutes by default). A private app with no groups is open to any
   signed-in realm user. Access is by group only; there is no per-user allow list. See
   [Access control](/launching-apps/#access-control).
-- **The launch form's landing-page switch is locked for now.** Tiles are off by default for
-  launched apps (`apps.landingPage.enabled` / `spec.landingPage.enabled`); only the pack's own
-  "Apps" tile is registered. See [Landing page](/launching-apps/#landing-page).
 - **Authorization is owner, manager or admin.** The API lets a user see and manage the Apps
   they launched or are listed as a [manager](/launching-apps/#managers) of; members of
   `api.adminGroups` manage all of them. Ownership cannot be transferred yet, and anyone with

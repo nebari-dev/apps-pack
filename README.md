@@ -106,7 +106,6 @@ The user guide is at [packs.nebari.dev/apps-pack](https://packs.nebari.dev/apps-
 
 - `access.groups` is enforced in the app pod by the apps-authz sidecar, not
   at the gateway (Apps restrict access by Keycloak group only); group changes apply when the user's token refreshes (5 minutes by default).
-- The launch form's landing-page switch is locked for now; register a tile through the API, the MCP server or `kubectl`.
 - Users see and manage the Apps they launched or are listed as managers of
   (`access.managers`); members of `api.adminGroups` manage all of them. Ownership cannot be
   transferred yet.
