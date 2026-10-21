@@ -45,7 +45,7 @@ testpaths = ["tests"]
 source = ["nebari_apps_api"]
 
 [tool.coverage.report]
-fail_under = 86
+fail_under = 89
 show_missing = true
 skip_covered = true
 

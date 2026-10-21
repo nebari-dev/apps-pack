@@ -30,8 +30,9 @@ export const BRANDING = {
 
 export const CAPABILITIES: Capabilities = {
   appsDomain: APPS_DOMAIN,
-  sourceTypes: ["git", "inline", "pvc"],
+  sourceTypes: ["git", "inline", "pvc", "image"],
   namespaces: NAMESPACES,
+  imageRegistries: ["ghcr.io/example"],
 };
 
 const condition = (type: string, status: "True" | "False", reason: string, message = "") => ({

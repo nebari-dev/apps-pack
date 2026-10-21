@@ -38,7 +38,8 @@ mcp = FastMCP(
     instructions=(
         "Launch and manage web apps on this Nebari cluster: static sites (HTML/CSS/JS) "
         "and Python apps launched by a pixi task (pixi_task; the task must serve on "
-        "0.0.0.0:$PORT). "
+        "0.0.0.0:$PORT), and, where the cluster allows it, prebuilt container images "
+        "(source_type=image, from the registries describe_cluster lists). "
         "Typical flow: describe_cluster to see what is available, then launch_app; "
         "poll get_app_status until phase is Running and share the app URL with the user. "
         "If a tool reports an authentication problem, call authenticate and follow its "
@@ -176,7 +177,8 @@ async def authenticate(ctx: Context) -> dict[str, Any]:
 @mcp.tool(annotations=READ_ONLY)
 async def describe_cluster(ctx: Context) -> dict[str, Any]:
     """Describe what this cluster supports: available source types, namespaces apps may be
-    launched into, and the apps domain (apps get https://<subdomain>.<appsDomain>).
+    launched into, the apps domain (apps get https://<subdomain>.<appsDomain>) and, when
+    sourceTypes includes image, the imageRegistries images may come from.
     Call this first to pick valid launch options.
     """
     try:
@@ -212,8 +214,14 @@ async def launch_app(
     display_name: Annotated[str, Field(description="Human-readable name shown in the UI and landing page")],
     subdomain: Annotated[str, Field(description="App URL becomes https://<subdomain>.<appsDomain>")],
     source_type: Annotated[
-        Literal["inline", "git", "pvc"],
-        Field(description="inline = files in the request; git = clone a repo; pvc = mount an existing volume"),
+        Literal["inline", "git", "pvc", "image"],
+        Field(
+            description=(
+                "inline = files in the request; git = clone a repo; pvc = mount an existing volume; "
+                "image = run a prebuilt container image (only when describe_cluster lists it in sourceTypes; "
+                "the image must come from one of its imageRegistries)"
+            )
+        ),
     ],
     inline_files: Annotated[
         dict[str, str] | None,
@@ -231,6 +239,45 @@ async def launch_app(
     git_subdir: Annotated[str, Field(description="source_type=git: path of the content root within the repo")] = "",
     pvc_claim_name: Annotated[str, Field(description="source_type=pvc: existing PersistentVolumeClaim name")] = "",
     pvc_sub_path: Annotated[str, Field(description="source_type=pvc: sub-path within the volume")] = "",
+    image_reference: Annotated[
+        str,
+        Field(
+            description=(
+                "source_type=image: image with a tag or digest, e.g. ghcr.io/org/app:1.2.3 or "
+                "ghcr.io/org/app@sha256:<digest>, from a registry in describe_cluster imageRegistries. "
+                "Never build images: the user brings a published one"
+            )
+        ),
+    ] = "",
+    image_port: Annotated[
+        int | None,
+        Field(
+            description=(
+                "source_type=image (required): port the image's server listens on, 1024-65535, not 8080 or "
+                "8082 (the auth sidecar's); also passed as $PORT"
+            ),
+            ge=1024,
+            le=65535,
+        ),
+    ] = None,
+    image_command: Annotated[
+        list[str] | None,
+        Field(description="source_type=image: replaces the image ENTRYPOINT (exec form, no shell)"),
+    ] = None,
+    image_args: Annotated[
+        list[str] | None,
+        Field(description="source_type=image: replaces the image CMD (exec form, no shell)"),
+    ] = None,
+    image_run_as_user: Annotated[
+        int | None,
+        Field(
+            description=(
+                "source_type=image: non-zero uid to run as, for images whose USER is a name. Images that only "
+                "run as root are refused (phase Failed, reason ImageRunsAsRoot)"
+            ),
+            ge=1,
+        ),
+    ] = None,
     env: Annotated[
         dict[str, str] | None,
         Field(
@@ -326,8 +373,9 @@ async def launch_app(
         ),
     ] = None,
 ) -> dict[str, Any]:
-    """Create and launch an app: static (HTML/CSS/JS served by nginx) or, with pixi_task set,
-    a Python/pixi service whose source includes a pixi manifest. Idempotent on
+    """Create and launch an app: static (HTML/CSS/JS served by nginx), with pixi_task set
+    a Python/pixi service whose source includes a pixi manifest, or with source_type=image a
+    prebuilt container image (image_reference + image_port). Idempotent on
     (namespace, name): if the app already exists and you own or manage it, its spec is updated
     instead of failing, so retrying is safe; an app you neither own nor manage is never touched.
     Only the owner (or an admin) may change manager_users/manager_groups. Returns the app with its (pending) URL; poll get_app_status until
@@ -340,6 +388,15 @@ async def launch_app(
         source["git"] = {"url": git_url, "ref": git_ref, "subdir": git_subdir}
     elif source_type == "pvc":
         source["pvc"] = {"claimName": pvc_claim_name, "subPath": pvc_sub_path}
+    elif source_type == "image":
+        image: dict[str, Any] = {"reference": image_reference, "port": image_port}
+        if image_command:
+            image["command"] = image_command
+        if image_args:
+            image["args"] = image_args
+        if image_run_as_user is not None:
+            image["runAsUser"] = image_run_as_user
+        source["image"] = image
 
     access: dict[str, Any] = {"public": public, "groups": groups or [], "users": users or [], "subdomain": subdomain}
     if manager_users is not None or manager_groups is not None:

@@ -5,8 +5,13 @@ export const SUBDOMAIN_RE = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/;
 /** Source authoring tabs. "keep" is edit-only: leave the current source as-is. */
 export type SourceTab = "upload" | "git" | "pvc" | "keep";
 
-/** What the app is: a static site served by nginx, or a Python/pixi service. */
-export type AppKind = "static" | "pixi";
+/** What the app is: a static site served by nginx, a Python/pixi service, or a prebuilt container image. */
+export type AppKind = "static" | "pixi" | "image";
+
+/** The ports the auth sidecar takes in an image App's pod (the CRD's rule). */
+export const IMAGE_RESERVED_PORTS = [8080, 8082];
+export const IMAGE_PORT_MIN = 1024;
+export const IMAGE_PORT_MAX = 65535;
 
 /** Resource presets that fill both requests and limits in one click. */
 export const PRESETS = {
@@ -48,6 +53,13 @@ export interface FormState {
   gitSubdir: string;
   pvcClaim: string;
   pvcSubPath: string;
+  /** source.image fields as typed (kind "image"). */
+  imageRef: string;
+  imagePort: string;
+  /** One command / argument per line. */
+  imageCommand: string;
+  imageArgs: string;
+  imageRunAsUser: string;
   envVars: EnvVar[];
   /** Secret keys: saved ones (names only) and new ones with their values. */
   secrets: SecretRow[];
@@ -86,6 +98,9 @@ export type Field =
   | "file"
   | "gitUrl"
   | "pvcClaim"
+  | "imageRef"
+  | "imagePort"
+  | "imageRunAsUser"
   | "idleTimeout"
   | "secrets"
   | "subdomain";
@@ -124,8 +139,9 @@ export function initialState(initial: App | undefined, isEdit: boolean): FormSta
     description: initial?.description ?? "",
     thumbnail: initial?.thumbnail ?? "",
     namespace: initial?.namespace ?? "",
-    // Presence of a pixi task is the wire discriminator.
-    kind: initial?.runtime?.pixiTask ? "pixi" : "static",
+    // An image source, else the presence of a pixi task, is the wire discriminator.
+    kind:
+      initial?.source?.type === "image" ? "image" : initial?.runtime?.pixiTask ? "pixi" : "static",
     pixiTask: initial?.runtime?.pixiTask ?? "",
     sourceTab: isEdit ? "keep" : "upload",
     file: null,
@@ -134,6 +150,12 @@ export function initialState(initial: App | undefined, isEdit: boolean): FormSta
     gitSubdir: initial?.source?.git?.subdir ?? "",
     pvcClaim: initial?.source?.pvc?.claimName ?? "",
     pvcSubPath: initial?.source?.pvc?.subPath ?? "",
+    imageRef: initial?.source?.image?.reference ?? "",
+    imagePort: initial?.source?.image?.port != null ? String(initial.source.image.port) : "",
+    imageCommand: (initial?.source?.image?.command ?? []).join("\n"),
+    imageArgs: (initial?.source?.image?.args ?? []).join("\n"),
+    imageRunAsUser:
+      initial?.source?.image?.runAsUser != null ? String(initial.source.image.runAsUser) : "",
     envVars: initial?.runtime?.env ?? [],
     secrets: (initial?.runtime?.secretKeys ?? []).map((name) => ({
       name,
@@ -206,7 +228,19 @@ export function validate(s: FormState, isEdit: boolean): Problem[] {
   if (!s.namespace) add("namespace", "Pick a namespace.");
   if (s.kind === "pixi" && !s.pixiTask)
     add("pixiTask", "Enter the pixi task that launches the app.");
-  if (s.sourceTab === "upload") {
+  if (s.kind === "image") {
+    if (!s.imageRef.trim()) add("imageRef", "Enter the image to run.");
+    else if (!IMAGE_REF_RE.test(s.imageRef.trim()))
+      add("imageRef", "Give the image a tag (:1.2.3) or a digest (@sha256:…).");
+    const port = parsePort(s.imagePort);
+    if (port === null)
+      add(
+        "imagePort",
+        `Port must be a whole number from ${IMAGE_PORT_MIN} to ${IMAGE_PORT_MAX}, not ${IMAGE_RESERVED_PORTS.join(" or ")}.`,
+      );
+    if (s.imageRunAsUser.trim() && parseUid(s.imageRunAsUser) === null)
+      add("imageRunAsUser", "User ID must be a whole number above 0, or empty.");
+  } else if (s.sourceTab === "upload") {
     if (!s.file)
       add(
         "file",
@@ -217,8 +251,10 @@ export function validate(s: FormState, isEdit: boolean): Problem[] {
     else if (s.kind === "pixi" && !s.file.name.toLowerCase().endsWith(".zip"))
       add("file", "Pixi apps must be uploaded as a .zip archive.");
   }
-  if (s.sourceTab === "git" && !s.gitUrl) add("gitUrl", "Enter the git repository URL.");
-  if (s.sourceTab === "pvc" && !s.pvcClaim) add("pvcClaim", "Enter the PVC claim name.");
+  if (s.kind !== "image") {
+    if (s.sourceTab === "git" && !s.gitUrl) add("gitUrl", "Enter the git repository URL.");
+    if (s.sourceTab === "pvc" && !s.pvcClaim) add("pvcClaim", "Enter the PVC claim name.");
+  }
   if (!s.keepAlive && s.idleTimeout.trim() && parseIdleTimeout(s.idleTimeout) === null)
     add(
       "idleTimeout",
@@ -266,6 +302,33 @@ export function buildSecrets(
   return Object.keys(out).length ? out : undefined;
 }
 
+/**
+ * A tag after the last "/" or a digest: the API and operator check the full
+ * grammar and the registry allowlist; this only catches a missing tag early.
+ */
+const IMAGE_REF_RE = /^\S+(:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}|@sha256:[a-f0-9]{64})$/;
+
+/** "8501" -> 8501; null outside the image port bounds or on a sidecar port. */
+export function parsePort(raw: string): number | null {
+  const t = raw.trim();
+  if (!/^\d+$/.test(t)) return null;
+  const n = Number(t);
+  return n >= IMAGE_PORT_MIN && n <= IMAGE_PORT_MAX && !IMAGE_RESERVED_PORTS.includes(n) ? n : null;
+}
+
+function parseUid(raw: string): number | null {
+  const t = raw.trim();
+  return /^\d+$/.test(t) && Number(t) > 0 ? Number(t) : null;
+}
+
+/** One entry per non-empty line (image command and args). */
+function lines(raw: string): string[] {
+  return raw
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+}
+
 /** runtime.idleTimeoutMinutes bounds (the CRD's). */
 export const IDLE_MIN = 5;
 export const IDLE_MAX = 43200;
@@ -296,6 +359,21 @@ function buildResources(s: FormState, initial: App | undefined) {
 }
 
 function buildSource(s: FormState): AppSource | undefined {
+  if (s.kind === "image") {
+    const uid = parseUid(s.imageRunAsUser);
+    const command = lines(s.imageCommand);
+    const args = lines(s.imageArgs);
+    return {
+      type: "image",
+      image: {
+        reference: s.imageRef.trim(),
+        port: parsePort(s.imagePort) ?? 0,
+        ...(command.length ? { command } : {}),
+        ...(args.length ? { args } : {}),
+        ...(uid !== null ? { runAsUser: uid } : {}),
+      },
+    };
+  }
   if (s.sourceTab === "git")
     return {
       type: "git",
@@ -414,7 +492,7 @@ export function buildPayload(
       : {}),
   };
 
-  if (s.sourceTab === "upload")
+  if (s.sourceTab === "upload" && s.kind !== "image")
     return s.file ? { kind: "upload", manifest: base, file: s.file } : null;
   return { kind: "create", body: { ...base, source: buildSource(s) } as AppCreate };
 }

@@ -334,3 +334,59 @@ async def test_secret_values_stay_out_of_tool_error_logs(caplog, capsys):
     assert "tool call" in caplog.text
     out = capsys.readouterr()
     assert "sk-leak-999" not in caplog.text + out.out + out.err
+
+
+@pytest.fixture
+def images_allowed(store, monkeypatch):
+    import httpx
+    from nebari_apps_api.config import settings as api_settings
+    from nebari_apps_api.main import create_app
+
+    from nebari_apps_mcp import client as mcp_client
+
+    monkeypatch.setattr(api_settings, "image_registries", ["ghcr.io/org"])
+    monkeypatch.setattr(mcp_client, "transport", httpx.ASGITransport(app=create_app(store)))
+
+
+IMAGE_ARGS = {
+    "name": "dash",
+    "namespace": "apps",
+    "display_name": "Dash",
+    "subdomain": "dash",
+    "source_type": "image",
+    "image_reference": "ghcr.io/org/dash:1.2.3",
+    "image_port": 8501,
+}
+
+
+async def test_launch_image_app(store, images_allowed):
+    caps = await call("describe_cluster")
+    assert "image" in caps["sourceTypes"]
+    assert caps["imageRegistries"] == ["ghcr.io/org"]
+    app = await call(
+        "launch_app",
+        {**IMAGE_ARGS, "image_command": ["streamlit"], "image_args": ["run", "app.py"], "image_run_as_user": 1000},
+    )
+    assert app["source"]["type"] == "image"
+    assert store.apps[("apps", "dash")]["spec"]["source"]["image"] == {
+        "reference": "ghcr.io/org/dash:1.2.3",
+        "port": 8501,
+        "command": ["streamlit"],
+        "args": ["run", "app.py"],
+        "runAsUser": 1000,
+    }
+
+
+async def test_launch_image_outside_allowlist(store, images_allowed):
+    out = await call("launch_app", {**IMAGE_ARGS, "image_reference": "ghcr.io/org-evil/dash:1"})
+    assert out["status"] == 422
+    assert "not in the allowed image registries" in out["error"]
+    assert store.apps == {}
+
+
+async def test_launch_image_when_disabled(store):
+    caps = await call("describe_cluster")
+    assert "image" not in caps["sourceTypes"]
+    out = await call("launch_app", IMAGE_ARGS)
+    assert out["status"] == 422
+    assert "disabled" in out["error"]

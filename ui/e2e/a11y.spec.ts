@@ -67,6 +67,18 @@ for (const theme of ["light", "dark"] satisfies Theme[]) {
       await expectNoCriticalOrSeriousA11yViolations(page);
     });
 
+    test(`launch form for a container image has no critical or serious violations @a11y`, async ({
+      page,
+    }) => {
+      await page.goto("/launch");
+      await page.getByRole("combobox", { name: "App type" }).click();
+      await page.getByRole("option", { name: "Container image" }).click();
+      await expect(page.getByLabel("Image", { exact: true })).toBeVisible();
+      await page.getByRole("button", { name: "Launch app" }).click();
+      await expect(page.locator("#imageRef-error")).toBeVisible();
+      await expectNoCriticalOrSeriousA11yViolations(page);
+    });
+
     test(`empty apps list has no critical or serious violations @a11y`, async ({ page, api }) => {
       api.apps = [];
       await page.goto("/apps");

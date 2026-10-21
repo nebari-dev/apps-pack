@@ -77,6 +77,14 @@ class Settings:
     # runtime.idleTimeoutMinutes). Reported by /capabilities for forms.
     idle_timeout_minutes: int = field(default_factory=lambda: int(os.environ.get("IDLE_TIMEOUT_MINUTES", "0") or 0))
 
+    # Registry allowlist for source type image (comma-separated entries,
+    # images.parse_allowlist; mirrors the operator's --image-registries).
+    # Empty: image Apps are refused. Normalized in create_app, which fails on
+    # an invalid entry.
+    image_registries: list[str] = field(
+        default_factory=lambda: [r.strip() for r in os.environ.get("IMAGE_REGISTRIES", "").split(",") if r.strip()]
+    )
+
     # Serve apps over plain HTTP (mirrors the operator's --tls-disabled).
     tls_disabled: bool = field(default_factory=lambda: _env_bool("TLS_DISABLED", False))
 

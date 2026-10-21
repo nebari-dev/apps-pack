@@ -50,14 +50,23 @@ func restricted(app *appsv1alpha1.App) bool {
 }
 
 // hasSidecar reports whether the App's pod runs the apps-authz sidecar:
-// restricted Apps (it enforces groups and users) and Apps that can idle
-// (in passthrough mode it only records activity for the idle check).
+// restricted Apps (it enforces groups and users), Apps that can idle (in
+// passthrough mode it only records activity for the idle check) and image
+// Apps (it gives their own port the pack's one front port, AppPort).
 func (c OperatorConfig) hasSidecar(app *appsv1alpha1.App) bool {
-	return restricted(app) || c.idleTimeout(app) > 0
+	return restricted(app) || c.idleTimeout(app) > 0 || isImage(app)
 }
 
-// appContainerPort is the port the app container listens on.
+func isImage(app *appsv1alpha1.App) bool {
+	return app.Spec.Source.Type == appsv1alpha1.SourceTypeImage && app.Spec.Source.Image != nil
+}
+
+// appContainerPort is the port the app container listens on: an image App's
+// own port, else AppPort, or AppInternalPort behind the sidecar.
 func (c OperatorConfig) appContainerPort(app *appsv1alpha1.App) int32 {
+	if isImage(app) {
+		return app.Spec.Source.Image.Port
+	}
 	if c.hasSidecar(app) {
 		return AppInternalPort
 	}
@@ -112,6 +121,9 @@ func (c OperatorConfig) realm() string {
 // checkAuthz reports why a restricted App cannot be enforced, so it fails
 // validation instead of running open.
 func (c OperatorConfig) checkAuthz(app *appsv1alpha1.App) error {
+	if isImage(app) && c.AuthzImage == "" {
+		return fmt.Errorf("image sources need the authz sidecar, but the operator has no --authz-image (chart authz.image)")
+	}
 	if !restricted(app) {
 		return nil
 	}
@@ -131,7 +143,8 @@ func (c OperatorConfig) checkAuthz(app *appsv1alpha1.App) error {
 	return nil
 }
 
-// addAuthzSidecar moves the app container to AppInternalPort, points its
+// addAuthzSidecar moves the app container to appContainerPort (AppInternalPort,
+// or an image App's own port), points its
 // probes at the sidecar's /upstreamz (which dials the app on loopback, so an
 // app listening only on 127.0.0.1 still passes) and appends the sidecar,
 // which takes the "http" port the Service targets. For an unrestricted App
@@ -139,9 +152,10 @@ func (c OperatorConfig) checkAuthz(app *appsv1alpha1.App) error {
 // passthrough mode: it checks no tokens and only records activity.
 func (r *AppReconciler) addAuthzSidecar(app *appsv1alpha1.App, pod *corev1.PodSpec) {
 	main := &pod.Containers[0]
+	upstreamPort := r.Config.appContainerPort(app)
 	main.Ports = []corev1.ContainerPort{{
 		Name:          appInternalName,
-		ContainerPort: AppInternalPort,
+		ContainerPort: upstreamPort,
 		Protocol:      corev1.ProtocolTCP,
 	}}
 	// By number, not name: a probe's named port must belong to the probed
@@ -162,7 +176,7 @@ func (r *AppReconciler) addAuthzSidecar(app *appsv1alpha1.App, pod *corev1.PodSp
 	env := []corev1.EnvVar{
 		{Name: "AUTHZ_LISTEN", Value: fmt.Sprintf(":%d", AppPort)},
 		{Name: "AUTHZ_HEALTH_LISTEN", Value: fmt.Sprintf(":%d", authzHealthPort)},
-		{Name: "AUTHZ_UPSTREAM", Value: fmt.Sprintf("http://127.0.0.1:%d", AppInternalPort)},
+		{Name: "AUTHZ_UPSTREAM", Value: fmt.Sprintf("http://127.0.0.1:%d", upstreamPort)},
 	}
 	if restricted(app) {
 		env = append(env,

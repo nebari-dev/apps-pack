@@ -37,6 +37,11 @@ Apps get real files (never hand-written inline YAML). The starters follow the pl
 conventions: static assets served as-is, Python apps launched by a pixi task that serves
 on `0.0.0.0:$PORT`, and **no auth code in the app** — the gateway handles SSO.
 
+An app that already ships as a container image needs no scaffold: on a cluster that allows
+image apps (`describe_cluster` lists `image`), the skill writes a manifest with
+`source.type: image`, the image's reference and its port, and launches that. It never writes
+a Dockerfile or builds an image.
+
 ## The manifest
 
 `nebari-app.yaml` sits next to the code and maps 1:1 onto the [App resource](/app-crd-reference/):

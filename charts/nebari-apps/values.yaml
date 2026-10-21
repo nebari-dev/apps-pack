@@ -44,11 +44,30 @@ apps:
     # unless they set `runtime.idleTimeoutMinutes`. Otherwise at least 5.
     timeoutMinutes: 0
 
+  # Prebuilt container images (App `source.type: image`). Off until a
+  # registry is allowed. The operator enforces the allowlist on every App,
+  # however it was written (UI, API, MCP, kubectl, GitOps); apps-api checks
+  # it too, so a request outside it fails up front.
+  image:
+    # -- Registries image Apps may pull from: `<host>[:port][/<repository
+    # prefix>]`, e.g. `ghcr.io/my-org`, `docker.io/library` (Docker Hub
+    # official images) or `registry.example.com:5000`. An image matches when
+    # its normalized `<host>/<repository>` equals an entry or continues it
+    # with `/`: hosts compare whole (`ghcr.io` does not admit
+    # `ghcr.io.evil.com`) and prefixes match whole path components
+    # (`ghcr.io/org` does not admit `ghcr.io/org-evil`). No wildcards. Empty
+    # disables image Apps.
+    allowedRegistries: []
+    # -- Names of `kubernetes.io/dockerconfigjson` Secrets that image App pods
+    # pull with, for private registries. Each must exist in every App
+    # namespace (`api.allowedNamespaces`); the chart does not create them.
+    pullSecrets: []
+
   # -- Requests/limits the operator fills in for any cpu/memory value an App's
   # `runtime.resources` leaves unset, so no launched container runs unbounded.
   # A filled limit never drops below the App's own request. `static` is nginx
   # serving files; `python` is `runtime.pixiTask` apps (pixi installs on cold
-  # start, so they burst above their request).
+  # start, so they burst above their request) and image apps.
   # @default -- see values.yaml
   defaultResources:
     static:

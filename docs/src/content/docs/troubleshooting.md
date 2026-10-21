@@ -31,6 +31,9 @@ The UI's app page and the MCP `get_app_status` tool show the same conditions.
 | `source.pvc: PersistentVolumeClaim "x" not found …` | The claim must exist in the App's namespace. |
 | `source.pvc: PersistentVolumeClaim "x" is not labeled apps.nebari.dev/mountable=true …` | The claim's owner opts in with `kubectl -n <ns> label pvc x apps.nebari.dev/mountable=true`. |
 | `source.inline.files: path "…" must be relative …` | Inline file names are relative paths without `..`. |
+| reason `ImageNotAllowed`: `image sources are disabled on this cluster …` or `… is not in the allowed image registries (…)` | The image's registry (after normalization: `nginx:1.27` is `docker.io/library/nginx`) is not in `apps.image.allowedRegistries`. Use an allowed image, or ask an admin to allow it. The operator scales the App's Deployment to zero until it is fixed. |
+| `source.image.reference "…": needs a tag (:1.2.3) or a digest (@sha256:...)` | Add a tag or digest; an implicit `:latest` is refused. |
+| `source.image.port … must be 1024-65535 and not 8080 or 8082` | Make the image listen on another port (most accept `$PORT` or a flag) and set `port` to it. |
 
 - **`ForbiddenEnvReference`.** `runtime.env` uses `valueFrom.secretKeyRef`, or a
   `configMapKeyRef` to another App's `app-<name>-content`/`app-<name>-server`. Those would
@@ -78,6 +81,18 @@ kubectl -n <ns> logs deploy/app-<name> -c app           # the app itself
 - **A rotated secret has no effect.** Pods read environment variables at start. apps-api
   rolls them on every write; after editing the Secret with kubectl, run
   `kubectl -n <ns> rollout restart deployment/app-<name>`.
+- **Image app `Failed` with reason `ImageRunsAsRoot`.** The image's `USER` is root (or a name
+  the kubelet cannot check), and app pods must run as non-root. Rebuild the image with a
+  numeric non-root `USER` (e.g. `USER 1000`, owning the directories the app writes), or set
+  `source.image.runAsUser` to the uid of the image's named user. The policy is never relaxed.
+- **Image app `Failed` with reason `ImagePullFailed`.** Check `source.image.reference`; for a
+  private registry the Secret named in `apps.image.pullSecrets` must exist in the App's
+  namespace and grant access (`kubectl -n <ns> describe pod -l apps.nebari.dev/app=<name>`
+  shows the registry's answer).
+- **Image app `Running` but never ready, or `CrashLoopBackOff`.** The server must listen on
+  `source.image.port` (on `0.0.0.0` or `127.0.0.1`): readiness goes through the sidecar, which
+  dials that port. An image that writes to its home or a root-owned directory may fail as a
+  non-root user; point its cache or home at `/tmp` with an environment variable.
 - **`Pending` with `FailedScheduling`.** The namespace's quota or the nodes cannot fit the
   requests; lower `runtime.resources.requests` or `replicas`.
 

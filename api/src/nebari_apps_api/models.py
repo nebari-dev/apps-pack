@@ -8,8 +8,8 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
-SourceType = Literal["git", "inline", "pvc"]
-SOURCE_TYPES: tuple[str, ...] = ("git", "inline", "pvc")
+SourceType = Literal["git", "inline", "pvc", "image"]
+SOURCE_TYPES: tuple[str, ...] = ("git", "inline", "pvc", "image")
 # The caller's relationship to an App (AppOut.role); "" means none.
 Role = Literal["owner", "manager", "admin", ""]
 
@@ -65,11 +65,36 @@ class PVCSource(BaseModel):
     subPath: str = ""
 
 
+# Ports the apps-authz sidecar takes in every image App's pod (its listener
+# and its probe port), so the image may not listen on them.
+IMAGE_RESERVED_PORTS = (8080, 8082)
+IMAGE_PORT_MIN = 1024
+IMAGE_PORT_MAX = 65535
+IMAGE_REFERENCE_MAX_LENGTH = 512
+IMAGE_MAX_ARGS = 64
+IMAGE_ARG_MAX_LENGTH = 4096
+ImageArg = Annotated[str, StringConstraints(max_length=IMAGE_ARG_MAX_LENGTH)]
+
+
+class ImageSource(BaseModel):
+    """A prebuilt container image run as the app container. The reference
+    must carry a tag or digest and match the registry allowlist (images.py).
+    """
+
+    reference: str = Field(min_length=1, max_length=IMAGE_REFERENCE_MAX_LENGTH)
+    port: int = Field(ge=IMAGE_PORT_MIN, le=IMAGE_PORT_MAX)
+    command: list[ImageArg] = Field(default_factory=list, max_length=IMAGE_MAX_ARGS)
+    args: list[ImageArg] = Field(default_factory=list, max_length=IMAGE_MAX_ARGS)
+    # A non-zero uid for images whose USER is a name; images never run as root.
+    runAsUser: int | None = Field(default=None, ge=1)
+
+
 class AppSource(BaseModel):
     type: SourceType
     git: GitSource | None = None
     inline: InlineSource | None = None
     pvc: PVCSource | None = None
+    image: ImageSource | None = None
 
 
 class EnvVar(BaseModel):
@@ -278,6 +303,9 @@ class Capabilities(BaseModel):
     namespaces: list[str] = Field(default_factory=list)
     # Cluster default idle timeout (0: apps stay up unless they set one).
     idleTimeoutMinutes: int = 0
+    # Registry allowlist for source type image (normalized; empty: off, and
+    # "image" is left out of sourceTypes).
+    imageRegistries: list[str] = Field(default_factory=list)
 
 
 class AnalyticsSummary(BaseModel):

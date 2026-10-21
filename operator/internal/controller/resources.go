@@ -12,7 +12,8 @@ import (
 
 // Built-in defaults for launched pods whose App sets no runtime.resources.
 // Static apps are nginx serving files; Python apps resolve a pixi
-// environment on cold start, which needs real memory.
+// environment on cold start, which needs real memory. Image apps are
+// services like Python apps and share their defaults.
 var (
 	DefaultStaticResources = corev1.ResourceRequirements{
 		Requests: corev1.ResourceList{
@@ -56,7 +57,7 @@ func ParseResources(raw string, fallback corev1.ResourceRequirements) (corev1.Re
 // request.
 func (c OperatorConfig) appResources(app *appsv1alpha1.App) corev1.ResourceRequirements {
 	def := c.StaticResources
-	if app.Spec.Runtime.PixiTask != "" {
+	if app.Spec.Runtime.PixiTask != "" || app.Spec.Source.Type == appsv1alpha1.SourceTypeImage {
 		def = c.PythonResources
 	}
 	out := *app.Spec.Runtime.Resources.DeepCopy()

@@ -77,6 +77,18 @@ Status fields in the backup are ignored; the operator recomputes them.
 
 ## Version notes
 
+### Upgrading to container images
+
+- **Re-apply the CRD first.** It adds `source.type: image` and `source.image`, plus CEL rules
+  that require `source.image` for that type and keep its port off the sidecar's 8080 and
+  8082. Existing Apps are unaffected.
+- **Off unless you turn it on.** `apps.image.allowedRegistries` defaults to empty, which
+  refuses every image App (UI, API, MCP and `kubectl` alike). Set it, and
+  `apps.image.pullSecrets` for private registries, to enable the source; see
+  [Image registries](/configuration/#image-registries).
+- No RBAC changes: the operator only sets `imagePullSecrets` by name on the pods it already
+  creates.
+
 ### Upgrading to App secrets
 
 - **Re-apply the CRD first.** It adds `runtime.secretKeys`, caps `runtime.env` at 256

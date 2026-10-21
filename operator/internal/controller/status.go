@@ -6,6 +6,7 @@ import (
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -42,6 +43,10 @@ func (r *AppReconciler) aggregateStatus(ctx context.Context, app *appsv1alpha1.A
 		desired = *deploy.Spec.Replicas
 	}
 	ready := deploy.Status.ReadyReplicas
+	prevWorkload := ""
+	if c := meta.FindStatusCondition(app.Status.Conditions, appsv1alpha1.ConditionWorkloadReady); c != nil {
+		prevWorkload = c.Reason
+	}
 	app.Status.Replicas = &appsv1alpha1.AppReplicas{Desired: desired, Ready: ready}
 
 	switch {
@@ -58,6 +63,18 @@ func (r *AppReconciler) aggregateStatus(ctx context.Context, app *appsv1alpha1.A
 	}
 	workloadReady := meta.IsStatusConditionTrue(app.Status.Conditions, appsv1alpha1.ConditionWorkloadReady)
 
+	// An image the kubelet refuses to start (root user, failed pull) is
+	// reported as such rather than as an endless Deploying.
+	var problem, problemMsg string
+	if isImage(app) && desired > 0 && !workloadReady {
+		if problem, problemMsg = r.imagePodProblem(ctx, app); problem != "" {
+			if problem != prevWorkload && r.Recorder != nil {
+				r.Recorder.Event(app, corev1.EventTypeWarning, problem, problemMsg)
+			}
+			setCondition(app, appsv1alpha1.ConditionWorkloadReady, metav1.ConditionFalse, problem, problemMsg)
+		}
+	}
+
 	// Routing readiness mirrors the NebariApp Ready condition.
 	routingReady := r.readNebariAppReady(ctx, app)
 
@@ -71,6 +88,9 @@ func (r *AppReconciler) aggregateStatus(ctx context.Context, app *appsv1alpha1.A
 	case desired == 0:
 		app.Status.Phase = appsv1alpha1.AppPhaseStopped
 		app.Status.Message = "app is scaled to zero"
+	case problem != "":
+		app.Status.Phase = appsv1alpha1.AppPhaseFailed
+		app.Status.Message = problemMsg
 	case idle.waking:
 		app.Status.Phase = appsv1alpha1.AppPhaseDeploying
 		app.Status.Message = "waking up: a request arrived while the app was idle"

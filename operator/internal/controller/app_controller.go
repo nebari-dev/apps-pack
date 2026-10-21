@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -82,6 +83,13 @@ type OperatorConfig struct {
 	// Idling needs both, and AuthzImage.
 	ActivatorService   string
 	ActivatorNamespace string
+	// ImageRegistries is the normalized allowlist for source type image
+	// (ParseRegistryAllowlist; imageref.go has the matching rules). Empty
+	// refuses every image App.
+	ImageRegistries []string
+	// ImagePullSecrets name Secrets in each App namespace that image Apps'
+	// pods pull with (private registries).
+	ImagePullSecrets []string
 }
 
 // LandingPageEnabled reports whether an App should appear on the landing page:
@@ -178,6 +186,18 @@ func (r *AppReconciler) reconcileChildren(ctx context.Context, app *appsv1alpha1
 			reason = ForbiddenEnvReference
 			if r.Recorder != nil {
 				r.Recorder.Event(app, corev1.EventTypeWarning, reason, err.Error())
+			}
+		}
+		if isImageNotAllowed(err) {
+			// The allowlist is the boundary for kubectl and GitOps authors
+			// too: an image App outside it (or one left behind when the
+			// allowlist shrinks) runs no pods.
+			reason = appsv1alpha1.ReasonImageNotAllowed
+			if r.Recorder != nil {
+				r.Recorder.Event(app, corev1.EventTypeWarning, reason, err.Error())
+			}
+			if serr := r.stopWorkload(ctx, app); serr != nil {
+				return idleState{}, fmt.Errorf("scaling down a disallowed image: %w", serr)
 			}
 		}
 		if isSubdomainTaken(err) {
@@ -304,6 +324,10 @@ func (r *AppReconciler) validate(ctx context.Context, app *appsv1alpha1.App) err
 		if err := r.checkMountable(ctx, app); err != nil {
 			return err
 		}
+	case appsv1alpha1.SourceTypeImage:
+		if err := r.Config.validateImageSource(app); err != nil {
+			return err
+		}
 	default:
 		return fmt.Errorf("unknown source type %q", app.Spec.Source.Type)
 	}
@@ -318,6 +342,50 @@ func (r *AppReconciler) validate(ctx context.Context, app *appsv1alpha1.App) err
 		return err
 	}
 	return r.checkSubdomain(ctx, app)
+}
+
+// validateImageSource checks an image App: the reference is inside the
+// allowlist, the port leaves the sidecar's ports free, and the App does not
+// also ask for a pixi task.
+func (c OperatorConfig) validateImageSource(app *appsv1alpha1.App) error {
+	src := app.Spec.Source.Image
+	if src == nil || src.Reference == "" {
+		return fmt.Errorf("source.image.reference is required for source type image")
+	}
+	if app.Spec.Runtime.PixiTask != "" {
+		return fmt.Errorf("runtime.pixiTask cannot be combined with source type image: the image runs its own server")
+	}
+	if src.Port < 1024 || src.Port > 65535 || src.Port == AppPort || src.Port == authzHealthPort {
+		return fmt.Errorf("source.image.port %d must be 1024-65535 and not %d or %d (the authz sidecar's ports)",
+			src.Port, AppPort, authzHealthPort)
+	}
+	if src.RunAsUser != nil && *src.RunAsUser < 1 {
+		return fmt.Errorf("source.image.runAsUser must be a non-zero uid: image apps never run as root")
+	}
+	_, err := c.checkImage(src.Reference)
+	return err
+}
+
+func isImageNotAllowed(err error) bool {
+	var e errImageNotAllowed
+	return errors.As(err, &e)
+}
+
+// stopWorkload scales an existing Deployment of the App to zero.
+func (r *AppReconciler) stopWorkload(ctx context.Context, app *appsv1alpha1.App) error {
+	deploy := &appsv1.Deployment{}
+	err := r.Get(ctx, types.NamespacedName{Name: childName(app), Namespace: app.Namespace}, deploy)
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if deploy.Spec.Replicas != nil && *deploy.Spec.Replicas == 0 {
+		return nil
+	}
+	deploy.Spec.Replicas = ptr.To(int32(0))
+	return r.Update(ctx, deploy)
 }
 
 // apply creates obj or updates the existing object via the mutate callback,

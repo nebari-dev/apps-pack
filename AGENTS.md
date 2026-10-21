@@ -17,9 +17,9 @@ Keycloak auth. See [`docs/src/content/docs/architecture.md`](docs/src/content/do
 
 | Path | What | Key files |
 |---|---|---|
-| `operator/` | Go operator (controller-runtime) | `api/v1alpha1/app_types.go` (the CRD), `internal/controller/app_controller.go` (reconcile pipeline), `internal/controller/workload.go` (pod spec), `internal/controller/authz.go` (the authz sidecar for Apps with groups/users or that can idle), `internal/controller/idle.go` (scale to zero: activity polling, the Idle phase, the activator ReferenceGrant), `internal/controller/activator.go` (the page idle Apps serve while they wake), `internal/controller/sources.go` (source volumes and init containers), `internal/controller/routing.go` (NebariApp) |
+| `operator/` | Go operator (controller-runtime) | `api/v1alpha1/app_types.go` (the CRD), `internal/controller/app_controller.go` (reconcile pipeline), `internal/controller/workload.go` (pod spec), `internal/controller/authz.go` (the authz sidecar for Apps with groups/users, that can idle, or that run an image), `internal/controller/idle.go` (scale to zero: activity polling, the Idle phase, the activator ReferenceGrant), `internal/controller/activator.go` (the page idle Apps serve while they wake), `internal/controller/sources.go` (source volumes and init containers), `internal/controller/imageref.go` (image references and the registry allowlist for `source.type: image`), `internal/controller/routing.go` (NebariApp) |
 | `authz/` | Go sidecar: verifies the forwarded access token and enforces `access.groups`/`access.users` (403 otherwise); in passthrough mode (unrestricted Apps that can idle) it only proxies. Either way it reports activity for the idle check | `main.go` (env config), `internal/gate/verify.go` (token checks), `internal/gate/proxy.go` (proxy + probes), `internal/gate/activity.go` (`/activity`) |
-| `api/` | FastAPI REST API over App CRs | `src/nebari_apps_api/main.py` (routes), `auth.py` (JWT + owner/admin checks), `models.py` (request/response models), `cr.py` (model ↔ CR), `k8s.py` (store) |
+| `api/` | FastAPI REST API over App CRs | `src/nebari_apps_api/main.py` (routes), `auth.py` (JWT + owner/admin checks), `models.py` (request/response models), `cr.py` (model ↔ CR), `images.py` (image allowlist, mirrors `imageref.go`), `k8s.py` (store) |
 | `mcp/` | FastMCP server, agent tools at `/mcp` | `src/nebari_apps_mcp/server.py` (tools), `auth.py` (device flow, sessions), `untrusted.py` (fencing app output) |
 | `ui/` | React + Vite UI on the Nebari design registry | `src/pages/`, `src/components/` (`app-form/`: state, sections), `src/hooks/use-app-actions.ts`, `src/lib/api.ts`, `src/lib/types.ts` (over the generated `crd.gen.ts`) |
 | `charts/nebari-apps/` | Helm chart: CRD, operator, api, ui, mcp | `values.yaml`, `templates/`, `crds/apps.nebari.dev_apps.yaml` (generated) |
@@ -75,8 +75,8 @@ helm lint charts/nebari-apps --set clusterDomain=nebari.example.com
 - **App pods are untrusted user code.** Keep them non-root, capability-free, without a
   ServiceAccount token, and with resource limits. User input reaches init containers through
   environment variables, never shell interpolation. The `app` container stays first and
-  keeps its name (logs default to it); restricted Apps and Apps that can idle add the `authz`
-  sidecar after it. The operator reads idle Apps' activity from the pod, so treat that answer as
+  keeps its name (logs default to it); restricted Apps, Apps that can idle and image Apps add the
+  `authz` sidecar after it. The operator reads idle Apps' activity from the pod, so treat that answer as
   untrusted too (bounded, clamped, failure counts as activity). MCP tools return app-controlled text
   (logs, files) only through the fences in `mcp/src/nebari_apps_mcp/untrusted.py`.
 - **Secret values never enter the App.** `spec.runtime.secretKeys` holds names only;
@@ -87,6 +87,11 @@ helm lint charts/nebari-apps --set clusterDomain=nebari.example.com
   use `valueFrom.secretKeyRef` (or a `configMapKeyRef` to another App's generated
   ConfigMap): the kubelet would resolve it for any Secret in the namespace. The CRD's CEL
   rule, apps-api (`cr.forbidden_env_ref`) and the operator (`envrefs.go`) all refuse it.
+- **Image Apps only run allowlisted images.** The operator (`imageref.go`) is the boundary:
+  it checks every App, scales one outside `--image-registries` to zero, and runs the
+  normalized reference it checked. apps-api (`images.py`) mirrors the parsing and matching
+  rules for early 422s; change both together, with the shared test cases. Image pods keep the
+  untrusted-pod rules below and never relax `runAsNonRoot` for a root image.
 - **Version strings are owned by release-please.** Never hand-edit the version in
   `charts/nebari-apps/Chart.yaml`, the `__version__` files, or `ui/package.json`; the
   "Version strings" check compares them with `.release-please-manifest.json`.

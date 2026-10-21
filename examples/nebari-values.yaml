@@ -34,3 +34,8 @@ apps:
   # runtime.idleTimeoutMinutes, or out with runtime.keepAlive: true).
   idle:
     timeoutMinutes: 0
+  # Prebuilt container images (source.type: image) from these registries only;
+  # empty keeps image apps off. Pull secrets must exist in each app namespace.
+  image:
+    allowedRegistries: []      # e.g. [ghcr.io/my-org, docker.io/library]
+    pullSecrets: []            # e.g. [registry-credentials]

@@ -70,13 +70,16 @@ status:
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `type` | string | Yes | `git` \| `inline` \| `pvc`. Exactly one matching payload field must be set. |
+| `type` | string | Yes | `git` \| `inline` \| `pvc` \| `image`. Exactly one matching payload field must be set (the CRD requires `image` for `type: image`). |
 | `inline` | [InlineSource](#inlinesource) | For `inline` | Small content carried in the CR. |
 | `git` | [GitSource](#gitsource) | For `git` | Content cloned from a git repository. |
 | `pvc` | [PVCSource](#pvcsource) | For `pvc` | Content already present on a PersistentVolumeClaim. |
+| `image` | [ImageSource](#imagesource) | For `image` | A prebuilt container image, run as the app container. |
 
-The source is independent of the app **kind**: without `runtime.pixiTask` the content is
-served statically by nginx; with it, the content is a pixi project run as a Python app.
+For `git`, `inline` and `pvc` the source is independent of the app **kind**: without
+`runtime.pixiTask` the content is served statically by nginx; with it, the content is a pixi
+project run as a Python app. An `image` source runs its own server, so it cannot be combined
+with `runtime.pixiTask`.
 
 ### InlineSource
 
@@ -102,17 +105,74 @@ current state of the ref.
 | `claimName` | string | Yes | Name of an existing PersistentVolumeClaim in the app's namespace. The claim must be labeled `apps.nebari.dev/mountable=true` (its owner's opt-in); otherwise the App is `Failed` with `Validated=False`. Adding the label later re-validates the App. |
 | `subPath` | string | No | Sub-path within the volume to serve. |
 
+### ImageSource
+
+Runs a published container image instead of serving or building content. **Off by default:**
+the cluster must allow the image's registry in the chart's `apps.image.allowedRegistries`
+(see [Image registries](/configuration/#image-registries)); with an empty allowlist every
+image App is refused.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `reference` | string | Yes | The image, with a **tag or a digest**: `ghcr.io/org/app:1.2.3`, `ghcr.io/org/app@sha256:<64 hex>`, or both. An implicit `:latest` is refused. Docker Hub short names are expanded the way the container runtime does (`nginx:1.27` is `docker.io/library/nginx:1.27`; `index.docker.io` is `docker.io`), and the pod runs that normalized reference, so the kubelet pulls exactly what was checked. Max 512 chars. See [allowlist matching](#image-allowlist-matching). |
+| `port` | int | Yes | The port the image's server listens on (on `0.0.0.0` or `127.0.0.1`), `1024`–`65535`, not `8080` or `8082`: the `authz` sidecar always fronts image Apps on 8080 and serves its probes on 8082. Also passed to the container as `$PORT`. |
+| `command` | []string | No | Replaces the image's `ENTRYPOINT` (exec form, no shell), at most 64 entries of 4096 chars. |
+| `args` | []string | No | Replaces the image's `CMD` (exec form, no shell), same bounds. |
+| `runAsUser` | int64 | No | A non-zero uid to run as. Set it for an image whose `USER` is a name rather than a number, which the kubelet cannot verify as non-root. `0` is refused. |
+
+The pod keeps the invariants of every other App: `runAsNonRoot`, seccomp `RuntimeDefault`, no
+privilege escalation, every capability dropped, no ServiceAccount token, and cpu/memory
+limits (the chart's `apps.defaultResources.python` fills what `runtime.resources` leaves
+unset). The root filesystem stays writable, as for the other app containers. `runtime.env`
+and `runtime.secretKeys` work as for any App, with the same `valueFrom` restrictions.
+
+- **Root images.** The operator never relaxes `runAsNonRoot`. An image whose `USER` is root
+  (or a name) cannot start: the App goes `Failed` with `WorkloadReady=False`, reason
+  `ImageRunsAsRoot`, a message that says how to fix it (rebuild with a numeric non-root
+  `USER`, or set `runAsUser`), and a Warning event.
+- **Pull failures.** `ErrImagePull`, `ImagePullBackOff` and `InvalidImageName` turn into
+  `Failed` with reason `ImagePullFailed` and the kubelet's message (truncated).
+- **Pull policy.** A tag is pulled on every pod start (`imagePullPolicy: Always`: a moved tag
+  is picked up on restart, and the registry re-checks the pull credentials); a digest is
+  immutable and pulled once per node (`IfNotPresent`). Pin a digest for reproducible
+  deployments.
+- **Private registries.** Pods pull with the Secrets named in the chart's
+  `apps.image.pullSecrets`, which must exist in each App namespace.
+- **Outside the allowlist.** The operator checks every App, however it was written (UI, API,
+  MCP, `kubectl`, GitOps): an image outside the allowlist (or any image while it is empty) is
+  `Failed` with `Validated=False`, reason `ImageNotAllowed`, a Warning event, and its
+  Deployment is **scaled to zero**, so removing a registry from the allowlist stops the Apps
+  that use it once the operator restarts with the new list. apps-api refuses the same images
+  with a `422`.
+
+#### Image allowlist matching
+
+Each entry is `<registry host>[:port][/<repository prefix>]`, normalized like references
+(lowercase host, `docker.io` for Docker Hub's aliases). An image matches when its normalized
+`<host>/<repository>` **equals** an entry or **continues it with `/`**:
+
+| Entry | Allows | Does not allow |
+|---|---|---|
+| `ghcr.io/org` | `ghcr.io/org/app:1`, `ghcr.io/org/team/app:1` | `ghcr.io/org-evil/app:1`, `ghcr.io/other/app:1`, `ghcr.io.evil.com/org/app:1` |
+| `docker.io/library` | `nginx:1.27`, `docker.io/library/redis:7` | `bitnami/nginx:1` (that is `docker.io/bitnami/nginx`) |
+| `quay.io` | anything on `quay.io` | `sub.quay.io/…`, `quay.io.example.net/…` |
+| `registry.example.com:5000` | `registry.example.com:5000/x/y:1` | `registry.example.com/x/y:1` (the port is part of the host) |
+
+Hosts compare whole and prefixes compare whole path components; there are no wildcards. An
+entry must start with a host (`docker.io`, not `library`) and carries no tag or digest; the
+operator and apps-api refuse to start with a malformed one.
+
 ## spec.runtime
 
 | Field | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `env` | [][EnvVar](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#environment-variables) | No | — | Plain environment variables, at most 256. Their values are stored in the App and shown to everyone who can read it (`kubectl get app`, `GET /apps`, MCP tools): never put credentials here, use `secretKeys`. The kubelet resolves `valueFrom` with its own rights, so references that would read other Apps' data are refused: **no `valueFrom.secretKeyRef`** (the CRD rejects it; use `secretKeys`), and no `configMapKeyRef` to another App's generated ConfigMap (`app-<other>-content`, `app-<other>-server`). The operator also checks both, so an App stored before these rules goes `Failed` with `Validated=False`, reason `ForbiddenEnvReference` (plus a Warning event), and its workload is not created or updated. `fieldRef`, `resourceFieldRef`, `fileKeyRef` and other `configMapKeyRef`s are allowed. |
 | `secretKeys` | []string | No | — | Names of keys in the App's Secret, `app-<name>-secrets` in its namespace, each injected into the `app` container as an environment variable of the same name (`valueFrom.secretKeyRef`). Names must be environment variable names (`^[A-Za-z_][A-Za-z0-9_]*$`, max 128 chars), unique, at most 64. The App holds only the names: apps-api writes the values and keeps this list in step (it ignores a list sent without values); GitOps can create the Secret itself. Until the Secret and each listed key exist the container does not start (`CreateContainerConfigError`). A changed `apps.nebari.dev/secrets-version` annotation on the App rolls the pods. See [Secrets](#secrets). |
-| `resources` | [ResourceRequirements](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) | No | chart `apps.defaultResources` | CPU/memory requests and limits. Any cpu/memory request or limit left unset is filled from the cluster default for the app kind (static or Python); a filled limit never drops below the App's own request. Init containers get the same bounds. |
+| `resources` | [ResourceRequirements](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) | No | chart `apps.defaultResources` | CPU/memory requests and limits. Any cpu/memory request or limit left unset is filled from the cluster default for the app kind (static, or Python for pixi and image apps); a filled limit never drops below the App's own request. Init containers get the same bounds. |
 | `replicas` | int | No | `1` | Desired replicas, `0`–`10`. `0` stops the app (phase `Stopped`). |
 | `keepAlive` | bool | No | `false` | `true` exempts the app from [scale to zero](#scale-to-zero): it keeps running however long it goes without a request, whatever `idleTimeoutMinutes` or the cluster default say. |
 | `idleTimeoutMinutes` | int | No | chart `apps.idle.timeoutMinutes` | Minutes without a request before the operator scales the app to zero (phase `Idle`), `5`–`43200`. Unset follows the cluster default (`0` there keeps apps running), so an App can opt in on a cluster that does not idle by default. Ignored when `keepAlive` is `true` or `replicas` is `0`. See [Scale to zero](#scale-to-zero). |
-| `pixiTask` | string | No | — | When set, the app runs as a **Python/pixi service**: the operator copies the source into a writable workspace, runs `pixi install` (`--locked` when a `pixi.lock` is present), then `pixi run <pixiTask>`. The task must start a server on `0.0.0.0:$PORT` (`PORT` and `HOME=/app` are injected; `PORT` is 8080, or 8081 when the sidecar takes 8080: `access.groups` or `access.users` is set, or the app can idle). Max 64 chars. |
+| `pixiTask` | string | No | — | Not allowed with `source.type: image`. When set, the app runs as a **Python/pixi service**: the operator copies the source into a writable workspace, runs `pixi install` (`--locked` when a `pixi.lock` is present), then `pixi run <pixiTask>`. The task must start a server on `0.0.0.0:$PORT` (`PORT` and `HOME=/app` are injected; `PORT` is 8080, or 8081 when the sidecar takes 8080: `access.groups` or `access.users` is set, or the app can idle). Max 64 chars. |
 
 ## spec.access
 
@@ -147,8 +207,8 @@ current state of the ref.
 
 | Condition | Meaning |
 |---|---|
-| `Validated` | The spec is coherent and the namespace is opted in. `False` with reason `ValidationFailed` is terminal until the spec changes. |
-| `WorkloadReady` | The Deployment has rolled out the current pod template and all desired replicas are ready. `False` with reason `RollingOut` while pods of an older template remain (after an edit or a restart), so a `Running` app goes back to `Deploying` until the new pods are serving. |
+| `Validated` | The spec is coherent and the namespace is opted in. `False` with reason `ValidationFailed` is terminal until the spec changes; `ImageNotAllowed` means an image source outside the registry allowlist (its Deployment is scaled to zero). |
+| `WorkloadReady` | The Deployment has rolled out the current pod template and all desired replicas are ready. `False` with reason `RollingOut` while pods of an older template remain (after an edit or a restart), so a `Running` app goes back to `Deploying` until the new pods are serving. For image apps, `ImageRunsAsRoot` and `ImagePullFailed` mean the kubelet cannot start the image (phase `Failed`). |
 | `RoutingReady` | Mirrors the child `NebariApp`'s `Ready` condition (routing, TLS, auth). |
 
 Each condition's `observedGeneration` is the App generation that set it. When validation fails the operator stops before re-checking the workload and routing, so those two keep the generation they were last evaluated at until the spec is valid again.
@@ -161,7 +221,7 @@ For each `App` the operator creates (and owns, via `ownerReferences`):
 |---|---|---|
 | ConfigMap | `app-<name>-content` | Inline source files (inline apps only). |
 | ConfigMap | `app-<name>-server` | The nginx server config with security headers (static apps only). |
-| Deployment | `app-<name>` | The app workload (hardened: non-root, no privilege escalation, seccomp `RuntimeDefault`). The `app` container comes first; an App that lists `access.groups` or `access.users`, or that can idle, also gets the `authz` sidecar on 8080, with the app on 8081 (for an unrestricted App the sidecar runs in passthrough mode and only records activity). Scaled to zero while the App is `Idle`. |
+| Deployment | `app-<name>` | The app workload (hardened: non-root, no privilege escalation, seccomp `RuntimeDefault`). The `app` container comes first; an App that lists `access.groups` or `access.users`, that can idle, or that runs an image also gets the `authz` sidecar on 8080, with the app on 8081 (an image app on its own `source.image.port`). For an unrestricted App the sidecar runs in passthrough mode and only records activity. Scaled to zero while the App is `Idle`. |
 | Service | `app-<name>` | ClusterIP on port 8080 (the app, or the authz sidecar in front of it). |
 | NebariApp | `app-<name>` | Routing + TLS + auth + (opt-in) landing-page tile, reconciled by the nebari-operator (contract pinned to `%NEBARI_OPERATOR_VERSION%`). While the App is `Idle` or waking, `spec.service` points at the activator Service in the pack's namespace. |
 

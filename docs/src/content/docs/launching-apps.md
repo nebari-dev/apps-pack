@@ -5,13 +5,15 @@ title: Launching apps
 Every launch path produces the same `App` custom resource — the UI and API are conveniences
 over one contract, so behavior is identical regardless of how an app was created.
 
-This pack deploys two kinds of app:
+This pack deploys three kinds of app:
 
 - **Static sites** (HTML/CSS/JS) — served by nginx.
 - **Python apps** — launched by a [pixi](https://pixi.sh) task (`runtime.pixiTask`); the
   platform runs `pixi install` then `pixi run <task>`, and the task must start a server
   on **0.0.0.0:$PORT** (`PORT` is injected: 8080, or 8081 when the app is
   [restricted to groups or users](#access-control)).
+- **Container images** — a published image (Streamlit, Gradio, Shiny, Dash, a Node service)
+  run as is, when the cluster allows its registry. See [Container images](#container-images).
 
 ## Sources
 
@@ -24,16 +26,20 @@ served statically.
 | `inline` | small apps (text files, ~900KB) | Files carried in the `App` resource, mounted from a ConfigMap. |
 | `git` | version-controlled apps | A non-root init container clones the repo at pod start. |
 | `pvc` | larger apps, existing volumes | An existing PersistentVolumeClaim mounted (static) or copied into the workspace (Python). The claim must be labeled `apps.nebari.dev/mountable=true`. |
+| `image` | apps that already ship as an image | The image runs as the app container. Only images from the cluster's allowed registries; never combined with `runtime.pixiTask`. |
 
 ## From the UI
 
 Open `https://apps.<cluster-domain>`:
 
-1. **Launch app** → name, display name, namespace, and **app type** (static site or
-   Python app). For Python apps, enter the **launch task** — the pixi task that starts
-   your server.
+1. **Launch app** → name, display name, namespace, and **app type** (static site, Python
+   app, or container image when the cluster allows one). For Python apps, enter the
+   **launch task** — the pixi task that starts your server.
 2. **Source** — **Upload** (a `.zip` of your app, or a single `.html` file for static
-   sites), **Git**, or **Volume (PVC)**.
+   sites), **Git**, or **Volume (PVC)**. A container image instead gets an **Image** card:
+   the image with its tag or digest (the allowed registries are listed under it), the
+   **port** it listens on, and optionally a command, arguments (one per line) and a user ID.
+   An edit keeps the app's type: switch between an image and a source by relaunching.
 3. **Runtime** — plain environment variables, which anyone who can see the app can read
    (the form says so: put credentials under Secrets). **Advanced** holds replicas, the Small/Medium/Large
    presets, CPU/memory requests and limits, **Keep running when idle** (`keepAlive`) and the
@@ -125,6 +131,59 @@ The contract:
   commit a `pixi.lock` and the startup probe allows up to ten minutes.
 
 See [`examples/python-inline-app.yaml`](https://github.com/nebari-dev/apps-pack/blob/main/examples/python-inline-app.yaml)
+for a complete resource.
+
+## Container images
+
+Bring an image your CI already publishes; the cluster does not build images. A platform admin
+first allows the registry (chart `apps.image.allowedRegistries`, see
+[Image registries](/configuration/#image-registries)); until then the UI does not offer the
+type and the API refuses it.
+
+```yaml
+apiVersion: apps.nebari.dev/v1alpha1
+kind: App
+metadata:
+  name: sales-dash
+  namespace: apps
+spec:
+  displayName: "Sales dashboard"
+  source:
+    type: image
+    image:
+      reference: ghcr.io/my-org/sales-dash:1.4.2   # or @sha256:<digest>
+      port: 8501                                   # where the image's server listens
+      args: ["--server.address=0.0.0.0"]           # optional; command replaces ENTRYPOINT
+  runtime:
+    secretKeys: [DATABASE_URL]
+  access:
+    groups: ["sales"]
+    subdomain: sales-dash
+```
+
+What to know:
+
+- **Tag or digest, from an allowed registry.** `ghcr.io/my-org` allows `ghcr.io/my-org/…`
+  and nothing else (not `ghcr.io/my-org-other`); `docker.io/library` allows Docker Hub's
+  official images such as `nginx:1.27`. The rules are in the
+  [CRD reference](/app-crd-reference/#image-allowlist-matching). A tag is pulled again on
+  every start; a digest pins the image.
+- **The port.** Set `port` to where the server listens (on `0.0.0.0` or `127.0.0.1`), from
+  1024 up and not 8080 or 8082: the pack's sidecar always sits in front of an image app on
+  8080, enforcing `access.groups`/`access.users` and recording activity for
+  [idling](#idle-apps). The port is also passed as `$PORT`.
+- **Non-root.** The image must run as a non-root user, with no capabilities and no
+  Kubernetes credentials. An image whose `USER` is root never starts: the app shows
+  `Failed` with reason `ImageRunsAsRoot`. Rebuild it with a numeric non-root `USER` (e.g.
+  `USER 1000`), or, if its `USER` is a name like `appuser`, set `runAsUser` to that user's
+  uid. Many images also want a writable home or cache directory; point it at `/tmp` with an
+  environment variable if the image's own directories belong to root.
+- **Private registries** work when the admin sets `apps.image.pullSecrets`. A wrong reference
+  or missing credentials show as `Failed` with reason `ImagePullFailed`.
+- Secrets, environment variables, resources, replicas, access, managers and idling work as
+  for every other app.
+
+See [`examples/image-app.yaml`](https://github.com/nebari-dev/apps-pack/blob/main/examples/image-app.yaml)
 for a complete resource.
 
 ## From the API

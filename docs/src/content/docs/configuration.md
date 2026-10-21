@@ -25,7 +25,9 @@ only `clusterDomain` and `keycloak.url` need changing.
 
 | Value | Default | Purpose |
 |---|---|---|
-| `apps.defaultResources.static` / `.python` | 50m/64Mi → 500m/256Mi; 250m/512Mi → 2/2Gi | Requests/limits filled in for any cpu/memory value an App's `runtime.resources` leaves unset (static apps vs `runtime.pixiTask` apps). |
+| `apps.defaultResources.static` / `.python` | 50m/64Mi → 500m/256Mi; 250m/512Mi → 2/2Gi | Requests/limits filled in for any cpu/memory value an App's `runtime.resources` leaves unset (static apps vs `runtime.pixiTask` and image apps). |
+| `apps.image.allowedRegistries` | `[]` (image apps off) | Registries, optionally narrowed to a repository prefix, that `source.type: image` Apps may pull from. See [Image registries](#image-registries). |
+| `apps.image.pullSecrets` | `[]` | Names of `kubernetes.io/dockerconfigjson` Secrets image App pods pull with (private registries). Each must exist in every App namespace. |
 | `apps.limitRange.enabled` | `false` | Render a `LimitRange` (`default`, `defaultRequest`, `max`) into every `api.allowedNamespaces` namespace. The namespaces must exist. |
 | `apps.idle.timeoutMinutes` | `0` | Cluster default for [scale to zero](/app-crd-reference/#scale-to-zero): an App that goes this many minutes without a request is scaled to zero (phase `Idle`) and wakes on the next request to its URL. `0` keeps apps running unless they set `runtime.idleTimeoutMinutes`; otherwise `5`–`43200`. Apps opt out with `runtime.keepAlive: true`. Apps that can idle run the authz sidecar (`authz.resources`) in passthrough mode, which records their activity. |
 | `apps.networkPolicy.enabled` | `false` | Render a `NetworkPolicy` for launched app pods in every `api.allowedNamespaces` namespace: ingress only from `gatewayNamespace` on port 8080, plus from the operator pods on port 8082 (the sidecar's health port, which the idle check reads); egress only to DNS and to the internet minus `blockedCIDRs` (private, CGNAT and link-local ranges by default), so app code cannot reach cluster-internal services. Needs a CNI that enforces NetworkPolicy. |
@@ -33,8 +35,48 @@ only `clusterDomain` and `keycloak.url` need changing.
 | `staticImage` | `nginxinc/nginx-unprivileged:1.27-alpine` | Serves static app content; must listen on 8080 as non-root. The operator mounts its nginx server config (security headers, `try_files`) over `/etc/nginx/conf.d`, so a replacement image should be nginx-based or ignore that directory. |
 | `gitImage` | `alpine/git:v2.47.2` | Init-container image that clones `git` sources. |
 | `pythonImage` | `ghcr.io/prefix-dev/pixi:0.68.1-noble` | Runs Python/pixi apps (`runtime.pixiTask`); must provide `pixi` and run as non-root. |
-| `authz.image.repository` / `tag` / `pullPolicy` | `ghcr.io/nebari-dev/apps-pack/apps-authz` / appVersion / `IfNotPresent` | The sidecar the operator adds to apps that list `access.groups` or `access.users`: it takes port 8080, checks the forwarded access token and returns `403` to everyone else (see [Access control](/launching-apps/#access-control)). Apps that can idle get it too; without groups or users it runs in passthrough mode and only records when the app last served a request. |
+| `authz.image.repository` / `tag` / `pullPolicy` | `ghcr.io/nebari-dev/apps-pack/apps-authz` / appVersion / `IfNotPresent` | The sidecar the operator adds to apps that list `access.groups` or `access.users`: it takes port 8080, checks the forwarded access token and returns `403` to everyone else (see [Access control](/launching-apps/#access-control)). Apps that can idle and image apps get it too; without groups or users it runs in passthrough mode and only records when the app last served a request. |
 | `authz.resources` | `10m`/`32Mi` requests, `100m`/`64Mi` limits | The sidecar's requests/limits, on top of the app container's, in every pod that runs it. |
+
+### Image registries
+
+Apps with `source.type: image` run a published container image. The feature is **off until a
+registry is allowed**, so platform teams decide which registries users may pull from:
+
+```yaml
+apps:
+  image:
+    allowedRegistries:
+      - ghcr.io/my-org          # this org's images only
+      - docker.io/library       # Docker Hub official images (nginx, redis, ...)
+      - registry.example.com:5000
+    pullSecrets:
+      - registry-credentials    # for private registries
+```
+
+- **Matching.** Each entry is `<host>[:port][/<repository prefix>]`. An image's reference is
+  normalized the way the container runtime reads it (`nginx:1.27` is
+  `docker.io/library/nginx:1.27`), and it is allowed when its `<host>/<repository>` equals an
+  entry or continues it with `/`. Hosts compare whole, so `ghcr.io` does not admit
+  `ghcr.io.evil.com`; prefixes compare whole path components, so `ghcr.io/my-org` does not
+  admit `ghcr.io/my-org-evil`; a port is part of the host. No wildcards. The
+  [CRD reference](/app-crd-reference/#image-allowlist-matching) has a table of examples.
+- **Where it is enforced.** The operator (`--image-registries`) checks every App, including
+  ones written with `kubectl` or GitOps, and scales an image App outside the list to zero
+  (reason `ImageNotAllowed`); apps-api (`IMAGE_REGISTRIES`) refuses such requests with `422`
+  and reports the list in `GET /capabilities`, which the UI and `describe_cluster` use. Both
+  refuse to start with a malformed entry. Removing a registry stops the Apps that use it once
+  the operator rolls with the new values (a chart upgrade does that).
+- **Allow narrowly.** An image App runs arbitrary code from that registry, inside the same
+  non-root, capability-free, resource-limited pod as any other App. Prefer an org prefix to a
+  whole public registry, and pair image apps with `apps.networkPolicy.enabled` on shared
+  clusters.
+- **Pull secrets.** The chart does not create them; create one per App namespace, e.g.
+  `kubectl -n apps create secret docker-registry registry-credentials --docker-server=ghcr.io
+  --docker-username=… --docker-password=…`. Every image App pod in the namespace pulls with
+  it, so any image App may run any image those credentials can read within the allowlist.
+  A tag is pulled on every pod start (`imagePullPolicy: Always`), so the registry re-checks
+  the credentials each time; a digest is pulled once per node.
 
 ## apps-operator
 
@@ -48,10 +90,11 @@ only `clusterDomain` and `keycloak.url` need changing.
 The operator reads its configuration from flags the chart renders
 (`--apps-domain`, `--gateway`, `--static-image`, `--git-image`, `--python-image`,
 `--tls-disabled`, `--landing-page`, `--leader-elect`, `--idle-timeout-minutes`,
-`--activator-service`, `--activator-namespace`); each flag also accepts the matching
+`--activator-service`, `--activator-namespace`, `--image-registries`,
+`--image-pull-secrets`); each flag also accepts the matching
 environment variable (`APPS_DOMAIN`, `GATEWAY`, `STATIC_IMAGE`, `GIT_IMAGE`, `PYTHON_IMAGE`,
-`TLS_DISABLED`, `LANDING_PAGE`, `IDLE_TIMEOUT_MINUTES`, `ACTIVATOR_SERVICE`, and
-`POD_NAMESPACE` for the activator's namespace).
+`TLS_DISABLED`, `LANDING_PAGE`, `IDLE_TIMEOUT_MINUTES`, `ACTIVATOR_SERVICE`,
+`IMAGE_REGISTRIES`, `IMAGE_PULL_SECRETS`, and `POD_NAMESPACE` for the activator's namespace).
 
 Every operator replica also serves the **activator** on port 8090 (`--activator-bind-address`),
 behind the `<release>-activator` Service: the page an idle App's URL shows while it starts (see
@@ -78,7 +121,7 @@ namespace.
 | `api.resources` | `500m/256Mi` (requests = limits) | Pod resources. |
 
 Environment the API container receives: `APPS_DOMAIN`, `APPS_NAMESPACES`, `APPS_ADMIN_GROUPS`, `AUTH_ENABLED`,
-`TLS_DISABLED`, `OIDC_ISSUER`, `OIDC_ISSUER_INTERNAL`, `UI_KEYCLOAK_URL`, `UI_KEYCLOAK_REALM`,
+`TLS_DISABLED`, `IMAGE_REGISTRIES` (from `apps.image.allowedRegistries`), `OIDC_ISSUER`, `OIDC_ISSUER_INTERNAL`, `UI_KEYCLOAK_URL`, `UI_KEYCLOAK_REALM`,
 `UI_KEYCLOAK_CLIENT_ID` and `OIDC_DEVICE_CLIENT_ID` (from the Secret the UI's `NebariApp`
 provisions), and `OIDC_ALLOWED_CLIENTS` (built from those two: a token is accepted only if its
 `azp` or `aud` names one of them; if the Secret is missing every token is rejected). The MCP

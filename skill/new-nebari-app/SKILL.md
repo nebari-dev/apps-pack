@@ -8,13 +8,19 @@ description: Scaffold a web app for the Nebari Apps Pack — a static site (HTML
 Apps on a Nebari cluster are launched from one declarative contract. This skill scaffolds
 app directories in that contract's layout — content plus a `nebari-app.yaml` manifest —
 and maps the manifest onto the `nebari-apps` MCP server's `launch_app` tool so
-"generate, then launch it" is one smooth flow. Two kinds of app are supported:
+"generate, then launch it" is one smooth flow. Two kinds of app are scaffolded:
 
 - **Static site**: HTML/CSS/JS served by the platform's nginx.
 - **Python app (pixi)**: a source tree with a `pixi.toml`; the platform runs
   `pixi install` then `pixi run <task>` (set in `runtime.pixiTask`), and the task must
   start a server on **0.0.0.0:$PORT** (`PORT` is injected: 8080, or 8081 when the app
   lists allowed groups or users).
+
+A third kind needs no scaffolding: an app that already ships as a **container image**. When
+`describe_cluster` lists `image` in `sourceTypes`, write a manifest with `source.type: image`
+(the image's reference with a tag or digest from one of `imageRegistries`, and the port it
+listens on) and launch it the same way. Do not write a Dockerfile or try to build an image:
+the user brings a published one.
 
 ## The layout
 
