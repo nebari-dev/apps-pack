@@ -10,6 +10,7 @@ import type { App } from "@/lib/types";
 vi.mock("@/lib/api", () => ({
   api: {
     listApps: vi.fn(),
+    clusterMetrics: vi.fn(),
     getApp: vi.fn(),
     logs: vi.fn(),
     events: vi.fn(),
@@ -21,7 +22,13 @@ vi.mock("@/lib/api", () => ({
   },
 }));
 
+vi.mock("@/lib/auth", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/auth")>()),
+  getUser: vi.fn(),
+}));
+
 const { api } = await import("@/lib/api");
+const { getUser } = await import("@/lib/auth");
 const { AppsPage } = await import("@/pages/apps");
 const { AppDetailPage } = await import("@/pages/app-detail");
 const mocked = vi.mocked(api);
@@ -65,8 +72,12 @@ function renderAt(path: string, routes: ReactElement) {
   );
 }
 
+const NO_RESTARTS = { usageAvailable: true, apps: [], byNamespace: [] };
+
 beforeEach(() => {
   vi.resetAllMocks();
+  mocked.clusterMetrics.mockResolvedValue(NO_RESTARTS);
+  vi.mocked(getUser).mockReturnValue(null);
 });
 
 describe("apps page", () => {
@@ -286,6 +297,104 @@ describe("apps page", () => {
       expect(screen.getByRole("alert")).toHaveTextContent("Failed to start betaquota exceeded"),
     );
     expect(mocked.startApp).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides the Mine chip when auth is off", async () => {
+    await renderApps();
+    expect(screen.queryByRole("button", { name: /^Mine/ })).not.toBeInTheDocument();
+    expect(names()).toHaveLength(3);
+  });
+
+  it("defaults Mine on for a user who owns an app, composing with the other filters", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getUser).mockReturnValue({ name: "bob", email: "bob@example.test" });
+    // renderApps waits for the second app, so make it one of bob's.
+    const [beta, ...rest] = LIST;
+    await renderApps([beta, app("delta", { phase: "Stopped", owner: "bob" }), ...rest]);
+    const mine = screen.getByRole("button", { name: /^Mine/ });
+    expect(mine).toHaveAttribute("aria-pressed", "true");
+    expect(within(mine).getByText("2")).toBeInTheDocument();
+    expect(names()).toEqual(["beta", "delta"]);
+    // The status chips count within Mine.
+    expect(within(screen.getByRole("button", { name: /^All/ })).getByText("2")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Failed/ })).not.toBeInTheDocument();
+
+    await user.type(screen.getByPlaceholderText(/Search by name/), "delta");
+    expect(names()).toEqual(["delta"]);
+    await user.click(screen.getByRole("button", { name: "Clear search" }));
+
+    await user.click(mine);
+    expect(mine).toHaveAttribute("aria-pressed", "false");
+    expect(names()).toHaveLength(4);
+    await user.click(screen.getByRole("button", { name: /^Failed/ }));
+    expect(names()).toEqual(["gamma"]);
+    await user.click(mine);
+    expect(screen.getByText("No apps match your filter.")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(mine).toHaveAttribute("aria-pressed", "false");
+    expect(names()).toHaveLength(4);
+  });
+
+  it("shows Mine off for a user who owns no app", async () => {
+    vi.mocked(getUser).mockReturnValue({ name: "carol", email: "" });
+    await renderApps();
+    const mine = screen.getByRole("button", { name: /^Mine/ });
+    expect(mine).toHaveAttribute("aria-pressed", "false");
+    expect(within(mine).getByText("0")).toBeInTheDocument();
+    expect(names()).toHaveLength(3);
+  });
+
+  it("flags failed and restarting apps and filters to them", async () => {
+    const user = userEvent.setup();
+    mocked.clusterMetrics.mockResolvedValue({
+      ...NO_RESTARTS,
+      apps: [{ namespace: "apps", name: "alpha", cpu: 1, memory: 1, restarts: 3 }],
+    });
+    await renderApps();
+    const banner = await screen.findByText("2 apps need attention");
+    const alert = banner.closest("[data-slot=alert]") as HTMLElement;
+    expect(alert).toHaveAttribute("role", "status");
+    expect(alert).toHaveTextContent("1 failed, 1 restarting");
+    expect(within(rowOf("Alpha Docs")).getByText("3 restarts")).toBeInTheDocument();
+
+    await user.click(within(alert).getByRole("button", { name: "Show" }));
+    expect(names()).toEqual(["gamma", "Alpha Docs"]);
+    expect(screen.getByRole("button", { name: /^Needs attention/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await user.click(screen.getByRole("button", { name: /^All/ }));
+    expect(names()).toHaveLength(3);
+  });
+
+  it("shows no attention banner when nothing failed or restarted", async () => {
+    await renderApps([app("alpha", { displayName: "Alpha Docs" }), app("beta")]);
+    await waitFor(() => expect(mocked.clusterMetrics).toHaveBeenCalled());
+    expect(screen.queryByText(/need attention/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Needs attention/ })).not.toBeInTheDocument();
+  });
+
+  it("opens only a running app's URL, in a new tab", async () => {
+    await renderApps([
+      app("alpha", { displayName: "Alpha Docs" }),
+      app("beta", { phase: "Stopped" }),
+      app("queued", { phase: "Deploying" }),
+    ]);
+    const open = within(rowOf("Alpha Docs")).getByRole("link", { name: "Open Alpha Docs" });
+    expect(open).toHaveAttribute("href", "https://alpha.apps.example.ai");
+    expect(open).toHaveAttribute("target", "_blank");
+    expect(open).toHaveAttribute("rel", "noopener noreferrer");
+    expect(within(rowOf("beta")).queryByRole("link", { name: /^Open/ })).not.toBeInTheDocument();
+    expect(within(rowOf("queued")).queryByRole("link", { name: /^Open/ })).not.toBeInTheDocument();
+  });
+
+  it("shows onboarding, without the filters, when there are no apps", async () => {
+    mocked.listApps.mockResolvedValue([]);
+    renderAt("/", <Route path="/" element={<AppsPage />} />);
+    expect(await screen.findByRole("heading", { name: "No apps yet" })).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/Search by name/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 
   it("selects every visible row", async () => {

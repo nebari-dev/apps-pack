@@ -32,13 +32,13 @@ const DONE: Record<AppAction, { title: string; description?: string }> = {
   delete: { title: "Deleted" },
 };
 
-/** Lists, the App's own page and the dashboard all show the result. */
+/** The apps list (with its restart counts) and the App's own page both show the result. */
 export function useInvalidateApps() {
   const queryClient = useQueryClient();
   return (app?: App) => {
     if (app) void queryClient.invalidateQueries({ queryKey: ["app", app.namespace, app.name] });
     void queryClient.invalidateQueries({ queryKey: ["apps"] });
-    void queryClient.invalidateQueries({ queryKey: ["analytics"] });
+    void queryClient.invalidateQueries({ queryKey: ["cluster-metrics"] });
   };
 }
 

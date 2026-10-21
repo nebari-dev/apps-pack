@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Pause, Play, Search, Trash2, X } from "lucide-react";
+import { AlertTriangle, Pause, Play, Search, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { ConfirmDeleteDialog, sourceLabel } from "@/components/app-bits";
@@ -13,6 +13,7 @@ import {
 } from "@/components/apps-table";
 import { Onboarding } from "@/components/onboarding";
 import { errorMessage, QueryError } from "@/components/query-error";
+import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -34,7 +35,10 @@ import {
   useInvalidateApps,
 } from "@/hooks/use-app-actions";
 import { usePageTitle } from "@/hooks/use-page-title";
+import { useRestarts } from "@/hooks/use-restarts";
 import { api } from "@/lib/api";
+import { needsAttention } from "@/lib/attention";
+import { getUser } from "@/lib/auth";
 import { comparePhase } from "@/lib/phase";
 import { listInterval } from "@/lib/polling";
 import type { App } from "@/lib/types";
@@ -44,6 +48,9 @@ const errMessage = errorMessage;
 
 const PHASES = ["Running", "Deploying", "Pending", "Stopped", "Failed"] as const;
 
+/** Status filter value for Failed apps plus apps whose containers restarted. */
+const ATTENTION = "attention";
+
 export function AppsPage() {
   const heading = usePageTitle("Apps");
   const apps = useQuery({
@@ -51,8 +58,14 @@ export function AppsPage() {
     queryFn: () => api.listApps(),
     refetchInterval: (q) => listInterval(q.state.data),
   });
+  const { restarts, loading: restartsLoading, error: restartsError } = useRestarts();
+  // Signed-in user; null when auth is off, which hides the Mine chip.
+  const me = getUser()?.name || null;
   const [filter, setFilter] = useState("");
+  // A phase, ATTENTION, or null for every status.
   const [phaseFilter, setPhaseFilter] = useState<string | null>(null);
+  // null until the user toggles Mine: it then defaults to on whenever they own an app.
+  const [mineChoice, setMineChoice] = useState<boolean | null>(null);
   // Most severe first, so a Failed app is never buried under healthy ones.
   const [sort, setSort] = useState<Sort>({ col: "status", dir: "asc" });
   const searchRef = useRef<HTMLInputElement>(null);
@@ -65,16 +78,30 @@ export function AppsPage() {
   const actions = useAppActions({ onDeleted: () => setDeleteTarget(null) });
 
   const list = apps.data ?? [];
+  const mineCount = me ? list.filter((a) => a.owner === me).length : 0;
+  const mine = me !== null && (mineChoice ?? mineCount > 0);
+  // Mine scopes everything below it: the status chips, the banner and the rows.
+  const scoped = useMemo(
+    () => (mine ? list.filter((a) => a.owner === me) : list),
+    [list, mine, me],
+  );
   const phaseCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const a of list) counts[a.status.phase] = (counts[a.status.phase] ?? 0) + 1;
+    for (const a of scoped) counts[a.status.phase] = (counts[a.status.phase] ?? 0) + 1;
     return counts;
-  }, [list]);
+  }, [scoped]);
+  const attention = useMemo(
+    () => scoped.filter((a) => needsAttention(a, restarts)),
+    [scoped, restarts],
+  );
+  const failedCount = attention.filter((a) => a.status.phase === "Failed").length;
 
   const rows = useMemo(() => {
     const term = filter.trim().toLowerCase();
-    let out = list.filter((a) => {
-      if (phaseFilter && a.status.phase !== phaseFilter) return false;
+    let out = scoped.filter((a) => {
+      if (phaseFilter === ATTENTION) {
+        if (!needsAttention(a, restarts)) return false;
+      } else if (phaseFilter && a.status.phase !== phaseFilter) return false;
       if (!term) return true;
       return [
         a.name,
@@ -113,7 +140,7 @@ export function AppsPage() {
       (a, b) => cmp(a, b) * (sort.dir === "asc" ? 1 : -1) || byName(a).localeCompare(byName(b)),
     );
     return out;
-  }, [list, filter, phaseFilter, sort]);
+  }, [scoped, filter, phaseFilter, sort, restarts]);
 
   const selectedApps = useMemo(() => rows.filter((a) => selected.has(appKey(a))), [rows, selected]);
   const allSelected = rows.length > 0 && rows.every((a) => selected.has(appKey(a)));
@@ -139,6 +166,11 @@ export function AppsPage() {
   const clearFilters = () => {
     setFilter("");
     setPhaseFilter(null);
+    setMineChoice(false);
+  };
+  const showAttention = () => {
+    setFilter("");
+    setPhaseFilter(ATTENTION);
   };
 
   const toggleAll = () => {
@@ -200,59 +232,91 @@ export function AppsPage() {
             Apps
           </h1>
           <p className="text-muted-foreground text-sm">
-            Everything launched through the Apps Pack, across your namespaces.
+            Web applications running on this Nebari cluster.
           </p>
         </div>
         <Button className="self-start sm:self-auto" render={<Link to="/launch">Launch app</Link>} />
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative w-full sm:max-w-sm">
-          <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 z-10 size-4 text-muted-foreground" />
-          <Input
-            ref={searchRef}
-            placeholder="Search by name, source, status…"
-            aria-keyshortcuts="/"
-            className="pr-9 pl-9"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-          />
-          {filter ? (
-            <button
-              type="button"
-              aria-label="Clear search"
-              className="-translate-y-1/2 absolute top-1/2 right-2 z-10 rounded-sm p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-              onClick={() => setFilter("")}
-            >
-              <X className="size-3.5" />
-            </button>
-          ) : (
-            <kbd
-              aria-hidden
-              className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-2.5 z-10 rounded-sm border border-border bg-muted px-1.5 font-mono text-muted-foreground text-xs leading-5"
-            >
-              /
-            </kbd>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <FilterChip
-            label="All"
-            count={list.length}
-            active={phaseFilter === null}
-            onClick={() => setPhaseFilter(null)}
-          />
-          {PHASES.filter((p) => phaseCounts[p]).map((p) => (
-            <FilterChip
-              key={p}
-              label={p}
-              count={phaseCounts[p]}
-              active={phaseFilter === p}
-              onClick={() => setPhaseFilter(p)}
+      {/* Hidden while either list loads, so it never flashes or claims the all-clear. */}
+      {apps.isSuccess && !restartsLoading ? (
+        <AttentionBanner
+          count={attention.length}
+          failed={failedCount}
+          error={restartsError}
+          active={phaseFilter === ATTENTION}
+          onShow={showAttention}
+        />
+      ) : null}
+
+      {apps.isSuccess && list.length === 0 ? null : (
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative w-full sm:max-w-sm">
+            <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 z-10 size-4 text-muted-foreground" />
+            <Input
+              ref={searchRef}
+              placeholder="Search by name, source, status…"
+              aria-keyshortcuts="/"
+              className="pr-9 pl-9"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
             />
-          ))}
+            {filter ? (
+              <button
+                type="button"
+                aria-label="Clear search"
+                className="-translate-y-1/2 absolute top-1/2 right-2 z-10 rounded-sm p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                onClick={() => setFilter("")}
+              >
+                <X className="size-3.5" />
+              </button>
+            ) : (
+              <kbd
+                aria-hidden
+                className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-2.5 z-10 rounded-sm border border-border bg-muted px-1.5 font-mono text-muted-foreground text-xs leading-5"
+              >
+                /
+              </kbd>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {me ? (
+              <>
+                <FilterChip
+                  label="Mine"
+                  count={mineCount}
+                  active={mine}
+                  onClick={() => setMineChoice(!mine)}
+                />
+                <span aria-hidden="true" className="mx-0.5 h-4 w-px bg-border" />
+              </>
+            ) : null}
+            <FilterChip
+              label="All"
+              count={scoped.length}
+              active={phaseFilter === null}
+              onClick={() => setPhaseFilter(null)}
+            />
+            {attention.length > 0 || phaseFilter === ATTENTION ? (
+              <FilterChip
+                label="Needs attention"
+                count={attention.length}
+                active={phaseFilter === ATTENTION}
+                onClick={() => setPhaseFilter(ATTENTION)}
+              />
+            ) : null}
+            {PHASES.filter((p) => phaseCounts[p]).map((p) => (
+              <FilterChip
+                key={p}
+                label={p}
+                count={phaseCounts[p]}
+                active={phaseFilter === p}
+                onClick={() => setPhaseFilter(p)}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {selectedApps.length > 0 ? (
         <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-2">
@@ -319,6 +383,7 @@ export function AppsPage() {
           onToggleOne={toggleOne}
           actions={actions}
           onDelete={setDeleteTarget}
+          restarts={restarts}
         />
       )}
 
@@ -371,6 +436,57 @@ export function AppsPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+/**
+ * One line above the list when any app is Failed or restarting, with an
+ * action that filters the list to them. A failed metrics request is said
+ * out loud rather than read as "nothing restarted".
+ */
+function AttentionBanner({
+  count,
+  failed,
+  error,
+  active,
+  onShow,
+}: {
+  count: number;
+  failed: number;
+  error: unknown;
+  active: boolean;
+  onShow: () => void;
+}) {
+  const unchecked = error ? `Restart counts are unavailable: ${errMessage(error)}` : "";
+  if (count === 0) {
+    return unchecked ? (
+      <Alert>
+        <AlertTriangle aria-hidden="true" />
+        <AlertTitle>Could not check apps for restarts</AlertTitle>
+        <AlertDescription>{errMessage(error)}</AlertDescription>
+      </Alert>
+    ) : null;
+  }
+  const restarting = count - failed;
+  const detail = [failed ? `${failed} failed` : "", restarting ? `${restarting} restarting` : ""]
+    .filter(Boolean)
+    .join(", ");
+  return (
+    // A polite live region: it appears on load and on every poll that changes it.
+    <Alert variant="warning" role="status">
+      <AlertTriangle aria-hidden="true" />
+      <AlertTitle>
+        {count === 1 ? "1 app needs attention" : `${count} apps need attention`}
+      </AlertTitle>
+      <AlertDescription>{[detail, unchecked].filter(Boolean).join(". ")}</AlertDescription>
+      {active ? null : (
+        <AlertAction>
+          <Button variant="outline" size="xs" onClick={onShow}>
+            Show
+          </Button>
+        </AlertAction>
+      )}
+    </Alert>
   );
 }
 
