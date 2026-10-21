@@ -77,10 +77,10 @@ describe("a failed request is an error, not an empty state", () => {
   });
 });
 
-it("unknown URLs render a not-found page linking to /apps", () => {
+it("unknown URLs render a not-found page linking to the apps list", () => {
   renderPage(<p>home</p>, "/no/such/page");
   expect(screen.getByRole("heading", { name: /page not found/i })).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: /go to apps/i })).toHaveAttribute("href", "/apps");
+  expect(screen.getByRole("link", { name: /go to apps/i })).toHaveAttribute("href", "/");
 });
 
 it("bulk actions report partial success and name the failures", async () => {

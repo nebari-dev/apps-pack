@@ -15,7 +15,7 @@ import {
 // `ready` is text that shows the page's data has loaded (on the apps list, the
 // Needs attention banner, which waits on both the apps and the restart counts).
 const PAGES: { name: string; path: string; heading: string; ready?: string }[] = [
-  { name: "apps list", path: "/apps", heading: "Apps", ready: "2 apps need attention" },
+  { name: "apps list", path: "/", heading: "Apps", ready: "2 apps need attention" },
   { name: "launch form", path: "/launch", heading: "Launch an app" },
   { name: "app detail", path: "/apps/apps/docs-site", heading: "Docs Site" },
   {
@@ -45,7 +45,7 @@ const LOADING: {
 }[] = [
   {
     name: "apps list",
-    path: "/apps",
+    path: "/",
     hold: /^\/apps$/,
     label: "Loading apps",
     chrome: [
@@ -180,7 +180,7 @@ for (const theme of ["light", "dark"] satisfies Theme[]) {
 
     test(`empty apps list has no critical or serious violations @a11y`, async ({ page, api }) => {
       api.apps = [];
-      await page.goto("/apps");
+      await page.goto("/");
       await expect(page.getByRole("heading", { name: "No apps yet" })).toBeVisible();
       await expectNoCriticalOrSeriousA11yViolations(page);
     });
@@ -190,13 +190,13 @@ for (const theme of ["light", "dark"] satisfies Theme[]) {
       api,
     }) => {
       api.failList = { status: 500, detail: "apps-api is unavailable" };
-      await page.goto("/apps");
+      await page.goto("/");
       await expect(page.getByText("Could not load apps")).toBeVisible();
       await expectNoCriticalOrSeriousA11yViolations(page);
     });
 
     test(`account menu has no critical or serious violations @a11y`, async ({ page }) => {
-      await page.goto("/apps");
+      await page.goto("/");
       await page.getByRole("button", { name: "Account menu" }).click();
       await expect(page.getByRole("menuitemradio", { name: "Dark mode" })).toBeVisible();
       await expectNoCriticalOrSeriousA11yViolations(page);

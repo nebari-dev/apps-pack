@@ -98,9 +98,9 @@ createRoot(container).render(
         <BrowserRouter>
           <Routes>
             <Route element={<Layout />}>
-              {/* The apps list is the home page. */}
-              <Route index element={<Navigate to="/apps" replace />} />
-              <Route path="apps" element={<AppsPage />} />
+              {/* The apps list is the home page; /apps redirects for old bookmarks. */}
+              <Route index element={<AppsPage />} />
+              <Route path="apps" element={<Navigate to="/" replace />} />
               <Route path="apps/:namespace/:name" element={<AppDetailPage />} />
               <Route path="apps/:namespace/:name/edit" element={<EditPage />} />
               <Route path="launch" element={<LaunchPage />} />

@@ -226,7 +226,7 @@ test.describe("launch form", () => {
   test("Cancel goes back to the apps list", async ({ page }) => {
     await openLaunchForm(page);
     await page.getByRole("button", { name: "Cancel" }).click();
-    await expect(page).toHaveURL("/apps");
+    await expect(page).toHaveURL("/");
   });
 
   test("the footer fits a phone-width screen", async ({ page }) => {

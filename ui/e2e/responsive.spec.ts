@@ -8,7 +8,7 @@ import { expect, test } from "./fixtures";
 // `ready` is text that shows the page's data has loaded, so the check measures
 // the full layout rather than a spinner.
 const PAGES: { path: string; heading: string; ready?: string }[] = [
-  { path: "/apps", heading: "Apps", ready: "2 apps need attention" },
+  { path: "/", heading: "Apps", ready: "2 apps need attention" },
   { path: "/launch", heading: "Launch an app" },
   { path: "/apps/apps/docs-site", heading: "Docs Site" },
   {
@@ -65,7 +65,7 @@ for (const { path, heading, ready } of PAGES) {
 
 // Pages render their chrome with skeletons for the pending data, which must fit too.
 const SKELETONS: { path: string; hold: RegExp }[] = [
-  { path: "/apps", hold: /^\/apps$/ },
+  { path: "/", hold: /^\/apps$/ },
   { path: "/apps/apps/docs-site", hold: /^\/apps\/apps\/docs-site$/ },
   { path: "/apps/apps/docs-site/edit", hold: /^\/apps\/apps\/docs-site$/ },
 ];

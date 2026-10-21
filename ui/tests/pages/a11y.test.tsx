@@ -80,7 +80,7 @@ const { SettingsPage } = await import("@/pages/settings");
 
 // name, URL, route path, page, h1, and text that shows the page's data has loaded.
 const PAGES: [string, string, string, ReactElement, string, string?][] = [
-  ["apps", "/apps", "apps", <AppsPage key="a" />, "Apps", "2 apps need attention"],
+  ["apps", "/", "", <AppsPage key="a" />, "Apps", "2 apps need attention"],
   [
     "app detail",
     "/apps/apps/docs-site",
@@ -191,7 +191,7 @@ it("moves focus to the new page's heading after navigating", async () => {
     "/launch",
     <>
       <Route path="launch" element={<LaunchPage />} />
-      <Route path="apps" element={<AppsPage />} />
+      <Route index element={<AppsPage />} />
     </>,
   );
   await screen.findByRole("heading", { level: 1, name: "Launch an app" });

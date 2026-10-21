@@ -188,7 +188,7 @@ test.describe("app actions by keyboard", () => {
     await page.keyboard.type("docs-site");
     await page.keyboard.press("Enter");
 
-    await expect(page).toHaveURL("/apps");
+    await expect(page).toHaveURL("/");
     expect(api.requests).toEqual([{ method: "DELETE", path: "/apps/apps/docs-site", body: null }]);
   });
 

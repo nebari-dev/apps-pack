@@ -98,10 +98,10 @@ describe("Header", () => {
     const user = userEvent.setup();
 
     render(
-      <MemoryRouter initialEntries={["/apps"]}>
+      <MemoryRouter initialEntries={["/"]}>
         <Header user={{ name: "John Doe" }} />
         <Routes>
-          <Route path="/apps" element={<p>apps page</p>} />
+          <Route path="/" element={<p>apps page</p>} />
           <Route path="/settings" element={<p>settings page</p>} />
         </Routes>
       </MemoryRouter>,
