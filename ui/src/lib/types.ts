@@ -40,6 +40,8 @@ export type AppStatus = Required<Pick<Crd.AppStatus, "conditions" | "message" | 
   replicas?: Crd.AppReplicas | null;
   /** When the app last served a request; empty unless it can idle. */
   lastActivityTime?: string;
+  /** The metadata.generation the operator last reconciled (0 before its first; older APIs omit it). */
+  observedGeneration?: number;
 };
 
 export interface App {
@@ -55,6 +57,8 @@ export interface App {
   access?: AppAccess;
   landingPage?: AppLandingPage | null;
   status: AppStatus;
+  /** metadata.generation, bumped on every spec change; older APIs leave it out. */
+  generation?: number;
   /** Older APIs leave it out. */
   role?: AppRole;
 }

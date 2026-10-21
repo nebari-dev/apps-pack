@@ -194,10 +194,11 @@ export function AppsPage() {
         const r = results[i];
         return r.status === "rejected" ? [{ app, reason: errMessage(r.reason) }] : [];
       });
-      return { action, total: targets.length, failed };
+      return { action, targets, failed };
     },
-    onSuccess: ({ action, total, failed }) => {
-      invalidate();
+    onSuccess: ({ action, targets, failed }) => {
+      invalidate(targets);
+      const total = targets.length;
       setBulkDeleteOpen(false);
       setBulkConfirm("");
       // Keep the failures selected so they can be retried.

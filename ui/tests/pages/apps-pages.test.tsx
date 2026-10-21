@@ -5,6 +5,7 @@ import type { ReactElement } from "react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Toaster } from "@/components/ui/toast";
+import { listInterval, resetActed } from "@/lib/polling";
 import type { App } from "@/lib/types";
 
 vi.mock("@/lib/api", () => ({
@@ -79,6 +80,7 @@ const NO_RESTARTS = { usageAvailable: true, apps: [], byNamespace: [] };
 
 beforeEach(() => {
   vi.resetAllMocks();
+  resetActed();
   mocked.clusterMetrics.mockResolvedValue(NO_RESTARTS);
   vi.mocked(getUser).mockReturnValue(null);
 });
@@ -222,6 +224,9 @@ describe("apps page", () => {
     await user.click(screen.getByRole("button", { name: "Start" }));
     expect(await screen.findByText("Started 1 app(s)")).toBeInTheDocument();
     expect(mocked.startApp).toHaveBeenCalledExactlyOnceWith("apps", "beta");
+    // The started app polls fast even while the refetch still shows it Stopped.
+    expect(listInterval([LIST[0]])).toBe(5_000);
+    expect(listInterval([LIST[1]])).toBe(30_000);
   });
 
   it("shows chip counts at full contrast", async () => {
@@ -292,6 +297,8 @@ describe("apps page", () => {
     await user.click(within(alpha).getByRole("button", { name: "Stop app" }));
     expect(mocked.stopApp).toHaveBeenCalledWith("apps", "alpha");
     expect(await screen.findByText("Stopped Alpha Docs")).toBeInTheDocument();
+    // Still Running in the refetch, but just stopped: poll fast until the operator catches up.
+    expect(listInterval([LIST[1]])).toBe(5_000);
 
     const beta = screen.getByRole("link", { name: "beta" }).closest("tr") as HTMLElement;
     await user.click(within(beta).getByRole("button", { name: "Start app" }));
