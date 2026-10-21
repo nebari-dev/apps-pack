@@ -64,6 +64,13 @@ stop/start/edit and a **More actions** menu with restart, copy URL and delete. W
 is `Failed` or a condition is not ready, an alert under the header names the failing
 condition and its reason, with **View logs** and **Restart**.
 
+While the app has pods (it is not stopped or idle), two cards sit next to its URL and
+replicas. **Restarts** counts restarts of the app's container, says how its last run ended
+and when (`Last: OOMKilled · 12 min ago`; an `OOMKilled` adds a hint that the memory limit
+may be too low) and how long it has been up. **Resources** shows the container's CPU and
+memory limits and, on a cluster with metrics-server, live usage against them with a short
+trend; without metrics-server it says so and still shows the limits.
+
 **Settings** (in the account menu, next to **Sign out**) is a read-only page in four
 sections:
 
@@ -379,7 +386,7 @@ it. See [Scale to zero](/app-crd-reference/#scale-to-zero) for how it works.
 | Update | detail page → Edit | `PATCH .../apps/{ns}/{name}` | edit the CR |
 | Restart (roll pods) | detail page → More actions → Restart | `POST .../apps/{ns}/{name}/restart` | `kubectl rollout restart deploy/app-<name>` |
 | Logs | detail page → Logs | `GET .../apps/{ns}/{name}/logs` | `kubectl logs -l apps.nebari.dev/app=<name>` |
-| Metrics | Detail page CPU/memory cards (while the app has pods); the Apps page's Needs attention banner and restart counts (restarts, `Failed`) | `GET .../apps/{ns}/{name}/metrics`, `GET /analytics/metrics` | `kubectl top pods -l apps.nebari.dev/app=<name>` |
+| Metrics | Detail page Restarts and Resources cards (while the app has pods); the Apps page's Needs attention banner and restart counts (restarts, `Failed`) | `GET .../apps/{ns}/{name}/metrics`, `GET /analytics/metrics` | `kubectl top pods -l apps.nebari.dev/app=<name>` |
 | Delete | detail page → More actions → Delete (type to confirm) | `DELETE .../apps/{ns}/{name}` | `kubectl delete app <name>` |
 
 Changing inline content rolls the pods automatically (the pod template carries a content

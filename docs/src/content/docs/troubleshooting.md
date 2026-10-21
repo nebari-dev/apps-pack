@@ -131,8 +131,9 @@ kubectl -n nebari-operator-system logs deploy/nebari-operator-controller-manager
   once the user's access token carries it (sign out and in, or wait for it to refresh).
 - **`403 only the owner or an admin can change who manages this app`.** A manager edited
   `access.managers`; leave it out of the request (or send it unchanged).
-- **An app's CPU and memory cards say "Metrics unavailable".** Pod CPU and memory come from
-  `metrics.k8s.io`; install metrics-server.
+- **An app's Resources card says "Live usage needs metrics-server".** Live CPU and memory
+  usage come from `metrics.k8s.io`; install metrics-server. Limits and restarts come from the
+  pods and show either way.
 
 ## Install and upgrade
 

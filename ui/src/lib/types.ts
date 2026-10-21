@@ -84,13 +84,35 @@ export interface AppPatch {
   secrets?: Record<string, string | null>;
 }
 
-export interface PodMetric {
-  name: string;
+/** The `app` container's CPU ("500m") and memory ("512Mi"); "" when unset. */
+export interface PodResources {
   cpu: string;
   memory: string;
 }
 
+/** How the `app` container's previous run ended (e.g. reason "OOMKilled"). */
+export interface PodTermination {
+  reason: string;
+  exitCode: number;
+  finishedAt: string;
+}
+
+export interface PodMetric {
+  name: string;
+  /** Usage from metrics.k8s.io ("12m", "34Mi"); "" without a metrics server. */
+  cpu: string;
+  memory: string;
+  /** From the pod, so present with or without a metrics server (older APIs omit them). */
+  restarts?: number;
+  lastTermination?: PodTermination | null;
+  /** When the `app` container started running; null while it is not. */
+  startedAt?: string | null;
+  limits?: PodResources;
+  requests?: PodResources;
+}
+
 export interface AppMetrics {
+  /** Whether metrics.k8s.io answered (usage present); pod health comes either way. */
   available: boolean;
   pods: PodMetric[];
 }

@@ -43,6 +43,25 @@ test.describe("app detail", () => {
     await expect(health).toContainText("Passing: RoutingReady");
   });
 
+  test("shows restarts, uptime, limits and live usage", async ({ page }) => {
+    await openDocsSite(page);
+    await expect(page.getByText("Up 3d")).toBeVisible();
+    await expect(page.getByText("CPU 500m · Memory 512 Mi")).toBeVisible();
+    await expect(page.getByText("12 / 500m")).toBeVisible();
+    await expect(page.getByText("34 / 512 Mi")).toBeVisible();
+    await expect(page.getByText("Live usage needs metrics-server")).toHaveCount(0);
+  });
+
+  test("shows limits but no usage without a metrics server", async ({ page, api }) => {
+    api.metricsServer = false;
+    await openDocsSite(page);
+    await expect(page.getByText("Up 3d")).toBeVisible();
+    await expect(page.getByText("CPU 500m · Memory 512 Mi")).toBeVisible();
+    await expect(page.getByText("Live usage needs metrics-server")).toBeVisible();
+    await expect(page.getByText("12 / 500m")).toHaveCount(0);
+    await expect(page.getByText("Metrics unavailable")).toHaveCount(0);
+  });
+
   test("alerts with the reason a failed app is failing and links to its logs", async ({
     page,
     api,
@@ -53,7 +72,10 @@ test.describe("app detail", () => {
     const alert = page.getByRole("alert");
     await expect(alert).toContainText("WorkloadReady failed: CrashLoopBackOff");
     await expect(alert).toContainText("Back-off restarting container");
-    await expect(page.getByText("CPU and memory are shown once the app is running.")).toBeVisible();
+    // Its crash-looping pod keeps the Restarts card: the last run was OOMKilled.
+    await expect(page.getByText("Last: OOMKilled · 12 min ago")).toBeVisible();
+    await expect(page.getByText(/memory limit may be too low/)).toBeVisible();
+    await expect(page.getByText("Not running")).toBeVisible();
     await expect(page.getByRole("link", { name: "Open" })).toHaveCount(0);
     await expect(page.getByRole("tabpanel", { name: "Health" })).toContainText(
       "Failing: WorkloadReady · CrashLoopBackOff",
@@ -75,7 +97,9 @@ test.describe("app detail", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Sales Dashboard" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Start" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Open" })).toHaveCount(0);
-    await expect(page.getByText("CPU and memory are shown once the app is running.")).toBeVisible();
+    await expect(
+      page.getByText("Restarts and resources are shown once the app is running."),
+    ).toBeVisible();
 
     await page.getByRole("button", { name: "More actions" }).click();
     await expect(page.getByRole("menuitem", { name: /Restart/ })).toHaveAttribute(
