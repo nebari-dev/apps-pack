@@ -53,7 +53,7 @@ create.
 | `GET /healthz` | Liveness (public). Always `200` while the process serves. |
 | `GET /readyz` | Readiness (public): `200 {"status": "ok", "checks": {...}}` when the Kubernetes API answers a namespace list and, with auth on, the realm JWKS loads (each within 3s; a good JWKS fetch is reused for 60s). Otherwise `503`, with the failing check marked `"failed"` and the reason in the API's log. |
 | `GET /version` | Release and image build (public): `{"version": "0.2.0", "build": "sha-abc1234"}`. `build` is the chart's `api.image.tag` (`unknown` outside the chart). |
-| `GET /config` | UI bootstrap config (public): `authEnabled`, Keycloak url/realm/SPA client id, `appsDomain`, `appsScheme`, and the `version`/`build` above. |
+| `GET /config` | UI bootstrap config (public): `authEnabled`, Keycloak url/realm/SPA client id, `appsDomain`, `appsScheme`, `mcpOAuth` (`clientId` and `callbackPort` of the MCP sign-in client; empty `clientId` when none is configured), and the `version`/`build` above. |
 | `GET /capabilities` | `{appsDomain, sourceTypes, namespaces, idleTimeoutMinutes, imageRegistries}` — what this cluster supports and where the caller may launch. `sourceTypes` is `["git", "inline", "pvc"]`, plus `"image"` when `imageRegistries` (the normalized `apps.image.allowedRegistries`) is not empty; `idleTimeoutMinutes` is the cluster default for [scale to zero](/app-crd-reference/#scale-to-zero) (`0`: apps stay up unless they set one). |
 | `GET /auth/me` | The caller's username, email, groups, and `admin` (member of an admin group). |
 

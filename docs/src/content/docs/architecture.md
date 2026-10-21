@@ -81,14 +81,15 @@ Two deliberately different models:
 
 The UI's `NebariApp` sets `enforceAtGateway: false` and provisions the pack's Keycloak
 clients: a confidential one, a **public SPA client** (`auth.spaClient`), and — when the MCP
-server is enabled — the **device-flow client** (`auth.deviceFlowClient`) used by agent
-logins. The UI boots
+server is enabled — a **device-flow client** (`auth.deviceFlowClient`) for CLI tokens. The
+UI boots
 [keycloak-js](https://www.keycloak.org/securing-apps/javascript-adapter) with runtime config
 served by the API (`GET /api/v1/config`), runs the PKCE login flow, and attaches the access
 token to every request. The API validates tokens against the realm **JWKS** (with an
 optional in-cluster JWKS URL for split-horizon clusters) and derives the caller's identity
 and groups from the claims. Tokens must have been issued to one of this pack's own clients
-(the SPA or the device-flow client, checked against `azp`/`aud`), so a token another realm
+(the SPA client, the device-flow client, or the MCP sign-in client `mcp.oauth.clientId`,
+checked against `azp`/`aud`), so a token another realm
 client obtained is refused. It then authorizes every request: the caller must own the
 app (`spec.owner`, stamped from `preferred_username` on create), be one of its managers
 (`spec.access.managers`: a listed username, or a group in the token's `groups` claim), or
@@ -97,10 +98,13 @@ Lists and analytics are filtered the same way.
 
 ### The MCP endpoint — verified twice
 
-The MCP endpoint at `/mcp` is connectable without a token (the device-flow login has to
-start somewhere), but middleware verifies every tool call's JWT against the realm JWKS
-before it runs — anonymous or forged callers get told to `authenticate`. apps-api then
-validates the same token again, so the MCP proxies only as the authenticated user.
+The MCP endpoint at `/mcp` is an OAuth 2.0 protected resource with the Keycloak realm as
+its authorization server ([MCP authorization](/mcp/#authentication)): a request without a
+valid token gets `401` pointing at the protected resource metadata, from which MCP clients
+such as Claude Code run the browser login themselves. Every request carries its own token,
+verified against the realm JWKS before any tool or resource logic runs; nothing is kept per
+MCP session. apps-api then validates the same token again, so the MCP proxies only as the
+authenticated user.
 
 ### Launched apps — gateway-enforced only
 

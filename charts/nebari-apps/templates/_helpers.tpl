@@ -58,6 +58,13 @@ Domain apps are exposed under (https://<subdomain>.<appsDomain>).
 {{- end }}
 
 {{/*
+Public origin of the UI host, which also serves /mcp (the UI's nginx proxies it).
+*/}}
+{{- define "nebari-apps.publicUrl" -}}
+{{- printf "%s://%s" (ternary "https" "http" .Values.tls.enabled) (.Values.ui.hostname | default (include "nebari-apps.appsDomain" .)) -}}
+{{- end }}
+
+{{/*
 Operator image reference
 */}}
 {{- define "nebari-apps.operatorImage" -}}

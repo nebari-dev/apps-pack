@@ -958,6 +958,24 @@
           },
           "description": "Extra container env vars (Kubernetes EnvVar)."
         },
+        "oauth": {
+          "type": "object",
+          "properties": {
+            "clientId": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._:-]*$",
+              "description": "Public Keycloak client MCP clients sign in with; empty disables."
+            },
+            "callbackPort": {
+              "type": "integer",
+              "minimum": 1024,
+              "maximum": 65535,
+              "description": "MCP client OAuth callback port (redirect URI http://localhost:<port>/callback)."
+            }
+          },
+          "additionalProperties": false,
+          "description": "MCP OAuth client settings."
+        },
         "orgCABundle": {
           "type": "object",
           "properties": {

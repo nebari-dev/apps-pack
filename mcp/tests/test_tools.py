@@ -33,7 +33,6 @@ async def test_tool_catalog():
     async with Client(mcp) as client:
         tools = {t.name for t in await client.list_tools()}
     assert tools == {
-        "authenticate",
         "describe_cluster",
         "list_apps",
         "launch_app",
@@ -226,11 +225,6 @@ async def test_logs_and_missing_app():
 
     missing = await call("get_app", {"namespace": "apps", "name": "nope"})
     assert missing["status"] == 404
-
-
-async def test_authenticate_reports_disabled():
-    result = await call("authenticate")
-    assert result["status"] == "not_required"
 
 
 async def test_launch_landing_page_opt_in(store):

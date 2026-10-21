@@ -4,6 +4,7 @@ dynamic = ["version"]
 description = "MCP server for the Nebari Apps Pack - launch and manage web apps from coding agents"
 requires-python = ">=3.12"
 dependencies = [
+    "anyio>=4.5",
     "fastmcp>=2.10",
     "httpx>=0.27",
     "PyJWT[crypto]>=2.15",
@@ -43,12 +44,12 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 
 # CI runs pytest with --cov (measuring the source below); the floor sits a little under today's
-# 78% so a change that drops coverage noticeably fails. Raise it as tests land.
+# 90% so a change that drops coverage noticeably fails. Raise it as tests land.
 [tool.coverage.run]
 source = ["nebari_apps_mcp"]
 
 [tool.coverage.report]
-fail_under = 81
+fail_under = 88
 show_missing = true
 skip_covered = true
 

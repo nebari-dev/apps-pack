@@ -16,7 +16,7 @@ import { getConfig } from "@/lib/auth";
 import { getBranding } from "@/lib/branding";
 import { copyText } from "@/lib/clipboard";
 import { FADE_IN } from "@/lib/motion";
-import type { ApiVersion, Capabilities, Me } from "@/lib/types";
+import type { ApiVersion, Capabilities, Me, UiConfig } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const REPO = "https://github.com/nebari-dev/apps-pack";
@@ -415,10 +415,23 @@ function CopyField({
   );
 }
 
+/**
+ * The `claude mcp add` command. With auth on and an MCP OAuth client
+ * configured, Claude Code signs in with that client: Keycloak only accepts
+ * its registered redirect URI, hence the fixed callback port.
+ */
+export function claudeCommand(mcpUrl: string, config: UiConfig): string {
+  const oauth = config.authEnabled ? config.mcpOAuth : undefined;
+  const flags = oauth?.clientId
+    ? ` --client-id ${oauth.clientId}${oauth.callbackPort ? ` --callback-port ${oauth.callbackPort}` : ""}`
+    : "";
+  return `claude mcp add --transport http${flags} nebari-apps ${mcpUrl}`;
+}
+
 function ConnectAgent() {
   // The UI's nginx proxies /mcp to the MCP server, so it shares the UI's host.
   const mcpUrl = `${window.location.origin}/mcp`;
-  const command = `claude mcp add --transport http nebari-apps ${mcpUrl}`;
+  const command = claudeCommand(mcpUrl, getConfig());
   return (
     <Section
       id="settings-agent"

@@ -136,11 +136,14 @@ When `PHASE` reaches `Running`, open the URL. Private apps redirect to Keycloak;
 Point Claude Code (or any MCP client) at the cluster and launch with natural language:
 
 ```bash
-claude mcp add --transport http nebari-apps https://apps.example.ai/mcp
+claude mcp add --transport http --client-id nebari-apps-mcp --callback-port 33418 \
+  nebari-apps https://apps.example.ai/mcp
 ```
 
-The first tool call will ask you to log in via the Keycloak device flow (the agent shows a
-verification URL and code). See the [MCP server guide](/mcp/) for the tool list and the
+The client id is the Keycloak client your admin created for MCP sign-in (`mcp.oauth.clientId`;
+the UI's Settings page shows the exact command). Run `/mcp` in Claude Code, select
+`nebari-apps` and choose **Authenticate** to sign in through the browser. See the
+[MCP server guide](/mcp/) for the tool list and the
 [scaffolding skill](/skill/) for generating apps the agent can launch.
 
 ## Verify a deployment
@@ -209,8 +212,10 @@ or pilot.
   See [Container images](/launching-apps/#container-images).
 - **One API version (`v1alpha1`) and no conversion webhook yet.** `helm upgrade` does not
   update CRDs; re-apply `charts/nebari-apps/crds/` on upgrades (see [Upgrading](/upgrading/)).
-- **The MCP server must run as a single replica**: device-flow sessions are held in process
-  memory.
+- **The MCP server must run as a single replica**: handshake-era MCP sessions are held in
+  process memory.
+- **The MCP sign-in client is created by hand.** The nebari-operator cannot provision a
+  Keycloak client with a loopback redirect URI yet; see [The sign-in client](/mcp/#the-sign-in-client).
 - **Local dev disables authentication** (`api.auth.enabled=false` with `tls.enabled=false`;
   the chart refuses that with TLS on unless `api.auth.insecureAllowAnonymous=true`). Never
   carry that flag to a real cluster.

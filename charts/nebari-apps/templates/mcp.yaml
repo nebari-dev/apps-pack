@@ -31,8 +31,14 @@ spec:
               value: http://{{ include "nebari-apps.fullname" . }}-api.{{ .Release.Namespace }}.svc.cluster.local:8080
             # The SPA id: bearer passthrough may carry a UI token.
             {{- include "nebari-apps.oidcEnv" (dict "root" . "spaVar" "OIDC_SPA_CLIENT_ID") | nindent 12 }}
+            {{- if .Values.api.auth.enabled }}
+            # The OAuth protected resource is <MCP_PUBLIC_URL>/mcp; its metadata
+            # names OIDC_ISSUER as the authorization server.
+            - name: MCP_PUBLIC_URL
+              value: {{ include "nebari-apps.publicUrl" . | quote }}
+            {{- end }}
             {{- if .Values.mcp.orgCABundle.configMapName }}
-            # httpx (the device flow's Keycloak calls) reads SSL_CERT_FILE.
+            # The JWKS fetch (from keycloak.url unless internalUrl is set) reads SSL_CERT_FILE.
             - name: SSL_CERT_FILE
               value: /etc/ssl/nebari/ca-bundle.crt
             {{- end }}

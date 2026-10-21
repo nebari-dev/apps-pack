@@ -13,61 +13,109 @@ business logic of its own, so agent launches behave exactly like UI launches.
 ## Connecting
 
 The UI's **Settings** page (account menu → **Settings**, under **Connect an agent**) shows
-your cluster's MCP URL and this command with copy buttons.
+your cluster's MCP URL and the Claude Code command with copy buttons, including the sign-in
+client below when one is configured.
 
 ```bash
-# Claude Code
-claude mcp add --transport http nebari-apps https://apps.example.ai/mcp
+# Claude Code, on a cluster with auth on (the client id and port come from mcp.oauth)
+claude mcp add --transport http --client-id nebari-apps-mcp --callback-port 33418 \
+  nebari-apps https://apps.example.ai/mcp
 ```
 
-Or in any MCP client configuration:
+Then run `/mcp` in Claude Code, select `nebari-apps` and choose **Authenticate** (or run
+`claude mcp login nebari-apps` from a shell). A browser opens on the cluster's Keycloak;
+after you sign in, Claude Code keeps the token, refreshes it, and sends it with every
+request. On a cluster with auth off, leave out `--client-id` and `--callback-port`.
+
+The same in a project's `.mcp.json`:
 
 ```json
 {
   "mcpServers": {
-    "nebari-apps": { "type": "http", "url": "https://apps.example.ai/mcp" }
+    "nebari-apps": {
+      "type": "http",
+      "url": "https://apps.example.ai/mcp",
+      "oauth": { "clientId": "nebari-apps-mcp", "callbackPort": 33418 }
+    }
   }
 }
 ```
 
 ## Authentication
 
-Two ways to present an identity:
+The MCP server uses standard [MCP authorization](https://modelcontextprotocol.io/specification/latest/basic/authorization):
+it is an OAuth 2.0 protected resource, and the cluster's Keycloak realm is its
+authorization server.
 
-1. **Device flow (interactive)** — call the `authenticate` tool. It returns a Keycloak
-   verification URL and user code; the user approves in a browser, the agent calls
-   `authenticate` again, and the token is cached (and refreshed) **per MCP session**. The
-   public device-flow client is provisioned automatically by the pack's `NebariApp`
-   (`auth.deviceFlowClient`).
-2. **Bearer passthrough** — clients that already hold a token send a standard
-   `Authorization: Bearer <token>` header.
+1. A request to `/mcp` without a token gets `401` with
+   `WWW-Authenticate: Bearer resource_metadata="https://apps.example.ai/.well-known/oauth-protected-resource/mcp"`.
+2. That document ([RFC 9728](https://www.rfc-editor.org/rfc/rfc9728)) names the realm
+   (`keycloak.url` + `/realms/<realm>`) as the authorization server.
+3. The client signs the user in to Keycloak in the browser (authorization code with PKCE)
+   and sends `Authorization: Bearer <access token>` on every request.
+
+Nothing is stored per MCP session: each request carries its own token. That is what lets
+sessionless clients (MCP protocol `2026-07-28` and later, which Claude Code speaks) work
+exactly like clients that keep a session. Clients that already hold a token from this realm,
+such as scripts, can send the same header directly; the token must still belong to one of
+the pack's clients (below).
+
+### The sign-in client
+
+The MCP client needs a Keycloak client to sign in with. The pack cannot provision it: the
+nebari-operator's `NebariApp` creates a confidential client, an SPA client whose redirect
+URIs are the UI's own host, and a device-flow client without the authorization code flow,
+and none of them accepts the loopback redirect (`http://localhost:<port>/callback`) a CLI
+listens on. Keycloak's default policy also refuses anonymous dynamic client registration,
+and it does not support client ID metadata documents yet, so a cluster admin creates one
+public client once:
+
+```bash
+# Inside the Keycloak pod (or anywhere kcadm.sh is logged in to the realm)
+kcadm.sh create clients -r nebari \
+  -s clientId=nebari-apps-mcp -s name="Nebari Apps MCP" \
+  -s publicClient=true -s standardFlowEnabled=true \
+  -s directAccessGrantsEnabled=false -s implicitFlowEnabled=false \
+  -s 'redirectUris=["http://localhost:33418/callback"]' \
+  -s 'attributes."pkce.code.challenge.method"=S256'
+```
+
+It needs the realm's default client scopes, which include `groups` on a Nebari realm
+(group-based manager and admin checks read that claim). Then set
+`mcp.oauth.clientId=nebari-apps-mcp` (and `mcp.oauth.callbackPort` if you chose another
+port). The chart adds the client to the allowed clients of apps-api and apps-mcp, and the
+UI puts it in the `claude mcp add` command. Every user connects with the same client id and
+port; the port is only a local listener on the user's machine.
+
+### Enforcement
 
 Enforcement is layered:
 
-- **At the MCP layer** — middleware verifies the token's signature, issuer, and expiry
-  against the realm JWKS before *any* tool or resource logic runs. Every tool except
-  `authenticate` (the login bootstrap), and every resource read, is rejected for anonymous or
-  forged callers with an error telling the agent to call `authenticate`. Listing resources
-  still answers, without any Apps. Prompts carry no cluster data and need no login.
+- **At the HTTP layer** — every request to `/mcp` must carry a bearer token whose
+  signature, issuer and expiry verify against the realm JWKS, and that was issued to (`azp`)
+  or for (`aud`) one of the pack's clients: the UI's SPA client, the device-flow client, or
+  `mcp.oauth.clientId`. A token another realm client obtained is refused with `401`
+  (`error="invalid_token"`). `/healthz` and the metadata document need no token.
+- **At the MCP layer** — the same check runs again before any tool call or resource read,
+  so it also holds on transports without HTTP. Listing resources still answers, without any
+  Apps, and prompts carry no cluster data.
 - **At the API layer** — apps-api independently validates the JWT on every request, so the
   MCP can never act with more privilege than the calling user: an agent sees and manages
   only the apps its user owns or [manages](/launching-apps/#managers) (or every app, for
   members of an admin group). Resources make the same API calls as the matching tools, so
   they are authorized the same way.
 
-On clusters with auth disabled, `authenticate` reports `not_required` and every tool works
-anonymously.
+On clusters with auth disabled, `/mcp` needs no token, serves no metadata, and every tool
+works anonymously.
 
-The device flow calls Keycloak at its browser-facing URL (`keycloak.url`) from inside the
-cluster. If that certificate comes from a private CA, `authenticate` fails with
-`CERTIFICATE_VERIFY_FAILED` until the CA is trusted through
-[`mcp.orgCABundle`](/configuration/#apps-mcp).
+apps-mcp fetches the realm JWKS from `keycloak.internalUrl` when it is set, otherwise from
+`keycloak.url`. If that certificate comes from a private CA, every token is rejected until
+the CA is trusted through [`mcp.orgCABundle`](/configuration/#apps-mcp).
 
 ## Tools
 
 | Tool | Purpose |
 |---|---|
-| `authenticate` | Start/complete the device-flow login, or confirm the cached token. |
 | `describe_cluster` | Source types, launchable namespaces, apps domain, the cluster's default idle timeout and, when `image` is a source type, the `imageRegistries` images may come from — call first to pick valid options. |
 | `launch_app` | Create + launch (static, Python/pixi via `pixi_task`, or a prebuilt container image with `source_type: image`, `image_reference` (tag or digest, from an allowed registry) and `image_port`, plus optional `image_command`, `image_args` and `image_run_as_user`; see [Container images](/launching-apps/#container-images)); optional `resources` (requests/limits, cluster defaults otherwise) and `groups`/`users` to restrict a private app (a member of any group or a listed user gets in; everyone else gets `403`); `idle_timeout_minutes` and `keep_alive` control [scale to zero](/app-crd-reference/#scale-to-zero); `manager_users`/`manager_groups` set who else may [manage](/launching-apps/#managers) it (omit to keep the current list); `secrets` (`{NAME: value}`) stores credentials in the app's own Secret instead of `env` (see [Secrets](#secrets)). **Idempotent on (namespace, name)** — re-launching an app you own or manage updates it instead of failing, so retries are safe; any other app is refused, never overwritten. Only the owner or an admin may change the managers. |
 | `list_apps` | Apps with phase, URL, owner; optional namespace filter. Inline sources list file `paths` only. |
@@ -143,14 +191,14 @@ value. Values an agent passes still appear in its own transcript, which coding a
 log: the tool descriptions steer agents to ask the user to type credentials into the UI's
 **Secrets** section instead, and never to put them in `env`.
 
-### Sessions
-
-Device-flow logins are kept in the MCP server's memory per MCP session, and dropped after
-`MCP_SESSION_TTL_SECONDS` (default 8 hours) without use. A connection without a session
-id cannot log in. Because sessions are in memory, `mcp.replicaCount` must stay 1.
+### Errors
 
 Every tool returns structured JSON. Errors carry the API's human-readable `detail`, and a
-`401` includes `nextAction: call the authenticate tool`, so agents can self-recover.
+`401` includes a `nextAction` telling the agent to have the user sign in to the server again
+from their MCP client (in Claude Code: `/mcp`, then **Authenticate**).
+
+Clients that use the handshake-era protocol (before `2026-07-28`) keep an MCP session in the
+server's memory, so `mcp.replicaCount` stays 1. Authentication does not depend on it.
 
 ## Example agent flow
 

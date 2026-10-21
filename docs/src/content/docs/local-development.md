@@ -101,8 +101,8 @@ whole stack:
 claude mcp add --transport http nebari-apps http://apps.nebari.test/mcp
 ```
 
-Because local dev runs with auth disabled, the `authenticate` tool reports `not_required`
-and every tool works anonymously — ask the agent to "launch the site in ./my-site as a
+Because local dev runs with auth disabled, `/mcp` needs no sign-in and every tool works
+anonymously — ask the agent to "launch the site in ./my-site as a
 public app called my-site" and it will call `launch_app` directly. See the
 [MCP server guide](/mcp/) for the full tool list.
 

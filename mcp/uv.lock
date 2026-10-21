@@ -1636,6 +1636,7 @@ wheels = [
 name = "nebari-apps-mcp"
 source = { editable = "." }
 dependencies = [
+    { name = "anyio" },
     { name = "fastmcp" },
     { name = "httpx" },
     { name = "pyjwt", extra = ["crypto"] },
@@ -1659,6 +1660,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "anyio", specifier = ">=4.5" },
     { name = "fastapi", marker = "extra == 'dev'", specifier = ">=0.115" },
     { name = "fastmcp", specifier = ">=2.10" },
     { name = "httpx", specifier = ">=0.27" },

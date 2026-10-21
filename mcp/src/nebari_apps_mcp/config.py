@@ -31,18 +31,20 @@ class Settings:
     # http://nebari-apps-api.nebari-apps.svc.cluster.local:8080
     api_url: str = field(default_factory=lambda: os.environ.get("API_URL", "http://localhost:8000"))
 
-    # When false (local dev), tools call apps-api anonymously and the
-    # authenticate tool reports that auth is disabled.
+    # When false (local dev), /mcp needs no token and tools call apps-api
+    # anonymously.
     auth_enabled: bool = field(default_factory=lambda: _env_bool("AUTH_ENABLED", True))
 
-    # Browser-facing Keycloak realm issuer for the device flow, e.g.
-    # https://keycloak.example.ai/auth/realms/nebari. The verification URL
-    # returned to users comes from here, so it must be browser-reachable.
+    # Browser-facing Keycloak realm issuer, e.g.
+    # https://keycloak.example.ai/auth/realms/nebari. Tokens must carry it as
+    # `iss`, and the protected resource metadata names it as the authorization
+    # server MCP clients sign in with, so it must be browser-reachable.
     oidc_issuer: str = field(default_factory=lambda: os.environ.get("OIDC_ISSUER", ""))
 
-    # Public device-flow client id, provisioned by this pack's NebariApp
-    # (auth.deviceFlowClient) and read from its OIDC secret.
-    oidc_device_client_id: str = field(default_factory=lambda: os.environ.get("OIDC_DEVICE_CLIENT_ID", ""))
+    # Public origin agents reach this server at (no path), e.g.
+    # https://apps.example.ai: the MCP endpoint is <public_url>/mcp, which is
+    # the `resource` the protected resource metadata advertises.
+    public_url: str = field(default_factory=lambda: os.environ.get("MCP_PUBLIC_URL", "").rstrip("/"))
 
     # In-cluster issuer URL (split horizon): used only to reach JWKS when the
     # browser-facing issuer is not resolvable from inside the cluster.
@@ -57,21 +59,8 @@ class Settings:
     # so a plain audience check cannot do this. Unset disables the check.
     oidc_allowed_clients: list[str] | None = field(default_factory=lambda: _client_list("OIDC_ALLOWED_CLIENTS"))
 
-    # Seconds a device-flow login (and its refresh token) is kept after the
-    # session last used it. Sessions live in this process's memory, which is
-    # why mcp.replicaCount must stay 1.
-    session_ttl: float = field(default_factory=lambda: float(os.environ.get("MCP_SESSION_TTL_SECONDS", "28800")))
-
     host: str = field(default_factory=lambda: os.environ.get("HOST", "0.0.0.0"))
     port: int = field(default_factory=lambda: int(os.environ.get("PORT", "8080")))
-
-    @property
-    def device_endpoint(self) -> str:
-        return f"{self.oidc_issuer.rstrip('/')}/protocol/openid-connect/auth/device"
-
-    @property
-    def token_endpoint(self) -> str:
-        return f"{self.oidc_issuer.rstrip('/')}/protocol/openid-connect/token"
 
     @property
     def jwks_url(self) -> str:

@@ -62,6 +62,8 @@ wrong type fails the install.
 | mcp.image.pullPolicy | string | `"IfNotPresent"` | Image pull policy. |
 | mcp.image.repository | string | `"ghcr.io/nebari-dev/apps-pack/apps-mcp"` | apps-mcp image repository. |
 | mcp.image.tag | string | `""` | Image tag. Empty defaults to the chart's appVersion. |
+| mcp.oauth.callbackPort | int | `33418` | Port of the MCP client's OAuth callback (`--callback-port` in Claude Code); must match the client's redirect URI. |
+| mcp.oauth.clientId | string | `""` | Client id of a public Keycloak client (standard flow, PKCE S256) with the redirect URI `http://localhost:<callbackPort>/callback`. Its tokens are accepted by apps-api and apps-mcp, and the UI's Settings page puts it in the `claude mcp add` command. Empty: MCP clients must bring their own way to a token. |
 | mcp.orgCABundle.configMapName | string | `""` | ConfigMap in the release namespace holding the bundle. Empty disables it and the image's default roots apply. |
 | mcp.orgCABundle.key | string | `"ca-bundle.crt"` | Key in the ConfigMap that holds the bundle. |
 | mcp.replicaCount | int | `1` | apps-mcp replicas. |

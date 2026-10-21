@@ -260,6 +260,16 @@ def test_catalogs(client):
     assert caps["idleTimeoutMinutes"] == 0
     config = client.get("/api/v1/config").json()
     assert config["authEnabled"] is False
+    assert config["mcpOAuth"] == {"clientId": "", "callbackPort": 0}
+
+
+def test_config_mcp_oauth_client(client, monkeypatch):
+    from nebari_apps_api.config import settings
+
+    monkeypatch.setattr(settings, "mcp_oauth_client_id", "nebari-apps-mcp")
+    monkeypatch.setattr(settings, "mcp_oauth_callback_port", 33418)
+    config = client.get("/api/v1/config").json()
+    assert config["mcpOAuth"] == {"clientId": "nebari-apps-mcp", "callbackPort": 33418}
 
 
 def test_version(client, monkeypatch):
