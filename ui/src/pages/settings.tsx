@@ -241,8 +241,8 @@ function Account({ me }: { me: Query<Me> }) {
         authEnabled ? (
           <>
             Your groups come from your sign-in. A restricted App opens for members of any group it
-            lists (and for users it names); you can manage the Apps you own and those whose managers include you or one of
-            your groups. Admins can manage every App.
+            lists (and for users it names); you can manage the Apps you own and those whose managers
+            include you or one of your groups. Admins can manage every App.
           </>
         ) : (
           <>Sign-in is off on this cluster, so everyone can see and manage every App.</>
