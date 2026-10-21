@@ -19,6 +19,8 @@ describe("toYaml", () => {
         "    env:",
         "      - name: LOG_LEVEL",
         "        value: info",
+        "    secretKeys:",
+        "      - API_KEY",
         "  access:",
         "    public: false",
         "    groups:",
