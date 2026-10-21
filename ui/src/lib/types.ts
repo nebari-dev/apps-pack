@@ -11,7 +11,14 @@ export type SourceType = Crd.AppSource["type"];
 export type GitSource = Crd.GitSource;
 export type AppSource = Crd.AppSource;
 export type EnvVar = Crd.EnvVar;
-export type AppAccess = Crd.AppAccess;
+/** Who may manage the App besides its owner (not who may open it). */
+export type AppManagers = NonNullable<Crd.AppAccess["managers"]>;
+export type AppAccess = Omit<Crd.AppAccess, "managers"> & {
+  /** null in a PATCH clears the list; an omitted field keeps the stored value. */
+  managers?: AppManagers | null;
+};
+/** The caller's relationship to an App, computed per request by the API; "" = none. */
+export type AppRole = "owner" | "manager" | "admin" | "";
 /** Landing-page tile. `enabled` unset = follow the cluster default. */
 export type AppLandingPage = Crd.AppLandingPage;
 export type AppCondition = Crd.AppCondition;
@@ -48,6 +55,8 @@ export interface App {
   access?: AppAccess;
   landingPage?: AppLandingPage | null;
   status: AppStatus;
+  /** Older APIs leave it out. */
+  role?: AppRole;
 }
 
 export interface AppCreate {

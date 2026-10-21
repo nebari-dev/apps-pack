@@ -71,6 +71,27 @@ spec:
                     items:
                       type: string
                     type: array
+                  managers:
+                    description: |-
+                      Managers may manage the app (edit, start, stop, restart, delete, read
+                      logs and metrics) through apps-api, the UI and the MCP server, like its
+                      owner. Only the owner and api.adminGroups members may change this list.
+                      It does not grant opening the app: that is still public, groups and users.
+                    properties:
+                      groups:
+                        description: |-
+                          Groups are Keycloak/OIDC groups whose members may manage the app
+                          (a leading "/" is ignored, as for api.adminGroups).
+                        items:
+                          type: string
+                        type: array
+                      users:
+                        description: Users are Keycloak usernames (preferred_username,
+                          case-insensitive).
+                        items:
+                          type: string
+                        type: array
+                    type: object
                   public:
                     description: Public disables authentication entirely (anonymous
                       access).

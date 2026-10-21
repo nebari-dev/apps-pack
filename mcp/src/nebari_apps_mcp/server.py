@@ -185,7 +185,8 @@ async def list_apps(
     namespace: Annotated[str, Field(description="Filter to one namespace; empty = all visible namespaces")] = "",
 ) -> Any:
     """List launched apps with their source type, phase (Pending|Deploying|Running|Failed|Stopped|Idle),
-    URL, and owner. Idle = scaled to zero after its idle timeout; the next visit to its URL
+    URL, owner, managers (access.managers) and role (your relationship: owner, manager or admin).
+    Lists the apps you own or manage (every app for admins). Idle = scaled to zero after its idle timeout; the next visit to its URL
     (or start_app) wakes it.
     """
     try:
@@ -254,6 +255,25 @@ async def launch_app(
             )
         ),
     ] = None,
+    manager_users: Annotated[
+        list[str] | None,
+        Field(
+            description=(
+                "Keycloak usernames who may manage the app like you (edit, start, stop, restart, delete, "
+                "read logs) but not change its managers. Does not let them open a restricted app. "
+                "Omit to keep the current list when re-launching; [] clears it"
+            )
+        ),
+    ] = None,
+    manager_groups: Annotated[
+        list[str] | None,
+        Field(
+            description=(
+                "Keycloak groups whose members may manage the app, like manager_users. "
+                "Omit to keep the current list when re-launching; [] clears it"
+            )
+        ),
+    ] = None,
     description: Annotated[str, Field(description="Short description for catalogs")] = "",
     pixi_task: Annotated[
         str,
@@ -284,8 +304,9 @@ async def launch_app(
 ) -> dict[str, Any]:
     """Create and launch an app: static (HTML/CSS/JS served by nginx) or, with pixi_task set,
     a Python/pixi service whose source includes a pixi manifest. Idempotent on
-    (namespace, name): if the app already exists and you own it, its spec is updated instead
-    of failing, so retrying is safe; an app owned by someone else is never touched. Returns the app with its (pending) URL; poll get_app_status until
+    (namespace, name): if the app already exists and you own or manage it, its spec is updated
+    instead of failing, so retrying is safe; an app you neither own nor manage is never touched.
+    Only the owner (or an admin) may change manager_users/manager_groups. Returns the app with its (pending) URL; poll get_app_status until
     phase=Running.
     """
     source: dict[str, Any] = {"type": source_type}
@@ -296,6 +317,9 @@ async def launch_app(
     elif source_type == "pvc":
         source["pvc"] = {"claimName": pvc_claim_name, "subPath": pvc_sub_path}
 
+    access: dict[str, Any] = {"public": public, "groups": groups or [], "users": users or [], "subdomain": subdomain}
+    if manager_users is not None or manager_groups is not None:
+        access["managers"] = {"users": manager_users or [], "groups": manager_groups or []}
     body = {
         "name": name,
         "namespace": namespace,
@@ -310,7 +334,7 @@ async def launch_app(
             **({"keepAlive": True} if keep_alive else {}),
             **({"idleTimeoutMinutes": idle_timeout_minutes} if idle_timeout_minutes is not None else {}),
         },
-        "access": {"public": public, "groups": groups or [], "users": users or [], "subdomain": subdomain},
+        "access": access,
     }
     if landing_page is not None:
         body["landingPage"] = {"enabled": landing_page}
@@ -334,7 +358,7 @@ async def launch_app(
                 try:
                     return cast("dict[str, Any]", await api.patch(f"/apps/{namespace}/{name}", json=patch))
                 except ApiError as patch_exc:
-                    if patch_exc.status != 403:
+                    if patch_exc.status != 403 or "manages" in str(patch_exc.detail):
                         raise
                     out = _error(patch_exc)
                     out["error"] = (
@@ -395,7 +419,7 @@ async def update_app(
     patch: Annotated[
         dict[str, Any],
         Field(
-            description="Fields to change: any of displayName, description, source, runtime, access ({public, groups, users, subdomain}; send the whole object, an empty list clears it), landingPage ({enabled: bool}; {} = cluster default)"
+            description="Fields to change: any of displayName, description, source, runtime, access ({public, groups, users, subdomain, managers: {users, groups}}; send the whole object, an empty list clears it; omit managers to keep them, only the owner or an admin may change them), landingPage ({enabled: bool}; {} = cluster default)"
         ),
     ],
 ) -> Any:

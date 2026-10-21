@@ -10,6 +10,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 SourceType = Literal["git", "inline", "pvc"]
 SOURCE_TYPES: tuple[str, ...] = ("git", "inline", "pvc")
+# The caller's relationship to an App (AppOut.role); "" means none.
+Role = Literal["owner", "manager", "admin", ""]
 
 
 # Hosts a git source may never point at: the clone runs inside the cluster,
@@ -109,6 +111,13 @@ class AppRuntime(BaseModel):
     pixiTask: str = Field(default="", max_length=64)
 
 
+class AppManagers(BaseModel):
+    """Who may manage the App besides its owner (not who may open it)."""
+
+    users: list[str] = Field(default_factory=list)
+    groups: list[str] = Field(default_factory=list)
+
+
 class AppAccess(BaseModel):
     public: bool = False
     # A private app with groups or users is enforced in the app pod by the
@@ -116,6 +125,9 @@ class AppAccess(BaseModel):
     # everyone else gets 403. Both empty: any signed-in user.
     groups: list[str] = Field(default_factory=list)
     users: list[str] = Field(default_factory=list)
+    # Users and groups who may manage the App like its owner; only the owner
+    # and admins may change this list.
+    managers: AppManagers | None = None
     subdomain: str = Field(max_length=63, pattern=r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$")
 
 
@@ -198,6 +210,9 @@ class AppOut(BaseModel):
     access: AppAccess | None = None
     landingPage: AppLandingPage | None = None
     status: AppStatus = Field(default_factory=AppStatus)
+    # The caller's relationship to this App: owner, manager, admin, or ""
+    # (computed per request, not stored on the CR).
+    role: Role = ""
 
 
 class PodMetric(BaseModel):

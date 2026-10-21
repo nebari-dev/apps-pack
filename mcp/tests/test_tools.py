@@ -132,6 +132,26 @@ async def test_launch_and_update_access_users(store):
     assert access["groups"] == ["analysts"]  # a field the patch did not send is kept
 
 
+async def test_launch_and_update_managers(store):
+    await call("launch_app", {**LAUNCH_ARGS, "manager_users": ["bob"], "manager_groups": ["web-team"]})
+    access = store.apps[("apps", "docs-site")]["spec"]["access"]
+    assert access["managers"] == {"users": ["bob"], "groups": ["web-team"]}
+
+    # Re-launching without manager args keeps the list.
+    await call("launch_app", {**LAUNCH_ARGS, "display_name": "v2"})
+    assert store.apps[("apps", "docs-site")]["spec"]["access"]["managers"]["users"] == ["bob"]
+
+    await call(
+        "update_app",
+        {
+            "namespace": "apps",
+            "name": "docs-site",
+            "patch": {"access": {"public": True, "subdomain": "docs-site", "managers": {"users": ["carol"]}}},
+        },
+    )
+    assert store.apps[("apps", "docs-site")]["spec"]["access"]["managers"] == {"users": ["carol"]}
+
+
 async def test_stop_start_remove(store):
     await call("launch_app", LAUNCH_ARGS)
 
@@ -229,6 +249,18 @@ async def test_launch_refuses_to_overwrite_another_users_app(store, monkeypatch)
     assert result["status"] == 403
     assert "another user" in result["error"]
     assert store.apps[("apps", "docs-site")]["spec"]["displayName"] == "Docs Site"
+
+    # A manager may re-launch it, but not change who manages it.
+    who["user"] = User(username="alice")
+    await call("launch_app", {**LAUNCH_ARGS, "manager_users": ["carol"]})
+    who["user"] = User(username="carol")
+    relaunched = await call("launch_app", {**LAUNCH_ARGS, "display_name": "By Carol"})
+    assert relaunched["displayName"] == "By Carol"
+    assert relaunched["role"] == "manager"
+    refused = await call("launch_app", {**LAUNCH_ARGS, "manager_users": ["carol", "bob"]})
+    assert refused["status"] == 403
+    assert "manages" in refused["error"]
+    assert store.apps[("apps", "docs-site")]["spec"]["access"]["managers"] == {"users": ["carol"]}
 
     # The owner can still re-launch idempotently.
     who["user"] = User(username="alice")

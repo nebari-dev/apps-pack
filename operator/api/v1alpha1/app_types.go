@@ -126,6 +126,13 @@ type AppAccess struct {
 	// +optional
 	Users []string `json:"users,omitempty"`
 
+	// Managers may manage the app (edit, start, stop, restart, delete, read
+	// logs and metrics) through apps-api, the UI and the MCP server, like its
+	// owner. Only the owner and api.adminGroups members may change this list.
+	// It does not grant opening the app: that is still public, groups and users.
+	// +optional
+	Managers *AppManagers `json:"managers,omitempty"`
+
 	// Subdomain under the cluster domain: https://<subdomain>.<clusterDomain>.
 	// Unique across all Apps (the oldest App keeps a contested subdomain) and
 	// immutable after creation.
@@ -133,6 +140,20 @@ type AppAccess struct {
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="access.subdomain is immutable"
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
 	Subdomain string `json:"subdomain"`
+}
+
+// AppManagers lists the users and groups who may manage an App besides its
+// owner. Enforced by apps-api against the caller's verified token; the
+// operator ignores it.
+type AppManagers struct {
+	// Users are Keycloak usernames (preferred_username, case-insensitive).
+	// +optional
+	Users []string `json:"users,omitempty"`
+
+	// Groups are Keycloak/OIDC groups whose members may manage the app
+	// (a leading "/" is ignored, as for api.adminGroups).
+	// +optional
+	Groups []string `json:"groups,omitempty"`
 }
 
 // AppLandingPage controls whether the app is registered as a tile on the

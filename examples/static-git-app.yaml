@@ -20,4 +20,8 @@ spec:
   access:
     public: false
     groups: ["analysts"]
+    # Members of web-team may edit, stop and delete it through the API, UI
+    # and MCP server too (opening it still follows groups above).
+    managers:
+      groups: ["web-team"]
     subdomain: team-site

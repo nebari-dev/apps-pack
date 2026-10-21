@@ -30,10 +30,17 @@ so the id on a response is the one in the API's logs for that call.
 ### Authorization
 
 Every route that addresses one app (`/apps/{ns}/{name}` and everything under it) allows
-only the app's **owner** or a member of an **admin group** (`api.adminGroups`, default
-`["admin"]`); anyone else gets `403`. `GET /apps` and the `/analytics/*` endpoints return
-only the apps the caller may see. Apps without an owner (created with `kubectl`) are
-admin-only. The path namespace must be a launchable namespace on every route, not only on
+only the app's **owner**, its **managers** (`access.managers.users`, case-insensitive, or a
+member of one of `access.managers.groups`), or a member of an **admin group**
+(`api.adminGroups`, default `["admin"]`); anyone else gets `403`. Group membership comes
+from the verified token's `groups` claim. Managers may do everything the owner can except
+change `access.managers`: a `PATCH` from a manager that changes the list gets `403`
+(sending it unchanged, or leaving it out, is fine). `GET /apps` and the `/analytics/*`
+endpoints return only the apps the caller owns or manages (every app for admins). Apps
+without an owner (created with `kubectl`) are admin-only unless they list managers.
+
+Every app the API returns carries `role`: the caller's relationship to it, `owner`,
+`manager` or `admin` (strongest first). The path namespace must be a launchable namespace on every route, not only on
 create.
 
 ## Endpoints
@@ -57,7 +64,7 @@ create.
 | `POST /apps` | Create + launch. Body mirrors `App.spec` plus `name`/`namespace` (see below). `409` if the name exists in the namespace or the subdomain is used by any other app. |
 | `POST /apps/upload` | Create + launch an app from an upload. Multipart: `manifest` (JSON, source omitted) + `file` (`.zip` or `.html`). A manifest with `runtime.pixiTask` launches the zip as a Python/pixi app. |
 | `GET /apps/{ns}/{name}` | Full spec + status. |
-| `PATCH /apps/{ns}/{name}` | Update any of `displayName`, `description`, `thumbnail`, `source`, `runtime`, `access`. `runtime` and `access` merge field by field: a field you send replaces the stored one (`null` or empty removes it), and fields you leave out keep their value, including ones set with `kubectl` such as `env[].valueFrom` or extra resource names. `source` is replaced whole. `access.subdomain` cannot change (`422`). |
+| `PATCH /apps/{ns}/{name}` | Update any of `displayName`, `description`, `thumbnail`, `source`, `runtime`, `access`. `runtime` and `access` merge field by field: a field you send replaces the stored one (`null` or empty removes it), and fields you leave out keep their value, including ones set with `kubectl` such as `env[].valueFrom` or extra resource names. `source` is replaced whole. `access.subdomain` cannot change (`422`). `access.managers` (`{users, groups}`) can be changed only by the owner or an admin (`403` otherwise); `null` clears it. |
 | `DELETE /apps/{ns}/{name}` | Delete (cascades to all children). |
 | `POST /apps/{ns}/{name}/stop` | Scale to zero. |
 | `POST /apps/{ns}/{name}/start` | Scale a stopped app back to one replica, or wake an `Idle` one (it keeps its replicas; the operator starts it as if a request had arrived). |

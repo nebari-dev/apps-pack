@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse, Response
 
 from . import __version__
 from . import cr as crmod
-from .auth import User, can_access, current_user, is_admin
+from .auth import User, app_managers, app_role, can_access, can_change_managers, current_user, is_admin
 from .config import settings
 from .k8s import READY_TIMEOUT, AppStore, ConflictError, KubernetesAppStore, NotFoundError
 from .limits import BodySizeLimitMiddleware
@@ -105,11 +105,12 @@ def create_app(store: AppStore | None = None) -> FastAPI:
             created = store.create_app(req.namespace, crmod.to_cr(req, user.username))
         except ConflictError:
             raise HTTPException(409, f"app {req.namespace}/{req.name} already exists") from None
-        return crmod.from_cr(created)
+        return crmod.from_cr(created, app_role(user, created))
 
     def authorized_app(store: AppStore, user: User, namespace: str, name: str) -> dict[str, Any]:
         """Fetch an App the caller may act on: the path namespace must be a
-        launchable namespace and the caller must own the App or be an admin.
+        launchable namespace and the caller must own or manage the App (see
+        auth.is_manager) or be an admin.
         Every route that addresses one App goes through here.
         """
         check_namespace(store, namespace)
@@ -142,8 +143,8 @@ def create_app(store: AppStore | None = None) -> FastAPI:
         raise AssertionError("unreachable")
 
     def visible_apps(store: AppStore, user: User, namespace: str | None) -> list[dict[str, Any]]:
-        """Apps the caller may see: launchable namespaces only, filtered by
-        owner unless the caller is an admin.
+        """Apps the caller may see: launchable namespaces only, filtered to
+        the ones they own or manage unless the caller is an admin.
         """
         if namespace is not None:
             check_namespace(store, namespace)
@@ -238,7 +239,7 @@ def create_app(store: AppStore | None = None) -> FastAPI:
     # ------------------------------------------------------------------ apps
     @app.get(PREFIX + "/apps", response_model=list[AppOut])
     def list_apps(store: Store, user: Me, namespace: str | None = None) -> list[AppOut]:
-        return [crmod.from_cr(item) for item in visible_apps(store, user, namespace)]
+        return [crmod.from_cr(item, app_role(user, item)) for item in visible_apps(store, user, namespace)]
 
     @app.post(PREFIX + "/apps", response_model=AppOut, status_code=201)
     def create(req: AppCreate, store: Store, user: Me) -> AppOut:
@@ -271,7 +272,8 @@ def create_app(store: AppStore | None = None) -> FastAPI:
 
     @app.get(PREFIX + "/apps/{namespace}/{name}", response_model=AppOut)
     def get_app(namespace: str, name: str, store: Store, user: Me) -> AppOut:
-        return crmod.from_cr(authorized_app(store, user, namespace, name))
+        cr = authorized_app(store, user, namespace, name)
+        return crmod.from_cr(cr, app_role(user, cr))
 
     @app.patch(PREFIX + "/apps/{namespace}/{name}", response_model=AppOut)
     def patch_app(namespace: str, name: str, patch: AppPatch, store: Store, user: Me) -> AppOut:
@@ -282,9 +284,19 @@ def create_app(store: AppStore | None = None) -> FastAPI:
             current = ((existing.get("spec") or {}).get("access") or {}).get("subdomain")
             if patch.access is not None and current and patch.access.subdomain != current:
                 raise HTTPException(422, "access.subdomain cannot be changed after launch")
+            if (
+                patch.access is not None
+                and "managers" in patch.access.model_fields_set
+                and not can_change_managers(user, existing)
+            ):
+                sent = patch.access.managers.model_dump() if patch.access.managers else {}
+                wanted = {key: list(sent.get(key) or []) for key in ("users", "groups")}
+                if wanted != app_managers(existing):
+                    raise HTTPException(403, "only the owner or an admin can change who manages this app")
             return crmod.apply_patch(existing, patch)
 
-        return crmod.from_cr(update_app(store, user, namespace, name, change))
+        cr = update_app(store, user, namespace, name, change)
+        return crmod.from_cr(cr, app_role(user, cr))
 
     @app.delete(PREFIX + "/apps/{namespace}/{name}", status_code=204)
     def delete_app(namespace: str, name: str, store: Store, user: Me) -> None:
@@ -296,7 +308,8 @@ def create_app(store: AppStore | None = None) -> FastAPI:
             existing.setdefault("spec", {}).setdefault("runtime", {})["replicas"] = replicas
             return existing
 
-        return crmod.from_cr(update_app(store, user, namespace, name, change))
+        cr = update_app(store, user, namespace, name, change)
+        return crmod.from_cr(cr, app_role(user, cr))
 
     @app.post(PREFIX + "/apps/{namespace}/{name}/stop", response_model=AppOut)
     def stop_app(namespace: str, name: str, store: Store, user: Me) -> AppOut:
@@ -316,7 +329,8 @@ def create_app(store: AppStore | None = None) -> FastAPI:
             annotations[crmod.WAKE_ANNOTATION] = crmod.wake_timestamp()
             return existing
 
-        return crmod.from_cr(update_app(store, user, namespace, name, change))
+        cr = update_app(store, user, namespace, name, change)
+        return crmod.from_cr(cr, app_role(user, cr))
 
     @app.post(PREFIX + "/apps/{namespace}/{name}/restart", response_model=AppOut)
     def restart_app(namespace: str, name: str, store: Store, user: Me) -> AppOut:
@@ -327,7 +341,8 @@ def create_app(store: AppStore | None = None) -> FastAPI:
             store.restart_app(namespace, name)
         except NotFoundError as exc:
             raise HTTPException(409, f"app {namespace}/{name} is not running") from exc
-        return crmod.from_cr(must_get(store, namespace, name))
+        fresh = must_get(store, namespace, name)
+        return crmod.from_cr(fresh, app_role(user, fresh))
 
     # --------------------------------------------------------- observability
     @app.get(PREFIX + "/apps/{namespace}/{name}/status")
@@ -445,6 +460,10 @@ def _check_access(access: Any) -> None:
         for entry in getattr(access, field):
             if not entry.strip() or "," in entry:
                 raise HTTPException(422, f"access.{field}: entries must be non-empty and must not contain ','")
+    if access.managers is not None:
+        for field in ("users", "groups"):
+            if any(not entry.strip() for entry in getattr(access.managers, field)):
+                raise HTTPException(422, f"access.managers.{field}: entries must be non-empty")
 
 
 def _check_source(source: Any) -> None:

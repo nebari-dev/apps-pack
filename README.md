@@ -105,8 +105,9 @@ The user guide is at [packs.nebari.dev/apps-pack](https://packs.nebari.dev/apps-
   at the gateway; group changes apply when the user's token refreshes (5 minutes by default).
 - Landing-page tile visibility is group-based only, so the launch form's landing-page switch is
   locked for now; register a tile through the API, the MCP server or `kubectl`.
-- Users see and manage only the Apps they launched; members of `api.adminGroups` manage all of
-  them. There is no sharing yet.
+- Users see and manage the Apps they launched or are listed as managers of
+  (`access.managers`); members of `api.adminGroups` manage all of them. Ownership cannot be
+  transferred yet.
 - Inline sources are capped at about 900 KB of text; larger sites need a `git` or `pvc` source.
 - Scale to zero is off by default (`apps.idle.timeoutMinutes`), and an idle app's first visit
   waits for a cold start: seconds for a static app, up to minutes for a Python app.

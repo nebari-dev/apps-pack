@@ -46,6 +46,8 @@ test.describe("launch form", () => {
     await page.getByLabel("Repository URL").fill("https://github.com/example/team-site");
     await page.getByLabel("Allowed groups").fill("analysts, finance");
     await page.getByLabel("Allowed users").fill("alice , bob,");
+    await page.getByLabel("Manager users").fill("dave");
+    await page.getByLabel("Manager groups").fill("web-team");
     // The landing-page option is locked: a note, not a switch.
     await expect(page.getByRole("switch", { name: /landing page/ })).toHaveCount(0);
     await expect(page.getByText(/Changing this here is not available yet/)).toBeVisible();
@@ -57,6 +59,9 @@ test.describe("launch form", () => {
         "Keycloak SSO at the gateway · restricted to groups: analysts, finance · users: alice, bob",
       ),
     ).toBeVisible();
+    await expect(page.getByTestId("managers")).toHaveText(
+      "Managed by users: dave · groups: web-team · admins",
+    );
     expect(api.requests).toMatchObject([
       {
         method: "POST",
@@ -66,6 +71,7 @@ test.describe("launch form", () => {
             public: false,
             groups: ["analysts", "finance"],
             users: ["alice", "bob"],
+            managers: { users: ["dave"], groups: ["web-team"] },
             subdomain: "team-site",
           },
           landingPage: { enabled: false },

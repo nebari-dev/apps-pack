@@ -58,12 +58,12 @@ anonymously.
 |---|---|
 | `authenticate` | Start/complete the device-flow login, or confirm the cached token. |
 | `describe_cluster` | Source types, launchable namespaces, apps domain, and the cluster's default idle timeout — call first to pick valid options. |
-| `launch_app` | Create + launch (static, or Python/pixi via `pixi_task`); optional `resources` (requests/limits, cluster defaults otherwise) and `groups`/`users` to restrict a private app (a member of any group or a listed user gets in; everyone else gets `403`); `idle_timeout_minutes` and `keep_alive` control [scale to zero](/app-crd-reference/#scale-to-zero). **Idempotent on (namespace, name)** — re-launching your own app updates it instead of failing, so retries are safe; an app owned by someone else is refused, never overwritten. |
+| `launch_app` | Create + launch (static, or Python/pixi via `pixi_task`); optional `resources` (requests/limits, cluster defaults otherwise) and `groups`/`users` to restrict a private app (a member of any group or a listed user gets in; everyone else gets `403`); `idle_timeout_minutes` and `keep_alive` control [scale to zero](/app-crd-reference/#scale-to-zero); `manager_users`/`manager_groups` set who else may [manage](/launching-apps/#managers) it (omit to keep the current list). **Idempotent on (namespace, name)** — re-launching an app you own or manage updates it instead of failing, so retries are safe; any other app is refused, never overwritten. Only the owner or an admin may change the managers. |
 | `list_apps` | Apps with phase, URL, owner; optional namespace filter. Inline sources list file `paths` only. |
 | `get_app` | Full spec + status for one app; inline files come back fenced (see below). |
 | `get_app_status` | Lightweight poll: phase, URL, replicas, conditions. |
 | `get_app_logs` | Recent pod logs (fenced, last 64 KiB) — first stop when phase is `Failed`. |
-| `update_app` | Patch spec (source, runtime, access, …). |
+| `update_app` | Patch spec (source, runtime, access, …). `access.managers` (`{users, groups}`) is the manager list; only the owner or an admin may change it. |
 | `stop_app` / `start_app` | Scale to zero / back up; `start_app` also wakes an `Idle` app. |
 | `restart_app` | Roll the app's pods without changing the spec; fails if the app is stopped. |
 | `get_app_metrics` | Instantaneous CPU/memory per pod (`available:false` when the cluster has no metrics server). |

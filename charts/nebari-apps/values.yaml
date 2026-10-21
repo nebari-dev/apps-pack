@@ -144,8 +144,9 @@ api:
   allowedNamespaces:
     - apps
   # -- Keycloak groups whose members see and manage every App. Everyone else
-  # sees and manages only the Apps they launched (`spec.owner`); Apps without
-  # an owner (created with kubectl) are admin-only.
+  # sees and manages only the Apps they launched (`spec.owner`) or are listed
+  # as managers of (`spec.access.managers`); Apps without an owner (created
+  # with kubectl) are admin-only unless they list managers.
   adminGroups:
     - admin
   # -- Container resources. Requests equal limits, so the pod is Guaranteed.

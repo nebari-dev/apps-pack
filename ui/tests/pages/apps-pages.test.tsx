@@ -339,6 +339,17 @@ describe("apps page", () => {
     expect(names()).toHaveLength(4);
   });
 
+  it("counts apps the user manages in Mine", async () => {
+    vi.mocked(getUser).mockReturnValue({ name: "carol", email: "" });
+    // renderApps waits for the second app, so make it the managed one.
+    const [first, second, ...rest] = LIST;
+    await renderApps([first, { ...second, role: "manager" }, ...rest]);
+    const mine = screen.getByRole("button", { name: /^Mine/ });
+    expect(mine).toHaveAttribute("aria-pressed", "true");
+    expect(within(mine).getByText("1")).toBeInTheDocument();
+    expect(names()).toEqual([second.displayName]);
+  });
+
   it("shows Mine off for a user who owns no app", async () => {
     vi.mocked(getUser).mockReturnValue({ name: "carol", email: "" });
     await renderApps();
@@ -540,6 +551,22 @@ describe("app detail page", () => {
     expect(screen.queryByRole("link", { name: /Open/ })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Stop/ })).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("says who can manage the app and the caller's role", async () => {
+    await renderDetail(
+      app("docs", {
+        role: "manager",
+        access: {
+          public: true,
+          subdomain: "docs",
+          managers: { users: ["dave"], groups: ["web-team"] },
+        },
+      }),
+    );
+    expect(screen.getByTestId("managers")).toHaveTextContent(
+      "Managed by alice (owner) · users: dave · groups: web-team · admins · You manage this app.",
+    );
   });
 
   it("keeps Restart, Copy URL and Delete in the More menu, Delete last", async () => {

@@ -15,3 +15,35 @@ export function accessLine(a: App): string {
   ].filter(Boolean);
   return `Keycloak SSO at the gateway · restricted to ${parts.join(" · ")}`;
 }
+
+/** Owned or managed by the caller: what the Mine filter keeps. */
+export function isMine(a: App, me: string | null): boolean {
+  if (a.role) return a.role === "owner" || a.role === "manager";
+  // An API without roles: owned only.
+  return me !== null && a.owner === me;
+}
+
+/** Who can manage the app: its owner, the listed managers, and admins. */
+export function managersLine(a: App): string {
+  const users = a.access?.managers?.users ?? [];
+  const groups = a.access?.managers?.groups ?? [];
+  return [
+    a.owner ? `${a.owner} (owner)` : "",
+    users.length ? `users: ${users.join(", ")}` : "",
+    groups.length ? `groups: ${groups.join(", ")}` : "",
+    "admins",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+const ROLE_NOTE: Record<string, string> = {
+  owner: "You own this app.",
+  manager: "You manage this app.",
+  admin: "You can manage this app as an admin.",
+};
+
+/** A sentence naming the caller's role, or "" when the API does not say. */
+export function roleNote(a: App): string {
+  return ROLE_NOTE[a.role ?? ""] ?? "";
+}

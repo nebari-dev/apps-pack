@@ -36,6 +36,7 @@ import {
 } from "@/hooks/use-app-actions";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { useRestarts } from "@/hooks/use-restarts";
+import { isMine } from "@/lib/access";
 import { api } from "@/lib/api";
 import { needsAttention } from "@/lib/attention";
 import { getUser } from "@/lib/auth";
@@ -64,7 +65,7 @@ export function AppsPage() {
   const [filter, setFilter] = useState("");
   // A phase, ATTENTION, or null for every status.
   const [phaseFilter, setPhaseFilter] = useState<string | null>(null);
-  // null until the user toggles Mine: it then defaults to on whenever they own an app.
+  // null until the user toggles Mine: it then defaults to on whenever they own or manage an app.
   const [mineChoice, setMineChoice] = useState<boolean | null>(null);
   // Most severe first, so a Failed app is never buried under healthy ones.
   const [sort, setSort] = useState<Sort>({ col: "status", dir: "asc" });
@@ -78,13 +79,10 @@ export function AppsPage() {
   const actions = useAppActions({ onDeleted: () => setDeleteTarget(null) });
 
   const list = apps.data ?? [];
-  const mineCount = me ? list.filter((a) => a.owner === me).length : 0;
+  const mineCount = me ? list.filter((a) => isMine(a, me)).length : 0;
   const mine = me !== null && (mineChoice ?? mineCount > 0);
   // Mine scopes everything below it: the status chips, the banner and the rows.
-  const scoped = useMemo(
-    () => (mine ? list.filter((a) => a.owner === me) : list),
-    [list, mine, me],
-  );
+  const scoped = useMemo(() => (mine ? list.filter((a) => isMine(a, me)) : list), [list, mine, me]);
   const phaseCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const a of scoped) counts[a.status.phase] = (counts[a.status.phase] ?? 0) + 1;

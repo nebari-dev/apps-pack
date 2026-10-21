@@ -48,7 +48,7 @@ import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toast";
 import { isIdle, isStopped, useAppActions } from "@/hooks/use-app-actions";
 import { usePageTitle } from "@/hooks/use-page-title";
-import { accessLine } from "@/lib/access";
+import { accessLine, managersLine, roleNote } from "@/lib/access";
 import { api } from "@/lib/api";
 import { copyText } from "@/lib/clipboard";
 import { pollFor } from "@/lib/polling";
@@ -205,6 +205,10 @@ export function AppDetailPage() {
               {a.namespace}/{a.name}
               {a.owner ? <> · launched by {a.owner}</> : null}
               {a.description ? <> · {a.description}</> : null}
+            </p>
+            <p data-testid="managers" className="mt-1 text-muted-foreground text-sm">
+              Managed by {managersLine(a)}
+              {roleNote(a) ? <> · {roleNote(a)}</> : null}
             </p>
           </div>
         </div>

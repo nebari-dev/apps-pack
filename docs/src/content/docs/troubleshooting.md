@@ -95,8 +95,11 @@ kubectl -n nebari-operator-system logs deploy/nebari-operator-controller-manager
 - **`403 namespace "x" is not available for apps`.** Only namespaces in
   `api.allowedNamespaces` (or, when that is empty, labeled `nebari.dev/managed=true`) can host
   apps; `default` and `kube-*` never can.
-- **`403 you do not have access to app …`.** Apps are visible to their owner and to members
-  of `api.adminGroups` only.
+- **`403 you do not have access to app …`.** Apps are visible to their owner, their
+  managers (`access.managers`) and members of `api.adminGroups` only. A manager group counts
+  once the user's access token carries it (sign out and in, or wait for it to refresh).
+- **`403 only the owner or an admin can change who manages this app`.** A manager edited
+  `access.managers`; leave it out of the request (or send it unchanged).
 - **An app's CPU and memory cards say "Metrics unavailable".** Pod CPU and memory come from
   `metrics.k8s.io`; install metrics-server.
 

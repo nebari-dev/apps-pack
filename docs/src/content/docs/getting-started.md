@@ -177,9 +177,10 @@ or pilot.
   the launch form's landing-page switch is locked for now. Tiles are off by default for
   launched apps (`apps.landingPage.enabled` / `spec.landingPage.enabled`); only the pack's own
   "Apps" tile is registered. See [Landing page](/launching-apps/#landing-page).
-- **Authorization is owner-or-admin only.** The API lets a user see and manage only the Apps
-  they launched; members of `api.adminGroups` manage all of them. There is no sharing or
-  delegation yet, and anyone with `kubectl` access to an app namespace bypasses the API.
+- **Authorization is owner, manager or admin.** The API lets a user see and manage the Apps
+  they launched or are listed as a [manager](/launching-apps/#managers) of; members of
+  `api.adminGroups` manage all of them. Ownership cannot be transferred yet, and anyone with
+  `kubectl` access to an app namespace bypasses the API.
 - **Inline sources are capped at ~900 KB of UTF-8 text** (a ConfigMap). Binary assets or
   larger sites need a `git` or `pvc` source.
 - **No per-user quota.** Launched pods get default requests/limits and at most 10 replicas

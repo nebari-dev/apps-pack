@@ -22,7 +22,7 @@ wrong type fails the install.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| api.adminGroups | list | `["admin"]` | Keycloak groups whose members see and manage every App. Everyone else sees and manages only the Apps they launched (`spec.owner`); Apps without an owner (created with kubectl) are admin-only. |
+| api.adminGroups | list | `["admin"]` | Keycloak groups whose members see and manage every App. Everyone else sees and manages only the Apps they launched (`spec.owner`) or are listed as managers of (`spec.access.managers`); Apps without an owner (created with kubectl) are admin-only unless they list managers. |
 | api.allowedNamespaces | list | `["apps"]` | Namespaces users may launch apps into. An empty list falls back to every namespace labeled `nebari.dev/managed=true`. |
 | api.auth.enabled | bool | `true` | Keycloak JWT bearer auth for the API (and keycloak-js login in the UI). Disable only for local development without a browser-reachable Keycloak. |
 | api.auth.insecureAllowAnonymous | bool | `false` | Rendering fails when auth is disabled on a TLS (i.e. real) install, because the API would then be anonymous with cluster-wide write RBAC. Set this only if you really mean to run an unauthenticated API. |
