@@ -16,7 +16,7 @@ test.describe("apps list", () => {
     await expect(rows.filter({ hasText: "Broken App" })).toContainText("Failed");
   });
 
-  test("shows a table-shaped skeleton while the list loads, sized like the real rows", async ({
+  test("renders the table frame at once and skeletons only the rows while the list loads", async ({
     page,
     api,
   }) => {
@@ -27,15 +27,24 @@ test.describe("apps list", () => {
     await page.goto("/apps");
     await expect(page.getByRole("heading", { level: 1, name: "Apps" })).toBeVisible();
     await expect(page.getByRole("status").filter({ hasText: "Loading apps" })).toBeAttached();
-    // The placeholder rows are hidden from assistive tech.
-    await expect(page.getByRole("row")).toHaveCount(0);
-    const skeleton = page.locator('[aria-busy="true"] table');
-    const header = await skeleton.locator("thead tr").boundingBox();
-    const row = await skeleton.locator("tbody tr").first().boundingBox();
+    // Static chrome is real: Launch, search, the All chip (without a count) and headers.
+    await expect(page.getByRole("link", { name: "Launch app" })).toBeVisible();
+    await expect(page.getByPlaceholder(/Search by name/)).toBeVisible();
+    await expect(page.getByRole("button", { name: "All", exact: true })).toHaveText("All");
+    await expect(page.getByRole("columnheader", { name: "Status" })).toBeVisible();
+    // Only the body is a placeholder, hidden from assistive tech: one header row.
+    await expect(page.getByRole("row")).toHaveCount(1);
+    await expect(
+      page.locator('tbody[aria-hidden="true"] [data-slot="skeleton"]').first(),
+    ).toBeVisible();
+    const header = await page.locator("table thead tr").boundingBox();
+    const row = await page.locator("table tbody tr").first().boundingBox();
 
     release();
     await expect(page.getByRole("link", { name: "Sales Dashboard" })).toBeVisible();
-    await expect(page.locator('[aria-busy="true"]')).toHaveCount(0);
+    await expect(page.locator('[data-slot="skeleton"]')).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /^All/ })).toHaveText(/^All\s*\d+$/);
+    // The same table stays in place: its header does not move.
     expect(await page.locator("table thead tr").boundingBox()).toEqual(header);
     const real = await page.locator("table tbody tr").first().boundingBox();
     // Within a pixel: the last row drops its bottom border.

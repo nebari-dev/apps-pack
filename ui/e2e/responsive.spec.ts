@@ -62,7 +62,7 @@ for (const { path, heading, ready } of PAGES) {
   });
 }
 
-// The loading skeletons stand in for the same layouts, so they fit too.
+// Pages render their chrome with skeletons for the pending data, which must fit too.
 const SKELETONS: { path: string; hold: RegExp }[] = [
   { path: "/apps", hold: /^\/apps$/ },
   { path: "/apps/apps/docs-site", hold: /^\/apps\/apps\/docs-site$/ },
@@ -73,7 +73,7 @@ for (const { path, hold } of SKELETONS) {
   test(`${path} loading skeleton fits a phone-width viewport`, async ({ page, api }) => {
     const release = api.hold(hold);
     await page.goto(path);
-    await expect(page.locator('[aria-busy="true"] [data-slot="skeleton"]').first()).toBeVisible();
+    await expect(page.locator('[data-slot="skeleton"]').first()).toBeVisible();
     const { scrollWidth, innerWidth, tables } = await page.evaluate(() => ({
       scrollWidth: document.documentElement.scrollWidth,
       innerWidth: window.innerWidth,

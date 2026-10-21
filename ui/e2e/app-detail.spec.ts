@@ -160,6 +160,8 @@ test.describe("app actions by keyboard", () => {
 
     const more = await tabToButton(page, "More actions");
     await page.keyboard.press("Enter");
+    // The menu takes focus once it opens; End before then goes nowhere.
+    await expect(page.getByRole("menuitem", { name: "Restart" })).toBeFocused();
     await page.keyboard.press("End");
     await expect(page.getByRole("menuitem", { name: "Delete" })).toBeFocused();
     await page.keyboard.press("Enter");

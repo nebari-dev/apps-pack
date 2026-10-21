@@ -29,10 +29,12 @@ import {
   Sparkline,
 } from "@/components/app-bits";
 import {
-  AppDetailSkeleton,
   ListSkeleton,
+  LoadingStatus,
   LogSkeleton,
   MetricSkeleton,
+  PillSkeleton,
+  TextLine,
 } from "@/components/loading-skeletons";
 import { errorMessage } from "@/components/query-error";
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -48,17 +50,21 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toast";
 import { isIdle, isStopped, useAppActions } from "@/hooks/use-app-actions";
+import { useArrived, useChanged } from "@/hooks/use-changed";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { accessLine, managersLine, roleNote } from "@/lib/access";
 import { api } from "@/lib/api";
 import { copyText } from "@/lib/clipboard";
+import { ENTER, FADE_IN } from "@/lib/motion";
 import { pollFor } from "@/lib/polling";
 import { relativeTime } from "@/lib/time";
 import type { App } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { toYaml } from "@/lib/yaml";
 
 const MAX_SAMPLES = 30;
@@ -131,8 +137,16 @@ export function AppDetailPage() {
     onDeleted: () => void navigate("/apps"),
   });
 
-  if (app.isLoading) return <AppDetailSkeleton />;
-  if (app.isError || !app.data) {
+  // Motion: values that replaced a skeleton fade in, a status the App moved
+  // into (Idle, waking, Failed) eases its alert in, and a newly picked tab
+  // fades its panel. None of it plays on the first paint.
+  const arrived = useArrived(app.data !== undefined);
+  const reveal = arrived ? FADE_IN : undefined;
+  const phaseChanged = useChanged(phase);
+  const tabChanged = useChanged(tab);
+  const metricsArrived = useArrived(metrics.data !== undefined);
+
+  if (app.isError || (!app.isLoading && !app.data)) {
     return (
       <Alert variant="destructive">
         <AlertTitle>Could not load app</AlertTitle>
@@ -141,19 +155,20 @@ export function AppDetailPage() {
     );
   }
 
+  // Undefined while the App loads: the page's chrome (back link, Edit, card
+  // titles, tabs) renders at once and only the App's own values are skeletons.
   const a = app.data;
-  const stopped = isStopped(a);
-  const idle = isIdle(a);
+  const stopped = a ? isStopped(a) : false;
+  const idle = a ? isIdle(a) : false;
   // Only offer the app's URL while it can actually serve: stopped or
   // still-deploying apps would just show a gateway error. An idle app's URL
   // wakes it and shows a starting page meanwhile.
-  const ready = a.status.phase === "Running" || idle;
-  const manifest = toManifest(a);
-  const failure = failureOf(a);
+  const ready = a?.status.phase === "Running" || idle;
+  const failure = a ? failureOf(a) : null;
   // A stopped or failed app has no pods to measure: say so instead of
-  // drawing empty CPU and memory cards.
-  const showUsage = a.status.phase !== "Stopped" && a.status.phase !== "Failed" && !idle;
-  const url = a.status.url;
+  // drawing empty CPU and memory cards. While loading, assume it has some.
+  const showUsage = a?.status.phase !== "Stopped" && a?.status.phase !== "Failed" && !idle;
+  const url = a?.status.url;
   const copyUrl = async () => {
     if (!url) return;
     try {
@@ -177,41 +192,62 @@ export function AppDetailPage() {
 
   return (
     <div className="space-y-6">
+      {a ? null : <LoadingStatus label="Loading app" />}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex min-w-0 gap-4">
-          <AppThumbnail
-            name={a.name}
-            displayName={a.displayName}
-            thumbnail={a.thumbnail}
-            className="mt-6 size-12"
-          />
-          <div className="min-w-0">
+        <div className="flex min-w-0 flex-1 gap-4">
+          {a ? (
+            <AppThumbnail
+              name={a.name}
+              displayName={a.displayName}
+              thumbnail={a.thumbnail}
+              className={cn("mt-6 size-12", reveal)}
+            />
+          ) : (
+            <Skeleton className="mt-6 size-12 rounded-md" />
+          )}
+          <div className="min-w-0 flex-1">
             <Link
               to="/apps"
               className="mb-1 inline-flex items-center gap-1 text-muted-foreground text-sm hover:text-foreground"
             >
               <ArrowLeft className="size-3.5" /> Apps
             </Link>
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 ref={heading} tabIndex={-1} className="font-semibold text-2xl outline-none">
-                {a.displayName || a.name}
-              </h1>
-              <SourceBadge source={a.source?.type ?? "—"} />
-              <KindBadge pixiTask={a.runtime?.pixiTask} />
-              <PhaseBadge phase={a.status.phase} />
-            </div>
-            <p className="mt-1 text-muted-foreground text-sm">
-              {a.namespace}/{a.name}
-              {a.owner ? <> · launched by {a.owner}</> : null}
-              {a.description ? <> · {a.description}</> : null}
-            </p>
-            <p data-testid="managers" className="mt-1 text-muted-foreground text-sm">
-              Managed by {managersLine(a)}
-              {roleNote(a) ? <> · {roleNote(a)}</> : null}
-            </p>
+            {a ? (
+              <div className={cn(reveal)}>
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* The heading renders with the App, so focus lands on its name. */}
+                  <h1 ref={heading} tabIndex={-1} className="font-semibold text-2xl outline-none">
+                    {a.displayName || a.name}
+                  </h1>
+                  <SourceBadge source={a.source?.type ?? "—"} />
+                  <KindBadge pixiTask={a.runtime?.pixiTask} />
+                  <PhaseBadge phase={a.status.phase} />
+                </div>
+                <p className="mt-1 text-muted-foreground text-sm">
+                  {a.namespace}/{a.name}
+                  {a.owner ? <> · launched by {a.owner}</> : null}
+                  {a.description ? <> · {a.description}</> : null}
+                </p>
+                <p data-testid="managers" className="mt-1 text-muted-foreground text-sm">
+                  Managed by {managersLine(a)}
+                  {roleNote(a) ? <> · {roleNote(a)}</> : null}
+                </p>
+              </div>
+            ) : (
+              <div aria-hidden="true">
+                <div className="flex flex-wrap items-center gap-3">
+                  <TextLine box="h-8" className="h-6 w-48" />
+                  <PillSkeleton className="w-12" />
+                  <PillSkeleton className="w-20" />
+                </div>
+                <TextLine className="mt-1 w-80 max-w-full" />
+                <TextLine className="mt-1 w-56 max-w-full" />
+              </div>
+            )}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+          {a ? null : <Skeleton className="h-8 w-20 rounded-md" />}
           {ready && url ? (
             <Button
               render={
@@ -221,12 +257,12 @@ export function AppDetailPage() {
               }
             />
           ) : null}
-          {idle ? (
+          {a && idle ? (
             <Button variant="outline" loading={start.isPending} onClick={() => start.mutate(a)}>
               <Play /> Wake
             </Button>
           ) : null}
-          {stopped ? (
+          {!a ? null : stopped ? (
             <Button variant="outline" loading={start.isPending} onClick={() => start.mutate(a)}>
               <Play /> Start
             </Button>
@@ -243,48 +279,55 @@ export function AppDetailPage() {
               </Link>
             }
           />
-          <DropdownMenu modal={false}>
-            <DropdownMenuTrigger
-              variant="ghost"
-              aria-label="More actions"
-              render={<Button variant="ghost" size="icon" />}
-            >
+          {a ? (
+            <DropdownMenu modal={false}>
+              <DropdownMenuTrigger
+                variant="ghost"
+                aria-label="More actions"
+                render={<Button variant="ghost" size="icon" />}
+              >
+                <MoreHorizontal aria-hidden="true" />
+              </DropdownMenuTrigger>
+              <DropdownMenuPortal>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem disabled={stopped || idle} onClick={() => restart.mutate(a)}>
+                    <RotateCw aria-hidden="true" className="size-4 shrink-0" />
+                    <span className="flex flex-col">
+                      Restart
+                      {stopped || idle ? (
+                        <span className="text-muted-foreground text-xs">
+                          {idle ? "Wake the app to restart it" : "Start the app to restart it"}
+                        </span>
+                      ) : null}
+                    </span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled={!url} onClick={() => void copyUrl()}>
+                    <Copy aria-hidden="true" className="size-4 shrink-0" />
+                    Copy URL
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-destructive-foreground"
+                    variant="destructive"
+                    onClick={() => setDeleteOpen(true)}
+                  >
+                    <Trash2 aria-hidden="true" className="size-4 shrink-0" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenuPortal>
+            </DropdownMenu>
+          ) : (
+            // Its items act on the App, so the menu opens once the App is here.
+            <Button variant="ghost" size="icon" aria-label="More actions" disabled>
               <MoreHorizontal aria-hidden="true" />
-            </DropdownMenuTrigger>
-            <DropdownMenuPortal>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem disabled={stopped || idle} onClick={() => restart.mutate(a)}>
-                  <RotateCw aria-hidden="true" className="size-4 shrink-0" />
-                  <span className="flex flex-col">
-                    Restart
-                    {stopped || idle ? (
-                      <span className="text-muted-foreground text-xs">
-                        {idle ? "Wake the app to restart it" : "Start the app to restart it"}
-                      </span>
-                    ) : null}
-                  </span>
-                </DropdownMenuItem>
-                <DropdownMenuItem disabled={!url} onClick={() => void copyUrl()}>
-                  <Copy aria-hidden="true" className="size-4 shrink-0" />
-                  Copy URL
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="text-destructive-foreground"
-                  variant="destructive"
-                  onClick={() => setDeleteOpen(true)}
-                >
-                  <Trash2 aria-hidden="true" className="size-4 shrink-0" />
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenuPortal>
-          </DropdownMenu>
+            </Button>
+          )}
         </div>
       </div>
 
-      {idle ? (
-        <Alert>
+      {a && idle ? (
+        <Alert className={cn(phaseChanged && ENTER)}>
           <Moon aria-hidden="true" />
           <AlertTitle>Idle</AlertTitle>
           <AlertDescription>
@@ -298,7 +341,11 @@ export function AppDetailPage() {
       ) : null}
 
       {failure ? (
-        <Alert variant="destructive" role="alert" className="has-data-[slot=alert-action]:pr-2">
+        <Alert
+          variant="destructive"
+          role="alert"
+          className={cn("has-data-[slot=alert-action]:pr-2", phaseChanged && ENTER)}
+        >
           <AlertCircle aria-hidden="true" />
           <AlertTitle>{failure.title}</AlertTitle>
           {failure.message ? <AlertDescription>{failure.message}</AlertDescription> : null}
@@ -311,7 +358,7 @@ export function AppDetailPage() {
               size="sm"
               disabled={stopped}
               loading={restart.isPending}
-              onClick={() => restart.mutate(a)}
+              onClick={() => a && restart.mutate(a)}
             >
               <RotateCw aria-hidden="true" /> Restart
             </Button>
@@ -331,35 +378,45 @@ export function AppDetailPage() {
             <CardTitle>URL</CardTitle>
           </CardHeader>
           <CardContent>
-            {a.status.url ? (
-              ready ? (
-                <a
-                  className="break-all font-mono text-sm underline"
-                  href={a.status.url}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {a.status.url}
-                </a>
-              ) : (
-                <p
-                  className="break-all font-mono text-muted-foreground text-sm"
-                  title="App is not running"
-                >
-                  {a.status.url}
-                </p>
-              )
+            {!a ? (
+              <div aria-hidden="true">
+                <TextLine className="w-4/5" />
+                <TextLine box="h-4" className="mt-2 h-3 w-3/4" />
+                <TextLine box="h-4" className="mt-1 h-3 w-1/2" />
+              </div>
             ) : (
-              <p className="text-muted-foreground text-sm">Not routed yet</p>
+              <div className={cn(reveal)}>
+                {a.status.url ? (
+                  ready ? (
+                    <a
+                      className="break-all font-mono text-sm underline"
+                      href={a.status.url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {a.status.url}
+                    </a>
+                  ) : (
+                    <p
+                      className="break-all font-mono text-muted-foreground text-sm"
+                      title="App is not running"
+                    >
+                      {a.status.url}
+                    </p>
+                  )
+                ) : (
+                  <p className="text-muted-foreground text-sm">Not routed yet</p>
+                )}
+                <p className="mt-2 text-muted-foreground text-xs">{accessLine(a)}</p>
+                <p className="mt-1 text-muted-foreground text-xs">
+                  {a.landingPage?.enabled === true
+                    ? "Shown on the landing page"
+                    : a.landingPage?.enabled === false
+                      ? "Hidden from the landing page"
+                      : "Landing page: cluster default"}
+                </p>
+              </div>
             )}
-            <p className="mt-2 text-muted-foreground text-xs">{accessLine(a)}</p>
-            <p className="mt-1 text-muted-foreground text-xs">
-              {a.landingPage?.enabled === true
-                ? "Shown on the landing page"
-                : a.landingPage?.enabled === false
-                  ? "Hidden from the landing page"
-                  : "Landing page: cluster default"}
-            </p>
           </CardContent>
         </Card>
         <Card>
@@ -367,19 +424,28 @@ export function AppDetailPage() {
             <CardTitle>Replicas</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="font-semibold text-2xl tabular-nums">
-              {a.status.replicas ? (
-                <>
-                  {a.status.replicas.ready}
-                  <span className="ml-1 font-normal text-muted-foreground text-sm">
-                    of {a.status.replicas.desired} ready
-                  </span>
-                </>
-              ) : (
-                "—"
-              )}
-            </p>
-            <p className="mt-1 text-muted-foreground text-xs">{a.status.message}</p>
+            {!a ? (
+              <div aria-hidden="true">
+                <TextLine box="h-8" className="h-6 w-20" />
+                <TextLine box="h-4" className="mt-1 h-3 w-3/4" />
+              </div>
+            ) : (
+              <div className={cn(reveal)}>
+                <p className="font-semibold text-2xl tabular-nums">
+                  {a.status.replicas ? (
+                    <>
+                      {a.status.replicas.ready}
+                      <span className="ml-1 font-normal text-muted-foreground text-sm">
+                        of {a.status.replicas.desired} ready
+                      </span>
+                    </>
+                  ) : (
+                    "—"
+                  )}
+                </p>
+                <p className="mt-1 text-muted-foreground text-xs">{a.status.message}</p>
+              </div>
+            )}
           </CardContent>
         </Card>
         {showUsage ? (
@@ -389,16 +455,16 @@ export function AppDetailPage() {
                 <CardTitle>CPU</CardTitle>
               </CardHeader>
               <CardContent>
-                {metrics.isLoading ? (
+                {metrics.isLoading || !a ? (
                   <MetricSkeleton />
                 ) : metrics.data?.available ? (
-                  <>
+                  <div className={cn(metricsArrived && FADE_IN)}>
                     <p className="font-semibold text-2xl tabular-nums">
                       {cpuHistory.at(-1) ?? 0}
                       <span className="ml-1 font-normal text-muted-foreground text-sm">m</span>
                     </p>
                     <Sparkline data={cpuHistory} className="mt-2 w-full" />
-                  </>
+                  </div>
                 ) : (
                   <p className="text-muted-foreground text-sm">Metrics unavailable</p>
                 )}
@@ -409,16 +475,16 @@ export function AppDetailPage() {
                 <CardTitle>Memory</CardTitle>
               </CardHeader>
               <CardContent>
-                {metrics.isLoading ? (
+                {metrics.isLoading || !a ? (
                   <MetricSkeleton />
                 ) : metrics.data?.available ? (
-                  <>
+                  <div className={cn(metricsArrived && FADE_IN)}>
                     <p className="font-semibold text-2xl tabular-nums">
                       {memHistory.at(-1) ?? 0}
                       <span className="ml-1 font-normal text-muted-foreground text-sm">Mi</span>
                     </p>
                     <Sparkline data={memHistory} className="mt-2 w-full" />
-                  </>
+                  </div>
                 ) : (
                   <p className="text-muted-foreground text-sm">Metrics unavailable</p>
                 )}
@@ -446,43 +512,47 @@ export function AppDetailPage() {
           <TabsTab value="manifest">Manifest</TabsTab>
         </TabsList>
 
-        <TabsPanel value="conditions" className="mt-4">
+        <TabsPanel value="conditions" className={cn("mt-4", tabChanged && FADE_IN)}>
           <Card>
             <CardContent className="p-4">
-              <ul className="space-y-3">
-                {a.status.conditions.map((c) => (
-                  <li key={c.type} className="flex items-start gap-2">
-                    {c.status === "True" ? (
-                      <CheckCircle2
-                        aria-hidden="true"
-                        className="mt-0.5 size-4 shrink-0 text-success-foreground"
-                      />
-                    ) : (
-                      <XCircle
-                        aria-hidden="true"
-                        className="mt-0.5 size-4 shrink-0 text-destructive-foreground"
-                      />
-                    )}
-                    <div>
-                      <p className="font-medium text-sm">
-                        <span className="sr-only">
-                          {c.status === "True" ? "Passing: " : "Failing: "}
-                        </span>
-                        {c.type} <span className="text-muted-foreground">· {c.reason}</span>
-                      </p>
-                      <p className="text-muted-foreground text-sm">{c.message}</p>
-                    </div>
-                  </li>
-                ))}
-                {a.status.conditions.length === 0 ? (
-                  <p className="text-muted-foreground text-sm">No conditions reported yet.</p>
-                ) : null}
-              </ul>
+              {!a ? (
+                <ListSkeleton />
+              ) : (
+                <ul className={cn("space-y-3", reveal)}>
+                  {a.status.conditions.map((c) => (
+                    <li key={c.type} className="flex items-start gap-2">
+                      {c.status === "True" ? (
+                        <CheckCircle2
+                          aria-hidden="true"
+                          className="mt-0.5 size-4 shrink-0 text-success-foreground"
+                        />
+                      ) : (
+                        <XCircle
+                          aria-hidden="true"
+                          className="mt-0.5 size-4 shrink-0 text-destructive-foreground"
+                        />
+                      )}
+                      <div>
+                        <p className="font-medium text-sm">
+                          <span className="sr-only">
+                            {c.status === "True" ? "Passing: " : "Failing: "}
+                          </span>
+                          {c.type} <span className="text-muted-foreground">· {c.reason}</span>
+                        </p>
+                        <p className="text-muted-foreground text-sm">{c.message}</p>
+                      </div>
+                    </li>
+                  ))}
+                  {a.status.conditions.length === 0 ? (
+                    <p className="text-muted-foreground text-sm">No conditions reported yet.</p>
+                  ) : null}
+                </ul>
+              )}
             </CardContent>
           </Card>
         </TabsPanel>
 
-        <TabsPanel value="logs" className="mt-4">
+        <TabsPanel value="logs" className={cn("mt-4", tabChanged && FADE_IN)}>
           <Card>
             <CardHeader className="flex-row flex-wrap items-center justify-between gap-3">
               <CardTitle>Pod logs</CardTitle>
@@ -542,7 +612,7 @@ export function AppDetailPage() {
           </Card>
         </TabsPanel>
 
-        <TabsPanel value="events" className="mt-4">
+        <TabsPanel value="events" className={cn("mt-4", tabChanged && FADE_IN)}>
           <Card>
             <CardContent className="p-4">
               {events.isLoading ? (
@@ -584,7 +654,7 @@ export function AppDetailPage() {
           </Card>
         </TabsPanel>
 
-        <TabsPanel value="manifest" className="mt-4">
+        <TabsPanel value="manifest" className={cn("mt-4", tabChanged && FADE_IN)}>
           <Card>
             <CardHeader>
               <CardTitle>App resource</CardTitle>
@@ -594,22 +664,28 @@ export function AppDetailPage() {
                 The App custom resource for this app. Copy it into a GitOps repo, or apply with{" "}
                 <span className="font-mono">kubectl apply -f</span>.
               </p>
-              <CodeBlock code={manifest}>
-                <CodeBlockBody maxLines={24} />
-              </CodeBlock>
+              {a ? (
+                <CodeBlock code={toManifest(a)} className={cn(reveal)}>
+                  <CodeBlockBody maxLines={24} />
+                </CodeBlock>
+              ) : (
+                <Skeleton shape="block" className="h-64" />
+              )}
             </CardContent>
           </Card>
         </TabsPanel>
       </Tabs>
 
-      <ConfirmDeleteDialog
-        open={deleteOpen}
-        onOpenChange={setDeleteOpen}
-        appName={a.name}
-        displayName={a.displayName}
-        loading={remove.isPending}
-        onConfirm={() => remove.mutate(a)}
-      />
+      {a ? (
+        <ConfirmDeleteDialog
+          open={deleteOpen}
+          onOpenChange={setDeleteOpen}
+          appName={a.name}
+          displayName={a.displayName}
+          loading={remove.isPending}
+          onConfirm={() => remove.mutate(a)}
+        />
+      ) : null}
     </div>
   );
 }

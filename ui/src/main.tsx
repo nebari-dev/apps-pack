@@ -41,10 +41,23 @@ function page<K extends string>(load: () => Promise<Record<K, ComponentType>>, n
     return { default: mod[name] };
   });
 }
-const AppDetailPage = page(() => import("@/pages/app-detail"), "AppDetailPage");
-const AppsPage = page(() => import("@/pages/apps"), "AppsPage");
-const EditPage = page(() => import("@/pages/edit"), "EditPage");
-const LaunchPage = page(() => import("@/pages/launch"), "LaunchPage");
+const loadAppDetail = () => import("@/pages/app-detail");
+const loadApps = () => import("@/pages/apps");
+const loadEdit = () => import("@/pages/edit");
+const loadLaunch = () => import("@/pages/launch");
+const AppDetailPage = page(loadAppDetail, "AppDetailPage");
+const AppsPage = page(loadApps, "AppsPage");
+const EditPage = page(loadEdit, "EditPage");
+const LaunchPage = page(loadLaunch, "LaunchPage");
+
+// Navigation keeps the current page up while the next one's code loads (see
+// Layout). Fetch the other pages' chunks once the browser is idle, so that
+// wait is near zero. Best-effort: a failed prefetch is retried on navigation.
+function prefetchPages() {
+  for (const load of [loadApps, loadAppDetail, loadEdit, loadLaunch]) {
+    load().catch(() => {});
+  }
+}
 
 // Branding comes from /config.json (ui.branding.* in the chart). Start the
 // fetch before the auth round trip so the two overlap, and treat it as
@@ -98,3 +111,6 @@ createRoot(container).render(
     </ThemeProvider>
   </StrictMode>,
 );
+
+if ("requestIdleCallback" in window) window.requestIdleCallback(prefetchPages);
+else setTimeout(prefetchPages, 1_000);

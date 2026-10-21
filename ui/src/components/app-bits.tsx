@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useChanged } from "@/hooks/use-changed";
+import { FADE_IN } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 export function PhaseBadge({ phase }: { phase: string }) {
@@ -39,8 +41,16 @@ export function PhaseBadge({ phase }: { phase: string }) {
     Pending: { variant: "outline", icon: <CircleDashed className="size-3.5" /> },
   };
   const cfg = map[phase] ?? map.Pending;
+  // A status the App moves into while the page is open (Idle, waking through
+  // Deploying, Running) crossfades in: the key remounts the badge so the fade
+  // replays on every change, and the first paint does not fade.
+  const changed = useChanged(phase);
   return (
-    <Badge variant={cfg.variant} className={cn("gap-1", cfg.className)}>
+    <Badge
+      key={phase}
+      variant={cfg.variant}
+      className={cn("gap-1", changed && FADE_IN, cfg.className)}
+    >
       {cfg.icon}
       {phase || "Pending"}
     </Badge>
