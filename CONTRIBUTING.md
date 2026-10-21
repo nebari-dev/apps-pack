@@ -39,7 +39,7 @@ CI runs these on every pull request. Run the ones for the components you touched
 pushing.
 
 CI is one job per component in `.github/workflows/ci.yaml` (Operator, Authz sidecar, Python
-per package, UI, Helm chart, Repo invariants), plus `.github/workflows/images.yaml`, which builds and scans each
+per package, UI, Helm chart, Repo invariants), plus `.github/workflows/images.yaml`, which builds each
 image. The checks that are scripts live in `.github/scripts/` and run locally from the repo
 root, e.g. `python3 .github/scripts/check_versions.py` or
 `python3 .github/scripts/check_doc_paths.py` (the chart checks need PyYAML and a rendered

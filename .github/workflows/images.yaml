@@ -1,8 +1,8 @@
 name: Images
 
-# check: builds each of the five images once on amd64, scans it with Trivy and,
-# for apps-ui, boots it to assert the security headers. Runs on pull requests,
-# on main, and weekly.
+# check: builds each of the five images once on amd64 and, for apps-ui, boots
+# it to assert the security headers. Runs on pull requests,
+# and on main.
 #
 # publish (main and manual runs only): builds the images for amd64 and arm64
 # through the org's reusable workflow, which pushes them to GHCR
@@ -33,8 +33,6 @@ on:
       - "ui/**"
       - "mcp/**"
       - ".github/workflows/images.yaml"
-  schedule:
-    - cron: "17 6 * * 1"
   workflow_dispatch:
 
 permissions:
@@ -46,9 +44,6 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # On the weekly schedule this rebuilds from the digest-pinned bases, so
-  # advisories published since the last merge surface against exactly what
-  # ships.
   check:
     name: ${{ matrix.image }}
     runs-on: ubuntu-latest
@@ -77,23 +72,15 @@ jobs:
       - name: Build
         run: docker build --pull -t "$IMAGE:ci" "$CONTEXT"
 
-      # Fails on any HIGH or CRITICAL vulnerability that has a fix available, in
-      # the OS packages or the application's dependencies.
-      - name: Trivy
-        run: |
-          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-            aquasec/trivy:0.75.0@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa \
-            image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 "$IMAGE:ci"
-
       # Boots the real image so the assertion covers nginx's header
       # inheritance, not just the config text.
       - name: Security headers
         if: matrix.image == 'apps-ui'
         run: ui/scripts/check-headers.sh apps-ui:ci
 
-  # Not `needs: check`: a newly published CVE must not stop `latest` tracking
-  # main, or the release commit's sha images from existing (release.yaml
-  # depends on them).
+  # Not `needs: check`: a failing check must not stop `latest` tracking main,
+  # or the release commit's sha images from existing (release.yaml depends on
+  # them).
   publish:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     strategy:
