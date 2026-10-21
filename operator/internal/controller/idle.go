@@ -112,9 +112,9 @@ func (r *AppReconciler) reader() client.Reader {
 }
 
 // evaluateIdle decides whether the App is idle, recording the activity it
-// saw in status.lastActivityTime. Failing to read activity counts as
-// activity: an App is never scaled down because the operator could not see
-// it working.
+// saw in status.lastActivityTime. A failed activity check never idles the
+// App: it stays up, its recorded activity is left as it was, and the check
+// runs again a poll interval later.
 func (r *AppReconciler) evaluateIdle(ctx context.Context, app *appsv1alpha1.App) (idleState, error) {
 	timeout := r.Config.idleTimeout(app)
 	if timeout == 0 || specReplicas(app) == 0 {
@@ -133,21 +133,29 @@ func (r *AppReconciler) evaluateIdle(ctx context.Context, app *appsv1alpha1.App)
 	}
 
 	ready := int32(0)
+	scaledDown := false
 	deploy := &appsv1.Deployment{}
 	err := r.Get(ctx, types.NamespacedName{Name: childName(app), Namespace: app.Namespace}, deploy)
 	switch {
 	case err == nil:
 		ready = deploy.Status.ReadyReplicas
+		scaledDown = deploy.Spec.Replicas != nil && *deploy.Spec.Replicas == 0
 	case !apierrors.IsNotFound(err):
 		return idleState{}, fmt.Errorf("reading Deployment: %w", err)
 	}
-	if ready > 0 {
+	// Once idle, the App stays idle until a request wakes it (the wake
+	// annotation, above). Its pods are going away, and the Deployment's ready
+	// count lags the scale-down, so asking them would find no ready pod and,
+	// counted as activity, scale the App straight back up.
+	alreadyIdle := scaledDown || app.Status.Phase == appsv1alpha1.AppPhaseIdle
+	checkFailed := false
+	if ready > 0 && !alreadyIdle {
 		seen, err := r.podActivity(ctx, app)
-		if err != nil {
-			logf.FromContext(ctx).Info("idle check failed; treating the app as active", "error", err.Error())
-			seen = now
-		}
-		if seen.After(last) {
+		switch {
+		case err != nil:
+			logf.FromContext(ctx).Info("idle check failed; not idling the app this time", "error", err.Error())
+			checkFailed = true
+		case seen.After(last):
 			last = seen
 		}
 	}
@@ -157,13 +165,16 @@ func (r *AppReconciler) evaluateIdle(ctx context.Context, app *appsv1alpha1.App)
 	app.Status.LastActivityTime = &metav1.Time{Time: last.Truncate(time.Second)}
 
 	st := idleState{timeout: timeout}
-	st.idle = now.Sub(last) >= timeout
+	st.idle = !checkFailed && now.Sub(last) >= timeout
 	st.viaActivator = st.idle || ready == 0
 	st.waking = !st.idle && ready == 0 && app.Status.Phase == appsv1alpha1.AppPhaseIdle
 	if !st.idle {
-		poll := min(max(timeout/6, minIdlePoll), maxIdlePoll)
-		until := last.Add(timeout).Sub(now) + time.Second
-		st.requeue = min(poll, until)
+		st.requeue = min(max(timeout/6, minIdlePoll), maxIdlePoll)
+		// Check again as soon as the timeout runs out. After a failed check
+		// it may already have (until <= 0), and the poll interval applies.
+		if until := last.Add(timeout).Sub(now) + time.Second; until > 0 && until < st.requeue {
+			st.requeue = until
+		}
 	}
 	return st, nil
 }

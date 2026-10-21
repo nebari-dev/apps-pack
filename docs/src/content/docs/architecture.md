@@ -210,8 +210,8 @@ The zone is configurable via the `appsDomain` value (default `apps.<clusterDomai
   plus read-only access to PersistentVolumeClaims and pods (the idle check), and the
   activator's `ReferenceGrant` in its own namespace.
 - The operator reads each idling App's activity from the pod, which runs untrusted code: the
-  answer is size- and time-bounded, a time in the future is clamped to now, and any failure
-  counts as activity, so a pod can at worst keep its own App awake (what `keepAlive` allows
+  answer is size- and time-bounded, a time in the future is clamped to now, and a failed check
+  never idles the App, so a pod can at worst keep its own App awake (what `keepAlive` allows
   anyway). The activator reveals only the host the caller asked for, and waking costs the
   App's resources, nothing more: any request that reaches an idle App's URL wakes it,
   including a signed-in user outside a restricted App's groups (the sidecar still refuses them

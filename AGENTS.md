@@ -77,7 +77,7 @@ helm lint charts/nebari-apps --set clusterDomain=nebari.example.com
   environment variables, never shell interpolation. The `app` container stays first and
   keeps its name (logs default to it); restricted Apps, Apps that can idle and image Apps add the
   `authz` sidecar after it. The operator reads idle Apps' activity from the pod, so treat that answer as
-  untrusted too (bounded, clamped, failure counts as activity). MCP tools and resources return app-controlled text
+  untrusted too (bounded, clamped, and a failed check never idles the App). MCP tools and resources return app-controlled text
   (logs, files, events) only through the fences in `mcp/src/nebari_apps_mcp/untrusted.py`, and
   resources read through the same apps-api calls as the matching tools, so they share the API's
   owner/manager/admin authorization.

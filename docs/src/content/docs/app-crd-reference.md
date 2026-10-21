@@ -281,8 +281,11 @@ the answer in `status.lastActivityTime`.
    environment, which can take minutes.
 
 If the operator cannot read a pod's activity (a NetworkPolicy blocking it, an old pod without
-the sidecar), it counts the App as active: an App is never idled because the operator could not
-see it working. A newly idling App (just launched, or idling just turned on) starts its clock
+the sidecar), it keeps the App running and asks again at the next poll: an App is never idled
+because the operator could not see it working. A failed check is not a request, so
+`status.lastActivityTime` stays where it was, and once the check works again the App idles on
+its real last request. An `Idle` App stays idle until a request wakes it: the operator does not
+ask its pods while they shut down. A newly idling App (just launched, or idling just turned on) starts its clock
 then. Turning `keepAlive` on, or idling on or off, rolls the App's pods, because the sidecar is
 added or removed.
 

@@ -101,9 +101,13 @@ kubectl -n nebari-apps logs deploy/nebari-apps-operator --since=30m | grep -E 'i
 - **An App never idles.** Check that it can idle at all: `keepAlive` unset, `replicas` above 0,
   a timeout above 0, and the pod has the `authz` container. Then look for `idle check failed`
   in the operator log: the operator could not read the sidecar's activity (port 8082 on the pod
-  IP) and counted the App as active. A NetworkPolicy that blocks the operator's namespace from
-  port 8082 is the usual cause; the chart's own policy allows it. Something polling the app
-  (an uptime check, a browser tab that refreshes) is activity too.
+  IP) and kept the App running; `LAST ACTIVE` stays at the last request it did see. A
+  NetworkPolicy that blocks the operator's namespace from port 8082 is the usual cause; the
+  chart's own policy allows it. Something polling the app (an uptime check, a browser tab that
+  refreshes) is activity too.
+- **An App idles late on a local cluster.** A laptop that sleeps pauses a kind cluster, and the
+  idle check with it; it runs again on wake. Compare the gap with the host's sleep log
+  (`pmset -g log | grep -E 'Sleep|Wake'` on macOS).
 - **The URL returns `503` "no healthy upstream" or `500` while the App is `Idle`.** Routing to
   the activator is broken. The `nebari-apps-activator` Service needs endpoints (the operator
   pods, port 8090), and the `ReferenceGrant` of the same name needs an entry for the App's
