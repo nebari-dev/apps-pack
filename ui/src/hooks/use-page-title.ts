@@ -8,7 +8,7 @@ let navigated = false;
 /**
  * Names the page for the tab and for assistive tech: sets document.title to
  * "<title> · <app title>" and, after a client-side navigation, moves focus to
- * the page heading once it renders (pages show a spinner first), so screen
+ * the page heading once it renders (pages show a loading skeleton first), so screen
  * readers announce the new page. Pass the returned ref to the page's <h1>,
  * which needs tabIndex={-1}.
  */

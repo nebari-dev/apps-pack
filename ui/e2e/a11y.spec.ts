@@ -3,6 +3,7 @@
  * in tests/pages/a11y.test.tsx this sees real layout and computed colors, so it
  * covers color contrast, and it loads each page's lazy chunk from the bundle.
  */
+import type { Page } from "@playwright/test";
 import {
   expect,
   expectNoCriticalOrSeriousA11yViolations,
@@ -27,6 +28,39 @@ const PAGES: { name: string; path: string; heading: string; ready?: string }[] =
   { name: "not found", path: "/no-such-page", heading: "Page not found" },
 ];
 
+// Pages whose content loads behind a skeleton: `hold` is the API request held
+// open, `label` the status announced while it is, `loaded` a role that shows
+// the real content replaced the placeholder.
+const LOADING: {
+  name: string;
+  path: string;
+  hold: RegExp;
+  label: string;
+  loaded: Parameters<Page["getByRole"]>;
+}[] = [
+  {
+    name: "apps list",
+    path: "/apps",
+    hold: /^\/apps$/,
+    label: "Loading apps",
+    loaded: ["link", { name: "Docs Site" }],
+  },
+  {
+    name: "app detail",
+    path: "/apps/apps/docs-site",
+    hold: /^\/apps\/apps\/docs-site$/,
+    label: "Loading app",
+    loaded: ["heading", { level: 1, name: "Docs Site" }],
+  },
+  {
+    name: "edit form",
+    path: "/apps/apps/docs-site/edit",
+    hold: /^\/apps\/apps\/docs-site$/,
+    label: "Loading app",
+    loaded: ["heading", { level: 1, name: "Edit app" }],
+  },
+];
+
 for (const theme of ["light", "dark"] satisfies Theme[]) {
   test.describe(`${theme} theme`, () => {
     test.use({ theme });
@@ -38,6 +72,26 @@ for (const theme of ["light", "dark"] satisfies Theme[]) {
         await expectResolvedTheme(page, theme);
         if (ready) await expect(page.getByText(ready)).toBeVisible();
         await expectNoCriticalOrSeriousA11yViolations(page);
+      });
+    }
+
+    for (const { name, path, hold, label, loaded } of LOADING) {
+      test(`${name} loading skeleton has no critical or serious violations @a11y`, async ({
+        page,
+        api,
+      }) => {
+        const release = api.hold(hold);
+        await page.goto(path);
+        await expect(page.getByRole("status").filter({ hasText: label })).toBeAttached();
+        const busy = page.locator('[aria-busy="true"]');
+        await expect(busy).toHaveAttribute("aria-hidden", "true");
+        await expect(busy.locator('[data-slot="skeleton"]').first()).toBeVisible();
+        await expectResolvedTheme(page, theme);
+        await expectNoCriticalOrSeriousA11yViolations(page);
+
+        release();
+        await expect(page.getByRole(...loaded).first()).toBeVisible();
+        await expect(busy).toHaveCount(0);
       });
     }
 

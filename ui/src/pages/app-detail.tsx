@@ -28,6 +28,12 @@ import {
   SourceBadge,
   Sparkline,
 } from "@/components/app-bits";
+import {
+  AppDetailSkeleton,
+  ListSkeleton,
+  LogSkeleton,
+  MetricSkeleton,
+} from "@/components/loading-skeletons";
 import { errorMessage } from "@/components/query-error";
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -42,7 +48,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toast";
@@ -126,13 +131,7 @@ export function AppDetailPage() {
     onDeleted: () => void navigate("/apps"),
   });
 
-  if (app.isLoading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Spinner className="size-6" />
-      </div>
-    );
-  }
+  if (app.isLoading) return <AppDetailSkeleton />;
   if (app.isError || !app.data) {
     return (
       <Alert variant="destructive">
@@ -390,7 +389,9 @@ export function AppDetailPage() {
                 <CardTitle>CPU</CardTitle>
               </CardHeader>
               <CardContent>
-                {metrics.data?.available ? (
+                {metrics.isLoading ? (
+                  <MetricSkeleton />
+                ) : metrics.data?.available ? (
                   <>
                     <p className="font-semibold text-2xl tabular-nums">
                       {cpuHistory.at(-1) ?? 0}
@@ -408,7 +409,9 @@ export function AppDetailPage() {
                 <CardTitle>Memory</CardTitle>
               </CardHeader>
               <CardContent>
-                {metrics.data?.available ? (
+                {metrics.isLoading ? (
+                  <MetricSkeleton />
+                ) : metrics.data?.available ? (
                   <>
                     <p className="font-semibold text-2xl tabular-nums">
                       {memHistory.at(-1) ?? 0}
@@ -517,7 +520,9 @@ export function AppDetailPage() {
               </div>
             </CardHeader>
             <CardContent>
-              {logs.isError && !filteredLogs ? (
+              {logs.isLoading ? (
+                <LogSkeleton />
+              ) : logs.isError && !filteredLogs ? (
                 <div className="rounded-md bg-muted p-3 text-sm">
                   <p>No logs available</p>
                   <p className="mt-1 text-muted-foreground">{errorMessage(logs.error)}</p>
@@ -530,7 +535,7 @@ export function AppDetailPage() {
                   aria-label="Pod logs"
                   className="max-h-96 overflow-auto rounded-md bg-muted p-3 font-mono text-xs leading-relaxed"
                 >
-                  {filteredLogs || (logSearch ? "No matching lines." : "Loading…")}
+                  {filteredLogs || (logSearch ? "No matching lines." : "No log lines yet.")}
                 </pre>
               )}
             </CardContent>
@@ -540,37 +545,41 @@ export function AppDetailPage() {
         <TabsPanel value="events" className="mt-4">
           <Card>
             <CardContent className="p-4">
-              <ul className="space-y-2">
-                {(events.data ?? []).map((ev, i) => (
-                  <li
-                    // biome-ignore lint/suspicious/noArrayIndexKey: events have no stable id and the list is replaced on every poll
-                    key={`${ev.object}-${ev.reason}-${i}`}
-                    className="flex items-start justify-between gap-3 border-border border-b pb-2 text-sm last:border-0"
-                  >
-                    <div>
-                      <p className="font-medium">
-                        {ev.reason}{" "}
-                        <span className="font-normal text-muted-foreground">
-                          · {ev.kind}/{ev.object}
-                        </span>
-                      </p>
-                      <p className="text-muted-foreground">{ev.message}</p>
-                    </div>
-                    {ev.lastTimestamp ? (
-                      <time
-                        dateTime={ev.lastTimestamp}
-                        title={ev.lastTimestamp}
-                        className="shrink-0 text-muted-foreground text-xs"
-                      >
-                        {relativeTime(ev.lastTimestamp)}
-                      </time>
-                    ) : null}
-                  </li>
-                ))}
-                {(events.data ?? []).length === 0 ? (
-                  <p className="text-muted-foreground text-sm">No events.</p>
-                ) : null}
-              </ul>
+              {events.isLoading ? (
+                <ListSkeleton label="Loading events" />
+              ) : (
+                <ul className="space-y-2">
+                  {(events.data ?? []).map((ev, i) => (
+                    <li
+                      // biome-ignore lint/suspicious/noArrayIndexKey: events have no stable id and the list is replaced on every poll
+                      key={`${ev.object}-${ev.reason}-${i}`}
+                      className="flex items-start justify-between gap-3 border-border border-b pb-2 text-sm last:border-0"
+                    >
+                      <div>
+                        <p className="font-medium">
+                          {ev.reason}{" "}
+                          <span className="font-normal text-muted-foreground">
+                            · {ev.kind}/{ev.object}
+                          </span>
+                        </p>
+                        <p className="text-muted-foreground">{ev.message}</p>
+                      </div>
+                      {ev.lastTimestamp ? (
+                        <time
+                          dateTime={ev.lastTimestamp}
+                          title={ev.lastTimestamp}
+                          className="shrink-0 text-muted-foreground text-xs"
+                        >
+                          {relativeTime(ev.lastTimestamp)}
+                        </time>
+                      ) : null}
+                    </li>
+                  ))}
+                  {(events.data ?? []).length === 0 ? (
+                    <p className="text-muted-foreground text-sm">No events.</p>
+                  ) : null}
+                </ul>
+              )}
             </CardContent>
           </Card>
         </TabsPanel>

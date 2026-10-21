@@ -3,7 +3,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import { Banner } from "@/components/banner";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { Header } from "@/components/header";
-import { Spinner } from "@/components/ui/spinner";
+import { PageSkeleton } from "@/components/loading-skeletons";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useTheme } from "@/hooks/theme-provider";
 import { getUser, logout } from "@/lib/auth";
@@ -43,13 +43,7 @@ export function Layout() {
         >
           {/* Keyed by route: a page that threw is retried when the user navigates. */}
           <ErrorBoundary key={pathname}>
-            <Suspense
-              fallback={
-                <div className="flex h-64 items-center justify-center">
-                  <Spinner className="size-6" />
-                </div>
-              }
-            >
+            <Suspense fallback={<PageSkeleton />}>
               <Outlet />
             </Suspense>
           </ErrorBoundary>

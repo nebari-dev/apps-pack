@@ -74,7 +74,7 @@ goes over, move the code out of the initial load before raising the budget.
 The UI's end-to-end suite (`ui/e2e/`, Playwright on Chromium) loads the production build
 under `vite preview`, so run `npm run build` first. It mocks the apps-api with `page.route`
 fixtures (`ui/e2e/fixtures.ts`, App data in `ui/e2e/data.ts`), so no cluster is needed. It
-covers the apps list (the home page) with its Needs attention banner, Open links, and empty and error states,
+covers the apps list (the home page) with its Needs attention banner, Open links, and loading (skeleton), empty and error states,
 launching an app (validation included), an app's detail and logs, and keyboard-only use of the
 launch form, the app actions and the account menu. Tests tagged `@a11y` run axe over every page in light and dark and fail on a
 `critical` or `serious` WCAG 2.0/2.1 A or AA violation; a second `mobile` project reruns them

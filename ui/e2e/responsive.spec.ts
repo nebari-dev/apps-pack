@@ -61,3 +61,31 @@ for (const { path, heading, ready } of PAGES) {
     expect(overlaps(logo, account), "the logo overlaps the account menu").toBe(false);
   });
 }
+
+// The loading skeletons stand in for the same layouts, so they fit too.
+const SKELETONS: { path: string; hold: RegExp }[] = [
+  { path: "/apps", hold: /^\/apps$/ },
+  { path: "/apps/apps/docs-site", hold: /^\/apps\/apps\/docs-site$/ },
+  { path: "/apps/apps/docs-site/edit", hold: /^\/apps\/apps\/docs-site$/ },
+];
+
+for (const { path, hold } of SKELETONS) {
+  test(`${path} loading skeleton fits a phone-width viewport`, async ({ page, api }) => {
+    const release = api.hold(hold);
+    await page.goto(path);
+    await expect(page.locator('[aria-busy="true"] [data-slot="skeleton"]').first()).toBeVisible();
+    const { scrollWidth, innerWidth, tables } = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      innerWidth: window.innerWidth,
+      tables: [...document.querySelectorAll("table")].map((t) => {
+        const box = t.parentElement as HTMLElement;
+        return { scrollWidth: box.scrollWidth, clientWidth: box.clientWidth };
+      }),
+    }));
+    expect(scrollWidth, "the page scrolls horizontally").toBeLessThanOrEqual(innerWidth);
+    for (const t of tables) {
+      expect(t.scrollWidth, "a table scrolls horizontally").toBeLessThanOrEqual(t.clientWidth);
+    }
+    release();
+  });
+}
