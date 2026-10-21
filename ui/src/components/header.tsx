@@ -1,5 +1,5 @@
 import { Menu as MenuPrimitive } from "@base-ui/react/menu";
-import { ChevronDown, LayoutDashboard, LogOut, Monitor, Moon, Rocket, Sun } from "lucide-react";
+import { ChevronDown, LogOut, Monitor, Moon, Rocket, Sun } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import nebariLogo from "@/assets/nebari-logo.svg";
@@ -25,10 +25,7 @@ import { getConfig } from "@/lib/auth";
 import { getBranding } from "@/lib/branding";
 import { cn } from "@/lib/utils";
 
-const NAV = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
-  { to: "/apps", label: "Apps", icon: Rocket, end: false },
-];
+const NAV = [{ to: "/apps", label: "Apps", icon: Rocket, end: false }];
 
 type User = {
   name?: string;

@@ -27,10 +27,11 @@ https://<subdomain>.apps.<cluster-domain>
   inline files, a git repository, or a PVC.
 - **apps-api** — REST API for CRUD, status, logs, events, analytics, and direct
   **zip/.html upload** (a zip with a `pixi.toml` launches as a Python app).
-- **apps-ui** — a dashboard built on the [Nebari design system](https://github.com/nebari-dev/nebari-design):
-  analytics plus a **Needs attention** card for failed and restarting apps, a searchable /
-  sortable apps table with bulk actions, per-app detail pages with live logs, events, usage,
-  restart, and a copyable manifest, and launch / edit forms (drag-and-drop upload, git, or PVC).
+- **apps-ui** — a web UI built on the [Nebari design system](https://github.com/nebari-dev/nebari-design)
+  whose home page is the apps list: a searchable / sortable table with bulk actions, a **Mine**
+  filter, an **Open** link per running app, and a **Needs attention** banner for failed and
+  restarting apps; per-app detail pages with live logs, events, usage, restart, and a copyable
+  manifest; and launch / edit forms (drag-and-drop upload, git, or PVC).
 - **apps-mcp** — an MCP server at `/mcp` so coding agents launch and manage apps with
   natural language (Keycloak device-flow auth).
 - **`new-nebari-app` skill** — teaches Claude Code to scaffold apps in the expected layout

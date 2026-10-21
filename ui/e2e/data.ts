@@ -3,14 +3,7 @@
  * types (src/lib/types.ts, over the generated crd.gen.ts), so a change to those
  * types fails `tsc -b` here as well as in the app.
  */
-import type {
-  AnalyticsSummary,
-  App,
-  AppEvent,
-  Capabilities,
-  ClusterMetrics,
-  UiConfig,
-} from "../src/lib/types";
+import type { App, AppEvent, Capabilities, ClusterMetrics, UiConfig } from "../src/lib/types";
 
 export const APPS_DOMAIN = "apps.example.com";
 export const NAMESPACES = ["apps", "team-data"];
@@ -136,27 +129,10 @@ export const EVENTS: AppEvent[] = [
   },
 ];
 
-/** GET /analytics/summary, computed from the apps the mock is serving. */
-export function analyticsFor(apps: App[]): AnalyticsSummary {
-  const count = (key: (a: App) => string) =>
-    apps.reduce<Record<string, number>>((acc, a) => {
-      acc[key(a)] = (acc[key(a)] ?? 0) + 1;
-      return acc;
-    }, {});
-  return {
-    total: apps.length,
-    byPhase: count((a) => a.status.phase),
-    bySourceType: count((a) => a.source?.type ?? "unknown"),
-    byNamespace: count((a) => a.namespace),
-    readyReplicas: apps.reduce((n, a) => n + (a.status.replicas?.ready ?? 0), 0),
-    desiredReplicas: apps.reduce((n, a) => n + (a.status.replicas?.desired ?? 0), 0),
-  };
-}
-
 /**
  * Container restarts per App ("namespace/name"): Docs Site is running but has
- * restarted once, Broken App is Failed and crash-looping, so the dashboard's
- * Needs attention card has a restarting row and a failed one by default.
+ * restarted once, Broken App is Failed and crash-looping, so the Apps page's
+ * Needs attention banner counts a restarting app and a failed one by default.
  */
 export const RESTARTS: Record<string, number> = {
   "apps/docs-site": 1,

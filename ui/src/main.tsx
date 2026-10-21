@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { type ComponentType, lazy, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "@/components/layout";
 import { Toaster } from "@/components/ui/toast";
 import { ThemeProvider } from "@/hooks/theme-provider";
@@ -43,7 +43,6 @@ function page<K extends string>(load: () => Promise<Record<K, ComponentType>>, n
 }
 const AppDetailPage = page(() => import("@/pages/app-detail"), "AppDetailPage");
 const AppsPage = page(() => import("@/pages/apps"), "AppsPage");
-const DashboardPage = page(() => import("@/pages/dashboard"), "DashboardPage");
 const EditPage = page(() => import("@/pages/edit"), "EditPage");
 const LaunchPage = page(() => import("@/pages/launch"), "LaunchPage");
 
@@ -84,7 +83,8 @@ createRoot(container).render(
         <BrowserRouter>
           <Routes>
             <Route element={<Layout />}>
-              <Route index element={<DashboardPage />} />
+              {/* The apps list is the home page. */}
+              <Route index element={<Navigate to="/apps" replace />} />
               <Route path="apps" element={<AppsPage />} />
               <Route path="apps/:namespace/:name" element={<AppDetailPage />} />
               <Route path="apps/:namespace/:name/edit" element={<EditPage />} />

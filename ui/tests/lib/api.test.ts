@@ -57,14 +57,12 @@ describe("api client", () => {
     await api.listApps("team a");
     await api.getApp("apps", "docs-site");
     await api.logs("apps", "docs-site", 50);
-    await api.analytics();
     await api.clusterMetrics();
     expect(calls.map((c) => c.url)).toEqual([
       "/api/v1/apps",
       "/api/v1/apps?namespace=team%20a",
       "/api/v1/apps/apps/docs-site",
       "/api/v1/apps/apps/docs-site/logs?lines=50",
-      "/api/v1/analytics/summary",
       "/api/v1/analytics/metrics",
     ]);
   });

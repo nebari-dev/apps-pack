@@ -37,8 +37,8 @@ const APP: App = {
   },
 } as unknown as App;
 
-// A failed app that is also restarting, so the dashboard's Needs attention card
-// renders a Failed row in its table.
+// A failed app that is also restarting, so the apps list shows its Needs
+// attention banner and a Failed row.
 const BROKEN: App = {
   ...APP,
   name: "broken-app",
@@ -53,14 +53,6 @@ vi.mock("@/lib/api", () => ({
       appsDomain: "apps.example.ai",
       sourceTypes: ["git", "inline", "pvc"],
       namespaces: ["apps"],
-    })),
-    analytics: vi.fn(async () => ({
-      total: 2,
-      byPhase: { Running: 1, Failed: 1 },
-      bySourceType: { inline: 2 },
-      byNamespace: { apps: 2 },
-      readyReplicas: 1,
-      desiredReplicas: 2,
     })),
     clusterMetrics: vi.fn(async () => ({
       usageAvailable: true,
@@ -80,14 +72,12 @@ vi.mock("@/lib/api", () => ({
 
 const { AppDetailPage } = await import("@/pages/app-detail");
 const { AppsPage } = await import("@/pages/apps");
-const { DashboardPage } = await import("@/pages/dashboard");
 const { EditPage } = await import("@/pages/edit");
 const { LaunchPage } = await import("@/pages/launch");
 
 // name, URL, route path, page, h1, and text that shows the page's data has loaded.
 const PAGES: [string, string, string, ReactElement, string, string?][] = [
-  ["dashboard", "/", "", <DashboardPage key="d" />, "Dashboard", "broken-app · apps"],
-  ["apps", "/apps", "apps", <AppsPage key="a" />, "Apps"],
+  ["apps", "/apps", "apps", <AppsPage key="a" />, "Apps", "2 apps need attention"],
   [
     "app detail",
     "/apps/apps/docs-site",
@@ -194,14 +184,14 @@ it("ties a validation error to its field only after the field is left", async ()
 it("moves focus to the new page's heading after navigating", async () => {
   const user = (await import("@testing-library/user-event")).default.setup();
   renderAt(
-    "/apps",
+    "/launch",
     <>
+      <Route path="launch" element={<LaunchPage />} />
       <Route path="apps" element={<AppsPage />} />
-      <Route index element={<DashboardPage />} />
     </>,
   );
-  await screen.findByRole("heading", { level: 1, name: "Apps" });
-  await user.click(screen.getByRole("link", { name: /dashboard/i }));
-  const heading = await screen.findByRole("heading", { level: 1, name: "Dashboard" });
+  await screen.findByRole("heading", { level: 1, name: "Launch an app" });
+  await user.click(screen.getByRole("link", { name: /^apps$/i }));
+  const heading = await screen.findByRole("heading", { level: 1, name: "Apps" });
   expect(heading).toHaveFocus();
 });

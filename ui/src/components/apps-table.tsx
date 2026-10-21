@@ -57,7 +57,13 @@ export interface AppsTableProps {
   onToggleOne: (app: App) => void;
   actions: ReturnType<typeof useAppActions>;
   onDelete: (app: App) => void;
+  /** Container restarts per App ("namespace/name"), shown under the status. */
+  restarts?: Map<string, number>;
 }
+
+/** The App's live URL, while it is Running and has one. */
+export const openUrl = (app: App) =>
+  app.status.phase === "Running" && app.status.url ? app.status.url : "";
 
 /** The apps list: sortable columns, row selection and per-row actions. */
 export function AppsTable({
@@ -71,11 +77,13 @@ export function AppsTable({
   onToggleOne,
   actions,
   onDelete,
+  restarts,
 }: AppsTableProps) {
   const navigate = useNavigate();
-  // Below md only Status, App and Actions show; below sm the cells tighten
-  // and the row keeps one action (Logs on a Failed App, else Stop/Start) -
-  // the rest are on the App's page, which the row opens.
+  // Below md only Status, App and Actions show; below sm the cells tighten,
+  // long status reasons wrap anywhere, and the row keeps one icon action
+  // (Logs on a Failed App, Open on a Running one, else Stop/Start) - the rest
+  // are on the App's page, which the row opens.
   return (
     <Table className="max-sm:[&_td]:px-2 max-sm:[&_th]:px-2">
       <TableHeader>
@@ -112,7 +120,10 @@ export function AppsTable({
             onToggle={onToggleSort}
             className="hidden md:table-cell"
           />
-          <TableHead className="text-right">Actions</TableHead>
+          <TableHead className="text-right">
+            {/* Below sm the column holds one icon, so its name is for screen readers only. */}
+            <span className="max-sm:sr-only">Actions</span>
+          </TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -120,6 +131,8 @@ export function AppsTable({
           const stopped = isStopped(app);
           const failed = app.status.phase === "Failed";
           const reason = failed ? failureReason(app) : "";
+          const restartCount = restarts?.get(appKey(app)) ?? 0;
+          const url = openUrl(app);
           const checked = selected.has(appKey(app));
           const detail = `/apps/${app.namespace}/${app.name}`;
           // The whole row opens the App for pointer users; keyboard and screen
@@ -154,7 +167,14 @@ export function AppsTable({
               </TableCell>
               <TableCell>
                 <PhaseBadge phase={app.status.phase} />
-                {reason ? <p className="mt-1 text-muted-foreground text-xs">{reason}</p> : null}
+                {reason ? (
+                  <p className="mt-1 text-muted-foreground text-xs wrap-anywhere">{reason}</p>
+                ) : null}
+                {restartCount > 0 ? (
+                  <p className="mt-1 text-muted-foreground text-xs">
+                    {restartCount === 1 ? "1 restart" : `${restartCount} restarts`}
+                  </p>
+                ) : null}
               </TableCell>
               <TableCell className="hidden md:table-cell tabular-nums">
                 {app.status.replicas
@@ -174,28 +194,27 @@ export function AppsTable({
                   <IconLink to={`${detail}/edit`} label="Edit" className="max-sm:hidden">
                     <Pencil />
                   </IconLink>
-                  {app.status.url && app.status.phase === "Running" ? (
+                  {url ? (
                     <Tooltip>
                       <TooltipTrigger
                         render={
                           <Button
                             variant="ghost"
                             size="icon-sm"
-                            className="max-sm:hidden"
                             render={
                               <a
-                                href={app.status.url}
+                                href={url}
                                 target="_blank"
-                                rel="noreferrer"
-                                aria-label="Open app"
+                                rel="noopener noreferrer"
+                                aria-label={`Open ${appLabel(app)}`}
                               />
                             }
                           >
-                            <ExternalLink />
+                            <ExternalLink aria-hidden="true" />
                           </Button>
                         }
                       />
-                      <TooltipContent>Open</TooltipContent>
+                      <TooltipContent>Open in a new tab</TooltipContent>
                     </Tooltip>
                   ) : null}
                   {stopped ? (
@@ -223,7 +242,7 @@ export function AppsTable({
                             variant="ghost"
                             size="icon-sm"
                             aria-label="Stop app"
-                            className={cn(failed && "max-sm:hidden")}
+                            className={cn((failed || url) && "max-sm:hidden")}
                             disabled={!canStop(app)}
                             loading={actions.isPendingFor(actions.stop, app)}
                             onClick={() => actions.stop.mutate(app)}

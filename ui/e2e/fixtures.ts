@@ -11,7 +11,6 @@ import AxeBuilder from "@axe-core/playwright";
 import { test as base, expect, type Page, type Request } from "@playwright/test";
 import type { App, AppCreate } from "../src/lib/types";
 import {
-  analyticsFor,
   BRANDING,
   CAPABILITIES,
   clusterMetricsFor,
@@ -32,9 +31,11 @@ export interface RecordedRequest {
 export interface MockApi {
   /** What GET /apps returns, and what the per-App routes look up. */
   apps: App[];
-  /** When set, GET /apps (and the dashboard's analytics) fail with this status and detail. */
+  /** When set, GET /apps fails with this status and detail. */
   failList: { status: number; detail: string } | null;
   logs: string;
+  /** When set, GET /analytics/metrics fails with this status and detail. */
+  failMetrics: { status: number; detail: string } | null;
   /** Container restarts per App ("namespace/name") for GET /analytics/metrics. */
   restarts: Record<string, number>;
   /** Mutating requests, in the order they arrived. */
@@ -94,11 +95,8 @@ async function installApiRoutes(page: Page, api: MockApi) {
 
     if (path === "/config") return route.fulfill(json(200, UI_CONFIG));
     if (path === "/capabilities") return route.fulfill(json(200, CAPABILITIES));
-    if (path === "/analytics/summary") {
-      if (api.failList) return route.fulfill(json(api.failList.status, api.failList));
-      return route.fulfill(json(200, analyticsFor(api.apps)));
-    }
     if (path === "/analytics/metrics") {
+      if (api.failMetrics) return route.fulfill(json(api.failMetrics.status, api.failMetrics));
       return route.fulfill(json(200, clusterMetricsFor(api.apps, api.restarts)));
     }
 
@@ -211,6 +209,7 @@ export const test = base.extend<{
       const api: MockApi = {
         apps: structuredClone(DEFAULT_APPS),
         failList: null,
+        failMetrics: null,
         logs: LOGS,
         restarts: { ...RESTARTS },
         requests: [],

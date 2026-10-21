@@ -28,7 +28,7 @@ or from an agent. See [Architecture & auth](https://packs.nebari.dev/apps-pack/a
 |---|---|---|
 | apps-operator | Reconciles `App` resources into a Deployment, Service, ConfigMap and `NebariApp`, and reports status. | `apps-operator` |
 | apps-api | REST API for CRUD, status, logs, events, analytics and zip/`.html` upload; writes `App` resources for the UI and the MCP server. | `apps-api` |
-| apps-ui | Dashboard with a Needs attention card, the apps list, app detail with logs and events, and the launch form. | `apps-ui` |
+| apps-ui | The apps list as the home page (with a Needs attention banner, a Mine filter and Open links), app detail with logs and events, and the launch form. | `apps-ui` |
 | apps-mcp | MCP server at `/mcp` that lets coding agents launch and manage apps, with Keycloak device-flow login. | `apps-mcp` |
 | apps-authz | Sidecar in the pods of Apps that list `access.groups` or `access.users`; returns `403` to everyone else. | `apps-authz` |
 

@@ -104,15 +104,6 @@ export interface ClusterMetrics {
   byNamespace: NamespaceUsage[];
 }
 
-export interface AnalyticsSummary {
-  total: number;
-  byPhase: Record<string, number>;
-  bySourceType: Record<string, number>;
-  byNamespace: Record<string, number>;
-  readyReplicas: number;
-  desiredReplicas: number;
-}
-
 export interface UiConfig {
   authEnabled: boolean;
   keycloak: { url: string; realm: string; clientId: string };

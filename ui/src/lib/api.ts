@@ -1,6 +1,5 @@
 import { apiFetch } from "./auth";
 import type {
-  AnalyticsSummary,
   App,
   AppCreate,
   AppEvent,
@@ -19,7 +18,6 @@ async function getJSON<T>(path: string): Promise<T> {
 
 export const api = {
   capabilities: () => getJSON<Capabilities>("/capabilities"),
-  analytics: () => getJSON<AnalyticsSummary>("/analytics/summary"),
   clusterMetrics: () => getJSON<ClusterMetrics>("/analytics/metrics"),
 
   listApps: (namespace?: string) =>

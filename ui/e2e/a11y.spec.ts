@@ -11,11 +11,10 @@ import {
   test,
 } from "./fixtures";
 
-// `ready` is text that shows the page's data has loaded (on the dashboard, the
-// Failed row of the Needs attention table).
+// `ready` is text that shows the page's data has loaded (on the apps list, the
+// Needs attention banner, which waits on both the apps and the restart counts).
 const PAGES: { name: string; path: string; heading: string; ready?: string }[] = [
-  { name: "dashboard", path: "/", heading: "Dashboard", ready: "broken-app · apps" },
-  { name: "apps list", path: "/apps", heading: "Apps" },
+  { name: "apps list", path: "/apps", heading: "Apps", ready: "2 apps need attention" },
   { name: "launch form", path: "/launch", heading: "Launch an app" },
   { name: "app detail", path: "/apps/apps/docs-site", heading: "Docs Site" },
   {

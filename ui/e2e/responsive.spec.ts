@@ -8,8 +8,7 @@ import { expect, test } from "./fixtures";
 // `ready` is text that shows the page's data has loaded, so the check measures
 // the full layout rather than a spinner.
 const PAGES: { path: string; heading: string; ready?: string }[] = [
-  { path: "/", heading: "Dashboard", ready: "broken-app · apps" },
-  { path: "/apps", heading: "Apps", ready: "docs-site · apps" },
+  { path: "/apps", heading: "Apps", ready: "2 apps need attention" },
   { path: "/launch", heading: "Launch an app" },
   { path: "/apps/apps/docs-site", heading: "Docs Site" },
   {
