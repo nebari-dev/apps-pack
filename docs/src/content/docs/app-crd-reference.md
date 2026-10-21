@@ -299,6 +299,10 @@ existing field required, removes an enum value, or changes what an existing valu
 "CRD stays compatible with stored Apps" check in CI compares every PR's CRD with the base
 branch and fails on any of those.
 
+**One exception so far:** `access.users` was removed from `v1alpha1` without a deprecation
+period, when Apps moved to group-only access. The CRD check allows that one removal; see
+[Upgrading to group-only access](/upgrading/#upgrading-to-group-only-access) before upgrading.
+
 **Tightening validation** (a new bound, pattern or CEL rule, such as the 10-replica cap or the
 immutable subdomain) is allowed but called out: Kubernetes
 [validation ratcheting](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#validation-ratcheting)
