@@ -203,6 +203,13 @@ or pilot.
   8081. Idle detection counts HTTP requests through the sidecar only, so an app that works
   in the background with no visitors needs `runtime.keepAlive: true`. See
   [Scale to zero](/app-crd-reference/#scale-to-zero).
+- **Container images are off by default and need non-root images.** `source.type: image`
+  works only for registries in `apps.image.allowedRegistries`, and the cluster never builds
+  images. The image must run as a non-root user (root images fail with `ImageRunsAsRoot`;
+  nothing relaxes the policy), must not listen on 8080 or 8082 (the sidecar's), and gets a
+  writable root filesystem but no volumes of its own. Pull secrets come from the chart and
+  are shared by every image App in a namespace; there is no per-App registry credential.
+  See [Container images](/launching-apps/#container-images).
 - **One API version (`v1alpha1`) and no conversion webhook yet.** `helm upgrade` does not
   update CRDs; re-apply `charts/nebari-apps/crds/` on upgrades (see [Upgrading](/upgrading/)).
 - **The MCP server must run as a single replica**: device-flow sessions are held in process

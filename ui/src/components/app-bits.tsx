@@ -47,7 +47,12 @@ export function PhaseBadge({ phase }: { phase: string }) {
   );
 }
 
-const SOURCE_LABELS: Record<string, string> = { inline: "Upload", git: "Git", pvc: "PVC" };
+const SOURCE_LABELS: Record<string, string> = {
+  inline: "Upload",
+  git: "Git",
+  pvc: "PVC",
+  image: "Image",
+};
 
 /** Human label for an App source type (`inline` reads as "Upload"); unknown types pass through. */
 export function sourceLabel(type: string): string {
@@ -64,8 +69,9 @@ export function SourceBadge({ source }: { source: string }) {
 }
 
 /** What kind of App it is, styled apart from the Source pill so the two never look alike. */
-export function TypeBadge({ type }: { type: "static" | "python" }) {
-  return <Badge variant="secondary">{type === "python" ? "Python" : "Static"}</Badge>;
+export function TypeBadge({ type }: { type: "static" | "python" | "container" }) {
+  const label = { static: "Static", python: "Python", container: "Container" }[type];
+  return <Badge variant="secondary">{label}</Badge>;
 }
 
 /** Shown for Python/pixi apps (runtime.pixiTask set); static apps get no extra badge. */

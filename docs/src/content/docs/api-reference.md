@@ -54,7 +54,7 @@ create.
 | `GET /readyz` | Readiness (public): `200 {"status": "ok", "checks": {...}}` when the Kubernetes API answers a namespace list and, with auth on, the realm JWKS loads (each within 3s; a good JWKS fetch is reused for 60s). Otherwise `503`, with the failing check marked `"failed"` and the reason in the API's log. |
 | `GET /version` | Release and image build (public): `{"version": "0.2.0", "build": "sha-abc1234"}`. `build` is the chart's `api.image.tag` (`unknown` outside the chart). |
 | `GET /config` | UI bootstrap config (public): `authEnabled`, Keycloak url/realm/SPA client id, `appsDomain`, `appsScheme`, and the `version`/`build` above. |
-| `GET /capabilities` | `{appsDomain, sourceTypes, namespaces, idleTimeoutMinutes}` — what this cluster supports and where the caller may launch. `sourceTypes` is `["git", "inline", "pvc"]`; `idleTimeoutMinutes` is the cluster default for [scale to zero](/app-crd-reference/#scale-to-zero) (`0`: apps stay up unless they set one). |
+| `GET /capabilities` | `{appsDomain, sourceTypes, namespaces, idleTimeoutMinutes, imageRegistries}` — what this cluster supports and where the caller may launch. `sourceTypes` is `["git", "inline", "pvc"]`, plus `"image"` when `imageRegistries` (the normalized `apps.image.allowedRegistries`) is not empty; `idleTimeoutMinutes` is the cluster default for [scale to zero](/app-crd-reference/#scale-to-zero) (`0`: apps stay up unless they set one). |
 | `GET /auth/me` | The caller's username, email, groups, and `admin` (member of an admin group). |
 
 ### Apps
@@ -109,6 +109,29 @@ To launch a **Python/pixi app**, add `"pixiTask": "<task>"` to `runtime` — the
 (any type) must then contain a `pixi.toml` or `pyproject.toml` at its root, and the task
 must start a server on `0.0.0.0:$PORT` (8080, or 8081 when `access.groups` or
 `access.users` is set or the app can idle). See [Launching apps](/launching-apps/#python-apps-pixi).
+
+To launch a **container image**, send an `image` source:
+
+```json
+"source": {
+  "type": "image",
+  "image": {
+    "reference": "ghcr.io/org/dash:1.2.3",
+    "port": 8501,
+    "command": ["streamlit"],
+    "args": ["run", "app.py", "--server.port=8501"],
+    "runAsUser": 1000
+  }
+}
+```
+
+`reference` needs a tag or a digest and a registry in `imageRegistries`; `port` is
+1024–65535 and not 8080 or 8082; `command`, `args` and `runAsUser` (non-zero) are optional;
+`runtime.pixiTask` must be empty. Anything else is a `422` whose `detail` starts with
+`source.image` (for example `source.image.reference: ghcr.io/org-evil/app is not in the
+allowed image registries (ghcr.io/org)`, or `image sources are disabled on this cluster` while
+the allowlist is empty). The same check runs on a `PATCH` that changes the source or the
+runtime of an image app. See [Container images](/launching-apps/#container-images).
 
 `name` must be a valid Kubernetes name — lowercase letters, digits, and hyphens
 (`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`), at most 53 characters.

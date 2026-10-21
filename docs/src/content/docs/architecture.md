@@ -25,7 +25,8 @@ Service that must already exist — the apps-operator is what creates it.
 For each `App`, the operator runs an ordered, idempotent pipeline:
 
 1. **Validate** — namespace opted in (`nebari.dev/managed=true`), source type supported,
-   required fields present. Failures set `Validated: False` and
+   required fields present, and an image source inside the registry allowlist (outside it,
+   the Deployment is also scaled to zero). Failures set `Validated: False` and
    phase `Failed`; they are terminal until the spec changes.
 2. **Content** — inline sources materialize as a ConfigMap; a checksum on the pod template
    rolls the pods whenever the files change.
@@ -34,7 +35,9 @@ For each `App`, the operator runs an ordered, idempotent pipeline:
    non-root init container. Static apps run an operator-written nginx config (a
    `<app>-server` ConfigMap mounted over `/etc/nginx/conf.d`) that adds security headers.
    An App restricted to groups or users also gets the `authz` sidecar (next section), and so
-   does an App that can idle, where the sidecar records activity. Before the Deployment is
+   does an App that can idle, where the sidecar records activity. An `image` App runs the
+   given image as the `app` container instead, always behind the sidecar, which keeps 8080 as
+   the one port the Service and NetworkPolicy target while the image listens on its own port. Before the Deployment is
    applied the operator runs the **idle check** (below) and scales an idle App to zero.
 4. **Service** — ClusterIP on port 8080.
 5. **Routing** — a `NebariApp` (contract pinned to nebari-operator `%NEBARI_OPERATOR_VERSION%`,
@@ -213,6 +216,16 @@ The zone is configurable via the `appsDomain` value (default `apps.<clusterDomai
   App's resources, nothing more: any request that reaches an idle App's URL wakes it,
   including a signed-in user outside a restricted App's groups (the sidecar still refuses them
   once the App is up).
+- An `image` source runs only images from the chart's `apps.image.allowedRegistries`
+  (empty by default, which turns the source off). The **operator** enforces the list on every
+  App, so `kubectl` and GitOps authors cannot bypass it, and apps-api refuses the same images
+  up front. References are normalized the way the container runtime reads them (Docker Hub
+  defaults included) and the pod runs the normalized reference, so the check and the pull
+  agree; an entry matches whole hosts and whole path components, so `ghcr.io/org` admits
+  neither `ghcr.io.evil.com` nor `ghcr.io/org-evil`. Image pods get the same pod spec rules
+  as every App and `runAsNonRoot` is never relaxed: an image that runs as root does not start
+  and the App reports `ImageRunsAsRoot`. The pull secrets in `apps.image.pullSecrets` are
+  referenced by name, so app code never sees them.
 - A `pvc` source mounts a claim only if the claim is labeled `apps.nebari.dev/mountable=true`,
   so a shared or team volume cannot be published by anyone who can create an App.
 - Treat every app as untrusted user code: tenancy is per-namespace, and only opted-in

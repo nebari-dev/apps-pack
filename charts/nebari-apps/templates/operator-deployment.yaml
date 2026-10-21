@@ -51,6 +51,8 @@ spec:
             - --landing-page
             {{- end }}
             - --idle-timeout-minutes={{ .Values.apps.idle.timeoutMinutes }}
+            - {{ printf "--image-registries=%s" (join "," .Values.apps.image.allowedRegistries) | quote }}
+            - {{ printf "--image-pull-secrets=%s" (join "," .Values.apps.image.pullSecrets) | quote }}
             - --activator-service={{ include "nebari-apps.fullname" . }}-activator
             - --activator-namespace={{ .Release.Namespace }}
             {{- if .Values.operator.leaderElection }}

@@ -337,6 +337,7 @@ spec:
                       PixiTask, when set, runs the app as a Python/pixi service instead of
                       serving its source as static content: the operator installs the pixi
                       environment from the app source and executes `pixi run <PixiTask>`.
+                      Not allowed with source type image, which runs its own server.
                       The task must start a server on $PORT: 8080, or 8081 when access.groups
                       or access.users restricts the app (the authz sidecar takes 8080).
                     maxLength: 64
@@ -430,8 +431,7 @@ spec:
                     key in runtime.secretKeys, which reads the app''s own Secret (app-<name>-secrets)'
                   rule: '!has(self.env) || self.env.all(e, !has(e.valueFrom) || !has(e.valueFrom.secretKeyRef))'
               source:
-                description: AppSource declares where the app's static content comes
-                  from.
+                description: AppSource declares where the app comes from.
                 properties:
                   git:
                     description: GitSource references app content in a git repository.
@@ -454,6 +454,66 @@ spec:
                         type: string
                     required:
                     - url
+                    type: object
+                  image:
+                    description: |-
+                      ImageSource runs a prebuilt container image as the app container, with the
+                      same non-root, capability-free, resource-limited pod spec as other Apps and
+                      the apps-authz sidecar in front of it.
+                    properties:
+                      args:
+                        description: Args replaces the image's CMD (exec form, no
+                          shell).
+                        items:
+                          maxLength: 4096
+                          type: string
+                        maxItems: 64
+                        type: array
+                      command:
+                        description: Command replaces the image's ENTRYPOINT (exec
+                          form, no shell).
+                        items:
+                          maxLength: 4096
+                          type: string
+                        maxItems: 64
+                        type: array
+                      port:
+                        description: |-
+                          Port the image's server listens on (on 0.0.0.0 or 127.0.0.1; also
+                          passed as $PORT). The apps-authz sidecar always fronts image Apps on
+                          8080 and serves its probes on 8082, so the app may use neither.
+                        format: int32
+                        maximum: 65535
+                        minimum: 1024
+                        type: integer
+                        x-kubernetes-validations:
+                        - message: 'source.image.port may not be 8080 or 8082: the
+                            apps-authz sidecar uses them'
+                          rule: self != 8080 && self != 8082
+                      reference:
+                        description: |-
+                          Reference is the image to run, with a tag or a digest:
+                          ghcr.io/org/app:1.2.3 or ghcr.io/org/app@sha256:<64 hex>. Docker Hub
+                          short names are expanded (nginx:1.27 is docker.io/library/nginx:1.27).
+                          The registry and repository must match an entry of the operator's
+                          --image-registries allowlist (chart apps.image.allowedRegistries);
+                          with an empty allowlist image Apps are refused. A tag is pulled on every
+                          pod start (imagePullPolicy Always), a digest once per node.
+                        maxLength: 512
+                        minLength: 1
+                        type: string
+                      runAsUser:
+                        description: |-
+                          RunAsUser runs the container as this non-zero uid. Set it for an
+                          image whose USER is a name rather than a number, which the kubelet
+                          cannot verify as non-root. Images that only work as root are refused
+                          (the pod never starts and the App reports ImageRunsAsRoot).
+                        format: int64
+                        minimum: 1
+                        type: integer
+                    required:
+                    - port
+                    - reference
                     type: object
                   inline:
                     description: InlineSource carries small static content directly
@@ -483,16 +543,21 @@ spec:
                     - claimName
                     type: object
                   type:
-                    description: SourceType identifies where an app's static content
-                      comes from.
+                    description: |-
+                      SourceType identifies where an app comes from: content to serve or run
+                      (git, inline, pvc) or a prebuilt container image (image).
                     enum:
                     - git
                     - inline
                     - pvc
+                    - image
                     type: string
                 required:
                 - type
                 type: object
+                x-kubernetes-validations:
+                - message: source.image is required for source type image
+                  rule: self.type != 'image' || has(self.image)
               thumbnail:
                 description: Thumbnail as a data URI, shown in catalogs and the landing
                   page.

@@ -37,6 +37,32 @@ test.describe("launch form", () => {
     ]);
   });
 
+  test("launches a container image", async ({ page, api }) => {
+    await openLaunchForm(page);
+
+    await page.getByLabel("Name", { exact: true }).fill("dash");
+    await page.getByLabel("Display name").fill("Dash");
+    await page.getByRole("combobox", { name: "App type" }).click();
+    await page.getByRole("option", { name: "Container image" }).click();
+    await expect(page.getByText("Allowed registries: ghcr.io/example")).toBeVisible();
+    await page.getByLabel("Image", { exact: true }).fill("ghcr.io/example/dash:1.2.3");
+    await page.getByLabel("Port", { exact: true }).fill("8501");
+    await page.getByRole("button", { name: "Launch app" }).click();
+
+    await expect(page).toHaveURL("/apps/apps/dash");
+    expect(api.requests).toMatchObject([
+      {
+        method: "POST",
+        path: "/apps",
+        body: {
+          name: "dash",
+          runtime: { pixiTask: "" },
+          source: { type: "image", image: { reference: "ghcr.io/example/dash:1.2.3", port: 8501 } },
+        },
+      },
+    ]);
+  });
+
   test("sends secrets write-only, apart from the runtime", async ({ page, api }) => {
     await openLaunchForm(page);
 

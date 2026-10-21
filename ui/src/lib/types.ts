@@ -101,6 +101,8 @@ export interface Capabilities {
   namespaces: string[];
   /** Cluster default idle timeout in minutes; 0 = apps stay up unless they set one. */
   idleTimeoutMinutes?: number;
+  /** Registries image apps may pull from; empty (or absent, older APIs) = image apps are off. */
+  imageRegistries?: string[];
 }
 
 export interface AppUsage {

@@ -4,6 +4,7 @@ import (
 	"flag"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -78,6 +79,12 @@ func main() {
 	flag.StringVar(&activatorAddr, "activator-bind-address", ":8090",
 		"The address the activator (the page idle Apps serve while they start) binds to; 0 disables it.")
 
+	var imageRegistries, imagePullSecrets string
+	flag.StringVar(&imageRegistries, "image-registries", envOr("IMAGE_REGISTRIES", ""),
+		"Comma-separated allowlist for source type image: <registry host>[:port][/<repository prefix>], e.g. ghcr.io/my-org,docker.io/library. Empty refuses every image App.")
+	flag.StringVar(&imagePullSecrets, "image-pull-secrets", envOr("IMAGE_PULL_SECRETS", ""),
+		"Comma-separated names of Secrets (in each App namespace) that image Apps pull with.")
+
 	opts := zap.Options{Development: false}
 	var staticResources, pythonResources, authzResources string
 	flag.StringVar(&staticResources, "default-static-resources", envOr("DEFAULT_STATIC_RESOURCES", ""),
@@ -112,6 +119,12 @@ func main() {
 		setupLog.Error(nil, "invalid --authz-image-pull-policy", "value", authzPullPolicy)
 		os.Exit(1)
 	}
+
+	if cfg.ImageRegistries, err = controller.ParseRegistryAllowlist(splitList(imageRegistries)); err != nil {
+		setupLog.Error(err, "invalid --image-registries")
+		os.Exit(1)
+	}
+	cfg.ImagePullSecrets = splitList(imagePullSecrets)
 
 	if idleMinutes < 0 {
 		setupLog.Error(nil, "--idle-timeout-minutes must not be negative")
@@ -179,7 +192,8 @@ func main() {
 	setupLog.Info("starting manager",
 		"appsDomain", cfg.AppsDomain, "gateway", cfg.Gateway,
 		"authzImage", cfg.AuthzImage, "keycloakIssuers", len(cfg.KeycloakURL+cfg.KeycloakInternalURL) > 0,
-		"idleTimeout", cfg.IdleTimeout.String(), "activatorService", cfg.ActivatorNamespace+"/"+cfg.ActivatorService)
+		"idleTimeout", cfg.IdleTimeout.String(), "activatorService", cfg.ActivatorNamespace+"/"+cfg.ActivatorService,
+		"imageRegistries", cfg.ImageRegistries)
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
@@ -214,4 +228,15 @@ func envInt(key string, fallback int) int {
 		return fallback
 	}
 	return n
+}
+
+// splitList splits a comma-separated flag value, dropping blanks.
+func splitList(raw string) []string {
+	var out []string
+	for _, v := range strings.Split(raw, ",") {
+		if v = strings.TrimSpace(v); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
 }

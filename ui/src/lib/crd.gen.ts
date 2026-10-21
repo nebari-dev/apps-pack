@@ -64,12 +64,25 @@ export type AppRuntime = {
 export type AppSource = {
   /** GitSource references app content in a git repository. */
   git?: GitSource;
+  /** ImageSource runs a prebuilt container image as the app container, with the same non-root, capability-free, resource-limited pod spec as other Apps and the apps-authz sidecar in front of it. */
+  image?: {
+    /** Args replaces the image's CMD (exec form, no shell). */
+    args?: string[];
+    /** Command replaces the image's ENTRYPOINT (exec form, no shell). */
+    command?: string[];
+    /** Port the image's server listens on (on 0.0.0.0 or 127.0.0.1; also passed as $PORT). */
+    port: number;
+    /** Reference is the image to run, with a tag or a digest: ghcr.io/org/app:1.2.3 or ghcr.io/org/app@sha256:<64 hex>. */
+    reference: string;
+    /** RunAsUser runs the container as this non-zero uid. */
+    runAsUser?: number;
+  };
   /** InlineSource carries small static content directly in the CR. */
   inline?: InlineSource;
   /** PVCSource references content already present on a PersistentVolumeClaim. */
   pvc?: PVCSource;
-  /** SourceType identifies where an app's static content comes from. */
-  type: "git" | "inline" | "pvc";
+  /** SourceType identifies where an app comes from: content to serve or run (git, inline, pvc) or a prebuilt container image (image). */
+  type: "git" | "inline" | "pvc" | "image";
 };
 
 export type AppSpec = {
@@ -83,7 +96,7 @@ export type AppSpec = {
   owner?: string;
   /** AppRuntime configures how the app process runs. */
   runtime?: AppRuntime;
-  /** AppSource declares where the app's static content comes from. */
+  /** AppSource declares where the app comes from. */
   source: AppSource;
   /** Thumbnail as a data URI, shown in catalogs and the landing page. */
   thumbnail?: string;

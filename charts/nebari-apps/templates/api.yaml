@@ -140,6 +140,10 @@ spec:
               value: {{ include "nebari-apps.appsDomain" . }}
             - name: IDLE_TIMEOUT_MINUTES
               value: {{ .Values.apps.idle.timeoutMinutes | quote }}
+            # Checked again by the operator; here so a request outside the
+            # allowlist fails with a clear 422.
+            - name: IMAGE_REGISTRIES
+              value: {{ join "," .Values.apps.image.allowedRegistries | quote }}
             {{- with .Values.api.allowedNamespaces }}
             - name: APPS_NAMESPACES
               value: {{ join "," . | quote }}

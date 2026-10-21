@@ -2,7 +2,8 @@
 
 A [Nebari](https://nebari.dev) Software Pack for launching and managing web apps on a Nebari
 Kubernetes cluster, behind Keycloak SSO. It runs **static sites** (served by nginx) and
-**Python apps** started by a [pixi](https://pixi.sh) task, with no Dockerfile or image build.
+**Python apps** started by a [pixi](https://pixi.sh) task, with no Dockerfile or image build,
+and, where the platform team allows a registry, **prebuilt container images**.
 It is for platform teams who want their users to publish apps without learning Kubernetes.
 The web UI, the REST API, the MCP server for coding agents, and `kubectl`/GitOps all write
 the same `App` custom resource, and one operator turns it into workloads, routing and SSO.
@@ -114,6 +115,8 @@ The user guide is at [packs.nebari.dev/apps-pack](https://packs.nebari.dev/apps-
   `kubectl` reaches running pods only after a rollout restart. External secret stores are not
   integrated, though they can create an app's `app-<name>-secrets` Secret.
 - Inline sources are capped at about 900 KB of text; larger sites need a `git` or `pvc` source.
+- Container images are off until `apps.image.allowedRegistries` names a registry, are never
+  built in the cluster, and must run as a non-root user.
 - Scale to zero is off by default (`apps.idle.timeoutMinutes`), and an idle app's first visit
   waits for a cold start: seconds for a static app, up to minutes for a Python app.
 

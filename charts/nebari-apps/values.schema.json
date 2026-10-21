@@ -58,6 +58,28 @@
           },
           "additionalProperties": false
         },
+        "image": {
+          "type": "object",
+          "properties": {
+            "allowedRegistries": {
+              "type": "array",
+              "description": "Registries (and optional repository prefixes) image Apps may pull from, e.g. ghcr.io/my-org. Empty disables source type image.",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?(/[a-z0-9]+([._-]+[a-z0-9]+)*)*/?$"
+              }
+            },
+            "pullSecrets": {
+              "type": "array",
+              "description": "Names of kubernetes.io/dockerconfigjson Secrets, in each App namespace, that image Apps pull with.",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
         "defaultResources": {
           "type": "object",
           "properties": {

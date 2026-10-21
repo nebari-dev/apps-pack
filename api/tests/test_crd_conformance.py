@@ -39,6 +39,7 @@ MIRRORS: dict[type[BaseModel], tuple[str, set[str], set[str]]] = {
     models.GitSource: ("source.git", set(), set()),
     models.InlineSource: ("source.inline", set(), set()),
     models.PVCSource: ("source.pvc", set(), set()),
+    models.ImageSource: ("source.image", set(), set()),
     models.AppSource: ("source", set(), set()),
     models.EnvVar: ("runtime.env.[]", set(), set()),
     # claims (DRA) are kept by extra="allow", not modeled.
@@ -90,6 +91,17 @@ def test_request_bounds_match_the_crd(spec):
     assert keys["items"]["pattern"] == models.SECRET_KEY_PATTERN
     assert keys["items"]["maxLength"] == models.SECRET_KEY_MAX_LENGTH
     assert keys["maxItems"] == models.MAX_SECRET_KEYS
+    image = at(spec, "source.image")
+    assert constraint(models.ImageSource, "reference", "max_length") == image["properties"]["reference"]["maxLength"]
+    assert constraint(models.ImageSource, "port", "ge") == image["properties"]["port"]["minimum"]
+    assert constraint(models.ImageSource, "port", "le") == image["properties"]["port"]["maximum"]
+    assert constraint(models.ImageSource, "runAsUser", "ge") == image["properties"]["runAsUser"]["minimum"]
+    for field in ("command", "args"):
+        schema = image["properties"][field]
+        assert constraint(models.ImageSource, field, "max_length") == schema["maxItems"]
+        assert schema["items"]["maxLength"] == models.IMAGE_ARG_MAX_LENGTH
+    rule = image["properties"]["port"]["x-kubernetes-validations"][0]["rule"]
+    assert all(f"self != {port}" in rule for port in models.IMAGE_RESERVED_PORTS)
     idle = at(spec, "runtime.idleTimeoutMinutes")
     assert constraint(models.AppRuntime, "idleTimeoutMinutes", "ge") == idle["minimum"]
     assert constraint(models.AppRuntime, "idleTimeoutMinutes", "le") == idle["maximum"]

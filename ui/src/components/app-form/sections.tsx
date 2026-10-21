@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { App } from "@/lib/types";
 import {
@@ -39,6 +40,9 @@ export const CONTROL_IDS: Record<Field, string> = {
   file: "file-upload",
   gitUrl: "gitUrl",
   pvcClaim: "pvcClaim",
+  imageRef: "imageRef",
+  imagePort: "imagePort",
+  imageRunAsUser: "imageRunAsUser",
   idleTimeout: "idleTimeout",
   secrets: "secrets-first",
   subdomain: "subdomain",
@@ -66,6 +70,8 @@ export interface FormContext {
   appsDomain: string;
   /** The cluster's default idle timeout in minutes; 0 = apps stay up unless they set one. */
   idleDefaultMinutes: number;
+  /** Registries image apps may pull from (from /capabilities); empty = image apps are off. */
+  imageRegistries: string[];
 }
 
 /** The message under a control; its id is what the control's aria-describedby names. */
@@ -110,10 +116,27 @@ function FixedAfterLaunch() {
   );
 }
 
+const KIND_LABELS: Record<AppKind, string> = {
+  static: "Static site (HTML/CSS/JS)",
+  pixi: "Python app (pixi)",
+  image: "Container image",
+};
+
 /** Name, display name, namespace and what kind of app it is. */
 export function BasicsSection({ form }: { form: FormContext }) {
   const { nameInput, displayName, description, thumbnail, namespace, kind, pixiTask } = form.state;
   const { set, dispatch, fieldProps, isEdit, namespaces } = form;
+  // The form switches between an image and a source (upload, git, pvc) only
+  // at launch; an edit keeps the kind of source the App has.
+  const imageLocked = isEdit && form.initial?.source?.type === "image";
+  const offerImage = imageLocked || (!isEdit && form.imageRegistries.length > 0);
+  const kindItems: Partial<Record<AppKind, string>> = imageLocked
+    ? { image: KIND_LABELS.image }
+    : {
+        static: KIND_LABELS.static,
+        pixi: KIND_LABELS.pixi,
+        ...(offerImage ? { image: KIND_LABELS.image } : {}),
+      };
   return (
     <Card>
       <CardHeader>
@@ -197,18 +220,25 @@ export function BasicsSection({ form }: { form: FormContext }) {
           <FieldError form={form} field="namespace" />
         </div>
         <div className="space-y-1.5">
-          <Label id="kind-label">App type</Label>
+          <div className="flex items-center gap-1.5">
+            <Label id="kind-label">App type</Label>
+            {imageLocked ? <FixedAfterLaunch /> : null}
+          </div>
           <Select
             value={kind}
             onValueChange={(v) => set("kind", v as AppKind)}
-            items={{ static: "Static site (HTML/CSS/JS)", pixi: "Python app (pixi)" }}
+            items={kindItems}
+            disabled={imageLocked}
           >
             <SelectTrigger aria-labelledby="kind-label">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="static">Static site (HTML/CSS/JS)</SelectItem>
-              <SelectItem value="pixi">Python app (pixi)</SelectItem>
+              {Object.entries(kindItems).map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -280,6 +310,7 @@ function CurrentSource({ app }: { app?: App }) {
 export function SourceSection({ form }: { form: FormContext }) {
   const { sourceTab, kind, file, gitUrl, gitRef, gitSubdir, pvcClaim, pvcSubPath } = form.state;
   const { set, fieldProps, isEdit, initial } = form;
+  if (kind === "image") return <ImageSourceCard form={form} />;
   return (
     <Card>
       <CardHeader>
@@ -404,6 +435,107 @@ export function SourceSection({ form }: { form: FormContext }) {
             </div>
           </TabsPanel>
         </Tabs>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** A prebuilt container image: reference, port, and optional command, args and user. */
+function ImageSourceCard({ form }: { form: FormContext }) {
+  const { imageRef, imagePort, imageCommand, imageArgs, imageRunAsUser } = form.state;
+  const { set, fieldProps, imageRegistries } = form;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Image</CardTitle>
+        <CardDescription>
+          Run a published container image. It runs as a non-root user with no extra privileges; an
+          image that needs root will not start.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="space-y-1.5 sm:col-span-2">
+          <Label htmlFor="imageRef">Image</Label>
+          <Input
+            id="imageRef"
+            {...fieldProps("imageRef", "imageRef-help")}
+            className="font-mono"
+            placeholder="ghcr.io/org/app:1.2.3"
+            value={imageRef}
+            onChange={(e) => set("imageRef", e.target.value)}
+          />
+          <p id="imageRef-help" className="text-muted-foreground text-xs">
+            With a tag or a digest.{" "}
+            {imageRegistries.length > 0 ? (
+              <>
+                Allowed registries:{" "}
+                <span className="break-all font-mono">{imageRegistries.join(", ")}</span>
+              </>
+            ) : null}
+          </p>
+          <FieldError form={form} field="imageRef" />
+        </div>
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-1">
+            <Label htmlFor="imagePort">Port</Label>
+            <InfoTip label="About Port">
+              The port your server listens on, also passed as $PORT. 8080 and 8082 are taken by the
+              app's sign-in sidecar.
+            </InfoTip>
+          </div>
+          <Input
+            id="imagePort"
+            {...fieldProps("imagePort")}
+            inputMode="numeric"
+            placeholder="8501"
+            value={imagePort}
+            onChange={(e) => set("imagePort", e.target.value)}
+          />
+          <FieldError form={form} field="imagePort" />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="imageCommand">Command</Label>
+          <Textarea
+            id="imageCommand"
+            aria-describedby="imageArgs-help"
+            className="font-mono"
+            rows={2}
+            placeholder="Image default"
+            value={imageCommand}
+            onChange={(e) => set("imageCommand", e.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="imageArgs">Arguments</Label>
+          <Textarea
+            id="imageArgs"
+            aria-describedby="imageArgs-help"
+            className="font-mono"
+            rows={2}
+            placeholder="Image default"
+            value={imageArgs}
+            onChange={(e) => set("imageArgs", e.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="imageRunAsUser">Run as user ID</Label>
+          <Input
+            id="imageRunAsUser"
+            {...fieldProps("imageRunAsUser", "imageRunAsUser-help")}
+            inputMode="numeric"
+            placeholder="Image default"
+            value={imageRunAsUser}
+            onChange={(e) => set("imageRunAsUser", e.target.value)}
+          />
+          <p id="imageRunAsUser-help" className="text-muted-foreground text-xs">
+            For images whose user is a name, not a number.
+          </p>
+          <FieldError form={form} field="imageRunAsUser" />
+        </div>
+        <p id="imageArgs-help" className="text-muted-foreground text-xs sm:col-span-3">
+          Command and arguments replace the image's entrypoint and arguments: one per line, no
+          shell.
+        </p>
       </CardContent>
     </Card>
   );

@@ -56,9 +56,12 @@ func (r *AppReconciler) buildDeployment(app *appsv1alpha1.App) (*appsv1.Deployme
 	annotations := map[string]string{}
 	var podSpec corev1.PodSpec
 	var err error
-	if app.Spec.Runtime.PixiTask != "" {
+	switch {
+	case app.Spec.Source.Type == appsv1alpha1.SourceTypeImage:
+		podSpec, err = r.buildImagePodSpec(app)
+	case app.Spec.Runtime.PixiTask != "":
 		podSpec, err = r.buildPixiPodSpec(app, annotations)
-	} else {
+	default:
 		podSpec, err = r.buildStaticPodSpec(app, annotations)
 	}
 	if err != nil {
@@ -339,6 +342,81 @@ func (r *AppReconciler) buildPixiPodSpec(app *appsv1alpha1.App, annotations map[
 	}
 
 	return podSpec, nil
+}
+
+// buildImagePodSpec runs a prebuilt image (source type image) as the app
+// container. validate() has already checked the reference against the
+// allowlist; the pod runs the normalized reference, so the kubelet pulls
+// exactly what was checked. The pod keeps the invariants of the other
+// sources (non-root, no capabilities, no ServiceAccount token, resource
+// limits) and always gets the apps-authz sidecar (hasSidecar), which takes
+// AppPort and proxies to the image's own port; that keeps one front port for
+// the Service and the chart's NetworkPolicy whatever port the image uses.
+func (r *AppReconciler) buildImagePodSpec(app *appsv1alpha1.App) (corev1.PodSpec, error) {
+	src := app.Spec.Source.Image
+	if src == nil {
+		return corev1.PodSpec{}, fmt.Errorf("source.image is required for source type image")
+	}
+	ref, err := r.Config.checkImage(src.Reference)
+	if err != nil {
+		return corev1.PodSpec{}, err
+	}
+	// A tag can move, so it is pulled on every start (which also has the
+	// registry re-check the pull credentials); a digest cannot.
+	pull := corev1.PullAlways
+	if ref.Digest != "" {
+		pull = corev1.PullIfNotPresent
+	}
+	env := []corev1.EnvVar{{Name: "PORT", Value: fmt.Sprintf("%d", src.Port)}}
+	env = append(env, app.Spec.Runtime.Env...)
+
+	tcpProbe := corev1.ProbeHandler{TCPSocket: &corev1.TCPSocketAction{Port: intstrFromString("http")}}
+	podSpec := corev1.PodSpec{
+		// App pods run user code and never talk to the Kubernetes API.
+		AutomountServiceAccountToken: ptr.To(false),
+		SecurityContext: &corev1.PodSecurityContext{
+			// No runAsUser fallback: an image whose USER is root fails to
+			// start (CreateContainerConfigError), which aggregateStatus
+			// reports as ImageRunsAsRoot, instead of running as root.
+			RunAsNonRoot:   ptr.To(true),
+			RunAsUser:      src.RunAsUser,
+			SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
+		},
+		ImagePullSecrets: r.Config.imagePullSecrets(),
+		Containers: []corev1.Container{{
+			Name:            "app",
+			Image:           ref.String(),
+			ImagePullPolicy: pull,
+			Command:         append([]string(nil), src.Command...),
+			Args:            append([]string(nil), src.Args...),
+			Ports: []corev1.ContainerPort{{
+				Name:          "http",
+				ContainerPort: src.Port,
+				Protocol:      corev1.ProtocolTCP,
+			}},
+			Env:       env,
+			Resources: r.Config.appResources(app),
+			// The sidecar points these at its /upstreamz (addAuthzSidecar).
+			StartupProbe:   &corev1.Probe{ProbeHandler: tcpProbe, PeriodSeconds: 5, FailureThreshold: 60},
+			ReadinessProbe: &corev1.Probe{ProbeHandler: tcpProbe, PeriodSeconds: 5},
+			LivenessProbe:  &corev1.Probe{ProbeHandler: tcpProbe, PeriodSeconds: 10},
+			SecurityContext: &corev1.SecurityContext{
+				AllowPrivilegeEscalation: ptr.To(false),
+				Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
+			},
+		}},
+	}
+	return podSpec, nil
+}
+
+// imagePullSecrets are the operator's --image-pull-secrets, Secrets in each
+// App namespace that image Apps pull with.
+func (c OperatorConfig) imagePullSecrets() []corev1.LocalObjectReference {
+	var out []corev1.LocalObjectReference
+	for _, name := range c.ImagePullSecrets {
+		out = append(out, corev1.LocalObjectReference{Name: name})
+	}
+	return out
 }
 
 // buildService renders the ClusterIP Service in front of the app pods.

@@ -13,6 +13,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -258,6 +259,21 @@ func TestEnvtestCRDRejectsInvalidApps(t *testing.T) {
 		"env reads an arbitrary secret": func(a *appsv1alpha1.App) {
 			a.Spec.Runtime.Env = []corev1.EnvVar{{Name: "A", Value: "b"}, secretRefEnv("db-credentials")}
 		},
+		"image source without image": func(a *appsv1alpha1.App) {
+			a.Spec.Source = appsv1alpha1.AppSource{Type: appsv1alpha1.SourceTypeImage}
+		},
+		"image on the sidecar's port": func(a *appsv1alpha1.App) {
+			a.Spec.Source = appsv1alpha1.AppSource{Type: appsv1alpha1.SourceTypeImage,
+				Image: &appsv1alpha1.ImageSource{Reference: "ghcr.io/org/app:1", Port: 8080}}
+		},
+		"image on a privileged port": func(a *appsv1alpha1.App) {
+			a.Spec.Source = appsv1alpha1.AppSource{Type: appsv1alpha1.SourceTypeImage,
+				Image: &appsv1alpha1.ImageSource{Reference: "ghcr.io/org/app:1", Port: 80}}
+		},
+		"image as root": func(a *appsv1alpha1.App) {
+			a.Spec.Source = appsv1alpha1.AppSource{Type: appsv1alpha1.SourceTypeImage,
+				Image: &appsv1alpha1.ImageSource{Reference: "ghcr.io/org/app:1", Port: 8501, RunAsUser: ptr.To(int64(0))}}
+		},
 	} {
 		app := inlineApp("team-a")
 		app.Generation = 0
@@ -437,5 +453,22 @@ func TestEnvtestStoredCrossAppSecretRef(t *testing.T) {
 	got.Spec.DisplayName = "Renamed"
 	if err := c.Update(ctx, got); err != nil {
 		t.Errorf("an edit that leaves runtime alone was refused: %v", err)
+	}
+}
+
+// A complete image App is admitted by the CRD schema.
+func TestEnvtestCRDAdmitsImageApp(t *testing.T) {
+	c := startEnv(t)
+	ctx := context.Background()
+	if err := c.Create(ctx, managedNamespace("team-a")); err != nil {
+		t.Fatal(err)
+	}
+	app := imageApp("team-a", "ghcr.io/org/dash@sha256:"+strings.Repeat("c", 64))
+	app.Generation = 0
+	app.Spec.Source.Image.Command = []string{"python", "-m", "app"}
+	app.Spec.Source.Image.Args = []string{"--port", "8501"}
+	app.Spec.Source.Image.RunAsUser = ptr.To(int64(1000))
+	if err := c.Create(ctx, app); err != nil {
+		t.Fatalf("image App refused: %v", err)
 	}
 }

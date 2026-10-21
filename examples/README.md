@@ -17,6 +17,7 @@ kubectl get apps -n apps -w
 | `python-inline-app.yaml` | Minimal Python app carried inline (stdlib http.server) launched by a pixi task (`runtime.pixiTask`). |
 | `python-secret-app.yaml` | Private Python app that reads a credential from `runtime.secretKeys` (values in the Secret `app-<name>-secrets`, never in the App), with the `kubectl create secret` step for GitOps. |
 | `python-git-app.yaml` | Real Streamlit app cloned from git and launched by `pixi run start`. |
+| `image-app.yaml` | A prebuilt container image (`source.type: image`) run as a non-root user (`runAsUser`) on its own port, with `command`/`args`. Needs `apps.image.allowedRegistries` to include `docker.io/library`. |
 | `python-app/` | The Streamlit app `python-git-app.yaml` points at (`subdir: examples/python-app`): `pixi.toml`, `pixi.lock`, `app.py`, and a `nebari-app.yaml` for agent launches. |
 | `web-terminal/` | An interactive **bash shell in the browser** via [ttyd](https://github.com/tsl0922/ttyd), with vim, nano, git, gh, curl, wget, ssh, jq, yq, ripgrep, fd, bat, htop, tree, tmux, fzf, make, zip/unzip and Python on PATH — all from conda-forge via `pixi.toml`, no image build. `terminal.sh` + `bashrc` give the shell a prompt, git identity and a username (app pods run as UID 65532 with no passwd entry — nss_wrapper fixes that fully on linux-64; elsewhere the prompt falls back to `$USER`). SSO-gated (`access.public: false`) because it is a shell. |
 | `static/` | The content `static-git-app.yaml` points at (`subdir: examples/static`). |

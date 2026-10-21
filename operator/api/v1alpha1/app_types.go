@@ -5,14 +5,16 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// SourceType identifies where an app's static content comes from.
-// +kubebuilder:validation:Enum=git;inline;pvc
+// SourceType identifies where an app comes from: content to serve or run
+// (git, inline, pvc) or a prebuilt container image (image).
+// +kubebuilder:validation:Enum=git;inline;pvc;image
 type SourceType string
 
 const (
 	SourceTypeGit    SourceType = "git"
 	SourceTypeInline SourceType = "inline"
 	SourceTypePVC    SourceType = "pvc"
+	SourceTypeImage  SourceType = "image"
 )
 
 // GitSource references app content in a git repository.
@@ -50,7 +52,52 @@ type PVCSource struct {
 	SubPath string `json:"subPath,omitempty"`
 }
 
-// AppSource declares where the app's static content comes from.
+// ImageSource runs a prebuilt container image as the app container, with the
+// same non-root, capability-free, resource-limited pod spec as other Apps and
+// the apps-authz sidecar in front of it.
+type ImageSource struct {
+	// Reference is the image to run, with a tag or a digest:
+	// ghcr.io/org/app:1.2.3 or ghcr.io/org/app@sha256:<64 hex>. Docker Hub
+	// short names are expanded (nginx:1.27 is docker.io/library/nginx:1.27).
+	// The registry and repository must match an entry of the operator's
+	// --image-registries allowlist (chart apps.image.allowedRegistries);
+	// with an empty allowlist image Apps are refused. A tag is pulled on every
+	// pod start (imagePullPolicy Always), a digest once per node.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=512
+	Reference string `json:"reference"`
+
+	// Port the image's server listens on (on 0.0.0.0 or 127.0.0.1; also
+	// passed as $PORT). The apps-authz sidecar always fronts image Apps on
+	// 8080 and serves its probes on 8082, so the app may use neither.
+	// +kubebuilder:validation:Minimum=1024
+	// +kubebuilder:validation:Maximum=65535
+	// +kubebuilder:validation:XValidation:rule="self != 8080 && self != 8082",message="source.image.port may not be 8080 or 8082: the apps-authz sidecar uses them"
+	Port int32 `json:"port"`
+
+	// Command replaces the image's ENTRYPOINT (exec form, no shell).
+	// +kubebuilder:validation:MaxItems=64
+	// +kubebuilder:validation:items:MaxLength=4096
+	// +optional
+	Command []string `json:"command,omitempty"`
+
+	// Args replaces the image's CMD (exec form, no shell).
+	// +kubebuilder:validation:MaxItems=64
+	// +kubebuilder:validation:items:MaxLength=4096
+	// +optional
+	Args []string `json:"args,omitempty"`
+
+	// RunAsUser runs the container as this non-zero uid. Set it for an
+	// image whose USER is a name rather than a number, which the kubelet
+	// cannot verify as non-root. Images that only work as root are refused
+	// (the pod never starts and the App reports ImageRunsAsRoot).
+	// +kubebuilder:validation:Minimum=1
+	// +optional
+	RunAsUser *int64 `json:"runAsUser,omitempty"`
+}
+
+// AppSource declares where the app comes from.
+// +kubebuilder:validation:XValidation:rule="self.type != 'image' || has(self.image)",message="source.image is required for source type image"
 type AppSource struct {
 	Type SourceType `json:"type"`
 
@@ -62,6 +109,9 @@ type AppSource struct {
 
 	// +optional
 	PVC *PVCSource `json:"pvc,omitempty"`
+
+	// +optional
+	Image *ImageSource `json:"image,omitempty"`
 }
 
 // AppRuntime configures how the app process runs.
@@ -123,6 +173,7 @@ type AppRuntime struct {
 	// PixiTask, when set, runs the app as a Python/pixi service instead of
 	// serving its source as static content: the operator installs the pixi
 	// environment from the app source and executes `pixi run <PixiTask>`.
+	// Not allowed with source type image, which runs its own server.
 	// The task must start a server on $PORT: 8080, or 8081 when access.groups
 	// or access.users restricts the app (the authz sidecar takes 8080).
 	// +kubebuilder:validation:MaxLength=64
@@ -253,6 +304,16 @@ const SecretsVersionAnnotation = "apps.nebari.dev/secrets-version"
 func SecretName(appName string) string {
 	return "app-" + appName + "-secrets"
 }
+
+// Condition reasons for image Apps: ImageNotAllowed on Validated when the
+// reference is outside the operator's allowlist (the workload is scaled to
+// zero); ImageRunsAsRoot and ImagePullFailed on WorkloadReady when the
+// kubelet cannot start the image (phase Failed).
+const (
+	ReasonImageNotAllowed = "ImageNotAllowed"
+	ReasonImageRunsAsRoot = "ImageRunsAsRoot"
+	ReasonImagePullFailed = "ImagePullFailed"
+)
 
 // Condition types published on App.status.conditions.
 const (

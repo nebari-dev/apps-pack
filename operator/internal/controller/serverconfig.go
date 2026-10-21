@@ -58,9 +58,9 @@ func (c OperatorConfig) staticListen(app *appsv1alpha1.App) string {
 }
 
 // buildServerConfigMap holds staticServerConf for a static App's pods.
-// Returns nil for pixi apps, which serve themselves.
+// Returns nil for pixi and image apps, which serve themselves.
 func (c OperatorConfig) buildServerConfigMap(app *appsv1alpha1.App) *corev1.ConfigMap {
-	if app.Spec.Runtime.PixiTask != "" {
+	if app.Spec.Runtime.PixiTask != "" || app.Spec.Source.Type == appsv1alpha1.SourceTypeImage {
 		return nil
 	}
 	return &corev1.ConfigMap{

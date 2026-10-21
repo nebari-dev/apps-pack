@@ -17,7 +17,7 @@ displayName: "Docs Site"                # required, max 64 chars
 description: "Team documentation"       # optional, max 256 chars
 
 source:
-  type: files                  # files | git | pvc
+  type: files                  # files | git | pvc | image
 
   # --- type: files (authoring convenience) ---
   files:
@@ -28,6 +28,16 @@ source:
 
   # --- type: pvc (content already on a volume) ---
   # pvc: { claimName: shared-docs, subPath: site }
+
+  # --- type: image (a published container image; the directory holds only
+  # the manifest). Only when describe_cluster lists "image" in sourceTypes,
+  # from one of its imageRegistries. Never combined with runtime.pixiTask.
+  # image:
+  #   reference: ghcr.io/org/dash:1.2.3   # tag or @sha256:<digest>; no implicit latest
+  #   port: 8501                          # where it listens; 1024-65535, not 8080/8082
+  #   command: ["streamlit"]              # optional, replaces ENTRYPOINT (no shell)
+  #   args: ["run", "app.py"]             # optional, replaces CMD
+  #   runAsUser: 1000                     # optional non-zero uid (images whose USER is a name)
 
 runtime:                       # optional
   replicas: 1
@@ -74,6 +84,7 @@ landingPage:                   # optional
 | `source.type: files` | `source_type: "inline"` + `inline_files: {relpath: content}` read from `files.path` |
 | `source.type: git` | `source_type: "git"` + `git_url`, `git_ref`, `git_subdir` |
 | `source.type: pvc` | `source_type: "pvc"` + `pvc_claim_name`, `pvc_sub_path` |
+| `source.type: image` | `source_type: "image"` + `image_reference`, `image_port`, `image_command`, `image_args`, `image_run_as_user` (omit the optional ones the manifest omits) |
 | `runtime.env` | `env` (as a `{NAME: value}` dict) |
 | `runtime.secretKeys` | none directly: names the keys the user must supply; see [Secrets](#secrets) (`secrets` takes `{NAME: value}`) |
 | `runtime.replicas` | `replicas` (0–10) |
@@ -133,6 +144,14 @@ the app. The task must start a server on **0.0.0.0:$PORT** — `PORT` is injecte
 8081 when `access.groups`/`access.users` or idling puts the authz sidecar on 8080), so use
 `--port $PORT` and run `PORT=8080 pixi run start` locally (pixi tasks do not support
 `${PORT:-8080}`). No Dockerfile needed.
+
+**Image apps** (`source.type: image`) run a published image as is: the platform never
+builds one, so the user's CI must publish it to a registry the cluster allows
+(`describe_cluster` → `imageRegistries`). The image must run as a non-root user (a root
+image fails with reason `ImageRunsAsRoot`: rebuild with a numeric `USER`, or set
+`runAsUser`) and listen on `image.port` (passed as `$PORT`), which may not be 8080 or 8082
+because the platform's sidecar sits in front of it. Secrets, env, access and idling work as
+for the other kinds.
 
 **Idle apps.** When the cluster (or the manifest's `runtime.idleTimeoutMinutes`) sets an
 idle timeout, an app with no requests for that long is scaled to zero (phase `Idle`). Its

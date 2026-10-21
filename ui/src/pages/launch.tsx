@@ -45,7 +45,7 @@ export function LaunchPage() {
           Launch an app
         </h1>
         <p className="text-muted-foreground text-sm">
-          Deploy a static site or Python app behind the cluster gateway.
+          Deploy a static site, Python app or container image behind the cluster gateway.
         </p>
       </div>
       <AppForm
@@ -53,6 +53,7 @@ export function LaunchPage() {
         namespaces={namespaces}
         appsDomain={appsDomain}
         idleDefaultMinutes={capabilities.data?.idleTimeoutMinutes ?? 0}
+        imageRegistries={capabilities.data?.imageRegistries ?? []}
         appsScheme={appsScheme}
         submitting={launch.isPending}
         onSubmit={(payload) => launch.mutate(payload)}

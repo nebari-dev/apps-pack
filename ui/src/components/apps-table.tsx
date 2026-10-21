@@ -34,7 +34,8 @@ export type SortDir = "asc" | "desc";
 export type Sort = { col: SortCol; dir: SortDir };
 
 /** App kind shown in the Type column: pixi-launched apps are python, the rest static. */
-export const appType = (app: App) => (app.runtime?.pixiTask ? "python" : "static");
+export const appType = (app: App) =>
+  app.source?.type === "image" ? "container" : app.runtime?.pixiTask ? "python" : "static";
 
 /** Start applies to an App scaled to zero: stopped, or idle (Start wakes it). */
 export const canStart = (app: App) => isStopped(app) || isIdle(app);

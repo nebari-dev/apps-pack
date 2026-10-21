@@ -350,6 +350,77 @@ describe("AppForm (create)", () => {
   });
 });
 
+describe("AppForm (container image)", () => {
+  it("offers images only when the cluster allows a registry", async () => {
+    const { user } = setup();
+    await user.click(screen.getByRole("combobox", { name: "App type" }));
+    expect(await screen.findByRole("option", { name: "Python app (pixi)" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Container image" })).toBeNull();
+  });
+
+  it("launches an image with port, command, args and user", async () => {
+    const { user, onSubmit, submit, error } = setup({ imageRegistries: ["ghcr.io/org"] });
+    await user.type(screen.getByLabelText("Name"), "dash");
+    await user.type(screen.getByLabelText("Display name"), "Dash");
+    await user.click(screen.getByRole("combobox", { name: "App type" }));
+    await user.click(await screen.findByRole("option", { name: "Container image" }));
+    expect(screen.queryByRole("tab", { name: "Git" })).toBeNull();
+    expect(screen.getByLabelText("Image")).toHaveAccessibleDescription(
+      "With a tag or a digest. Allowed registries: ghcr.io/org",
+    );
+    await submit();
+    expect(error("imageRef")).toBe("Enter the image to run.");
+    expect(error("imagePort")).toMatch(/^Port must be a whole number from 1024 to 65535/);
+    await user.type(screen.getByLabelText("Image"), "ghcr.io/org/dash");
+    expect(error("imageRef")).toBe("Give the image a tag (:1.2.3) or a digest (@sha256:…).");
+    await user.type(screen.getByLabelText("Image"), ":1.2.3");
+    await user.type(screen.getByLabelText("Port"), "8080");
+    expect(error("imagePort")).toMatch(/not 8080 or 8082/);
+    await user.clear(screen.getByLabelText("Port"));
+    await user.type(screen.getByLabelText("Port"), "8501");
+    await user.type(screen.getByLabelText("Command"), "streamlit");
+    await user.type(screen.getByLabelText("Arguments"), "run{Enter}app.py{Enter}");
+    await user.type(screen.getByLabelText("Run as user ID"), "0");
+    expect(error("imageRunAsUser")).toBe("User ID must be a whole number above 0, or empty.");
+    await user.clear(screen.getByLabelText("Run as user ID"));
+    await user.type(screen.getByLabelText("Run as user ID"), "1000");
+    await submit();
+    const payload = onSubmit.mock.calls[0][0];
+    if (payload.kind !== "create") throw new Error(`expected a create, got ${payload.kind}`);
+    expect(payload.body.source).toEqual({
+      type: "image",
+      image: {
+        reference: "ghcr.io/org/dash:1.2.3",
+        port: 8501,
+        command: ["streamlit"],
+        args: ["run", "app.py"],
+        runAsUser: 1000,
+      },
+    });
+    expect(payload.body.runtime?.pixiTask).toBe("");
+  });
+
+  it("edits an image app in place and keeps its type", async () => {
+    const imageApp = {
+      ...EXISTING,
+      source: { type: "image", image: { reference: "ghcr.io/org/dash:1", port: 8501 } },
+    } as App;
+    const { user, onSubmit, submit } = setup({ mode: "edit", initial: imageApp });
+    expect(screen.getByRole("combobox", { name: "App type" })).toHaveAttribute("data-disabled");
+    const ref = screen.getByLabelText("Image");
+    expect(ref).toHaveValue("ghcr.io/org/dash:1");
+    await user.clear(ref);
+    await user.type(ref, "ghcr.io/org/dash:2");
+    await submit();
+    const payload = onSubmit.mock.calls[0][0];
+    if (payload.kind !== "patch") throw new Error(`expected a patch, got ${payload.kind}`);
+    expect(payload.body.source).toEqual({
+      type: "image",
+      image: { reference: "ghcr.io/org/dash:2", port: 8501 },
+    });
+  });
+});
+
 const EXISTING: App = {
   name: "docs-site",
   namespace: "apps",

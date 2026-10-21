@@ -19,11 +19,13 @@ from . import __version__
 from . import cr as crmod
 from .auth import User, app_managers, app_role, can_access, can_change_managers, current_user, is_admin
 from .config import settings
+from .images import check_image, parse_allowlist
 from .k8s import READY_TIMEOUT, AppStore, ConflictError, KubernetesAppStore, NotFoundError
 from .limits import BodySizeLimitMiddleware
 from .logs import RequestIdMiddleware, configure_logging
 from .metrics import METRICS_PATH, MetricsMiddleware, metrics_response
 from .models import (
+    IMAGE_RESERVED_PORTS,
     MAX_SECRET_KEYS,
     SOURCE_TYPES,
     AnalyticsSummary,
@@ -31,6 +33,7 @@ from .models import (
     AppMetrics,
     AppOut,
     AppPatch,
+    AppSource,
     AppUsage,
     Capabilities,
     ClusterMetrics,
@@ -53,6 +56,8 @@ log = structlog.get_logger("nebari_apps_api")
 
 def create_app(store: AppStore | None = None) -> FastAPI:
     app = FastAPI(title="nebari-apps-api", version=__version__)
+    # Fail at startup on a malformed allowlist entry, as the operator does.
+    image_registries = parse_allowlist(settings.image_registries)
     if not settings.auth_enabled:
         log.warning(
             "AUTHENTICATION IS DISABLED (AUTH_ENABLED=false): every request is anonymous and "
@@ -114,6 +119,7 @@ def create_app(store: AppStore | None = None) -> FastAPI:
 
     def create_checked(store: AppStore, user: User, req: AppCreate) -> AppOut:
         _validate_request(req)
+        _check_image(req.source, req.runtime.pixiTask, image_registries)
         check_namespace(store, req.namespace)
         # Subdomains are unique across every App in the cluster; the operator
         # enforces the same rule, this just refuses before the CR exists.
@@ -258,9 +264,10 @@ def create_app(store: AppStore | None = None) -> FastAPI:
     def capabilities(store: Store, user: Me) -> Capabilities:
         return Capabilities(
             appsDomain=settings.apps_domain,
-            sourceTypes=list(SOURCE_TYPES),
+            sourceTypes=[t for t in SOURCE_TYPES if t != "image" or image_registries],
             namespaces=launchable_namespaces(store),
             idleTimeoutMinutes=settings.idle_timeout_minutes,
+            imageRegistries=image_registries,
         )
 
     @app.get(PREFIX + "/auth/me")
@@ -334,6 +341,11 @@ def create_app(store: AppStore | None = None) -> FastAPI:
                 if wanted != app_managers(existing):
                     raise HTTPException(403, "only the owner or an admin can change who manages this app")
             cr = crmod.apply_patch(existing, patch)
+            if patch.source is not None or patch.runtime is not None:
+                spec = cr.get("spec") or {}
+                if (spec.get("source") or {}).get("type") == "image":
+                    stored = AppSource.model_validate(spec["source"])
+                    _check_image(stored, str((spec.get("runtime") or {}).get("pixiTask") or ""), image_registries)
             if patch.secrets:
                 keys = set(crmod.secret_keys(cr))
                 keys |= {k for k, v in patch.secrets.items() if v is not None}
@@ -559,6 +571,30 @@ def _check_source(source: Any) -> None:
             source.git.check()
         except ValueError as exc:
             raise HTTPException(422, f"source.git: {exc}") from None
+
+
+def _check_image(source: Any, pixi_task: str, allowlist: list[str]) -> None:
+    """An image source must match the registry allowlist (the operator checks
+    it again for every App), leave the sidecar's ports free and not ask for a
+    pixi task.
+    """
+    if source is None or source.type != "image":
+        return
+    if source.image is None:
+        raise HTTPException(422, "source.image is required for source type 'image'")
+    if pixi_task:
+        raise HTTPException(
+            422, "runtime.pixiTask cannot be combined with source type image: the image runs its own server"
+        )
+    if source.image.port in IMAGE_RESERVED_PORTS:
+        raise HTTPException(
+            422,
+            f"source.image.port may not be {' or '.join(map(str, IMAGE_RESERVED_PORTS))}: the apps-authz sidecar uses them",
+        )
+    try:
+        check_image(source.image.reference, allowlist)
+    except ValueError as exc:
+        raise HTTPException(422, f"source.image.reference: {exc}") from None
 
 
 def _check_secret_values(secrets: dict[str, str | None]) -> None:

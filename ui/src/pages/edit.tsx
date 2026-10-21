@@ -77,6 +77,7 @@ export function EditPage() {
         namespaces={capabilities.data?.namespaces ?? [namespace]}
         appsDomain={appsDomain}
         idleDefaultMinutes={capabilities.data?.idleTimeoutMinutes ?? 0}
+        imageRegistries={capabilities.data?.imageRegistries ?? []}
         appsScheme={appsScheme}
         initial={app.data}
         submitting={save.isPending}
