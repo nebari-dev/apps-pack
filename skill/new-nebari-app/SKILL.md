@@ -59,7 +59,9 @@ The manifest maps 1:1 onto the pack's `App` resource — see
 ## Launching ("launch it")
 
 When the user asks to launch an app directory, read its `nebari-app.yaml` and drive the
-`nebari-apps` MCP tools:
+`nebari-apps` MCP tools. The server's `launch_from_manifest` prompt (argument `path`: the
+manifest or its directory) returns these same steps; get it when your client supports MCP
+prompts, and use the `triage_app` prompt (`namespace`, `name`) if the app lands in `Failed`:
 
 1. `describe_cluster` — confirm the target `namespace` is available and get `appsDomain`.
    If a tool returns an auth error, call `authenticate` and follow its instructions
@@ -80,7 +82,9 @@ When the user asks to launch an app directory, read its `nebari-app.yaml` and dr
    updates it, so retrying or iterating is safe.
 4. Poll `get_app_status` until `phase` is `Running` (typically seconds for static apps;
    pixi apps resolve their environment on first start and can take a few minutes). If it
-   lands in `Failed`, read `get_app_logs` and the status message, fix, re-launch.
+   lands in `Failed`, follow the `triage_app` prompt (or read the status conditions, then
+   the `nebari-apps://apps/<namespace>/<name>/events` resource, then `get_app_logs`), fix,
+   re-launch.
    `Idle` is not a failure: the app was scaled to zero after its idle timeout and its URL
    wakes it (or call `start_app`).
 5. Report the app's `url` back to the user.

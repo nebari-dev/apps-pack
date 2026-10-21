@@ -29,6 +29,8 @@ class FakeStore:
         self.logs = "hello from pod\n"
         self.restarted: list[tuple[str, str]] = []
         self.metrics_available = True
+        self.events: list[dict[str, Any]] = []
+        self.log_requests: list[tuple[int, str | None]] = []
         # (namespace, secret name) -> key -> value
         self.secrets: dict[tuple[str, str], dict[str, str]] = {}
 
@@ -69,10 +71,11 @@ class FakeStore:
         return list(self.namespaces)
 
     def pod_logs(self, namespace: str, app_name: str, lines: int, container: str | None) -> str:
+        self.log_requests.append((lines, container))
         return self.logs
 
     def app_events(self, namespace: str, app_name: str) -> list[dict[str, Any]]:
-        return []
+        return copy.deepcopy(self.events)
 
     def restart_app(self, namespace: str, app_name: str) -> None:
         if (namespace, app_name) not in self.apps:

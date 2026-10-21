@@ -35,7 +35,7 @@ start again on the next request
 | apps-operator | Reconciles `App` resources into a Deployment, Service, ConfigMap and `NebariApp`, reports status, scales idle Apps to zero and serves the page they show while they start. | `apps-operator` |
 | apps-api | REST API for CRUD, status, logs, events, analytics and zip/`.html` upload; writes `App` resources (and each App's write-only Secret) for the UI and the MCP server. | `apps-api` |
 | apps-ui | The apps list as the home page (with a Needs attention banner, a Mine filter and Open links), app detail with logs and events, and the launch form. | `apps-ui` |
-| apps-mcp | MCP server at `/mcp` that lets coding agents launch and manage apps, with Keycloak device-flow login. | `apps-mcp` |
+| apps-mcp | MCP server at `/mcp` that lets coding agents launch and manage apps (tools), attach an app's spec, status, logs and events as context (resources), and follow the triage, launch and access-review workflows (prompts), with Keycloak device-flow login. | `apps-mcp` |
 | apps-authz | Sidecar in the pods of Apps that list `access.groups` or `access.users` (returns `403` to everyone else) or that can idle (records when the app last served a request). | `apps-authz` |
 
 Images are published to `ghcr.io/nebari-dev/apps-pack/<image>` and

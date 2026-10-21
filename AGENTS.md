@@ -20,7 +20,7 @@ Keycloak auth. See [`docs/src/content/docs/architecture.md`](docs/src/content/do
 | `operator/` | Go operator (controller-runtime) | `api/v1alpha1/app_types.go` (the CRD), `internal/controller/app_controller.go` (reconcile pipeline), `internal/controller/workload.go` (pod spec), `internal/controller/authz.go` (the authz sidecar for Apps with groups/users, that can idle, or that run an image), `internal/controller/idle.go` (scale to zero: activity polling, the Idle phase, the activator ReferenceGrant), `internal/controller/activator.go` (the page idle Apps serve while they wake), `internal/controller/sources.go` (source volumes and init containers), `internal/controller/imageref.go` (image references and the registry allowlist for `source.type: image`), `internal/controller/routing.go` (NebariApp) |
 | `authz/` | Go sidecar: verifies the forwarded access token and enforces `access.groups`/`access.users` (403 otherwise); in passthrough mode (unrestricted Apps that can idle) it only proxies. Either way it reports activity for the idle check | `main.go` (env config), `internal/gate/verify.go` (token checks), `internal/gate/proxy.go` (proxy + probes), `internal/gate/activity.go` (`/activity`) |
 | `api/` | FastAPI REST API over App CRs | `src/nebari_apps_api/main.py` (routes), `auth.py` (JWT + owner/admin checks), `models.py` (request/response models), `cr.py` (model ↔ CR), `images.py` (image allowlist, mirrors `imageref.go`), `k8s.py` (store) |
-| `mcp/` | FastMCP server, agent tools at `/mcp` | `src/nebari_apps_mcp/server.py` (tools), `auth.py` (device flow, sessions), `untrusted.py` (fencing app output) |
+| `mcp/` | FastMCP server, agent tools, resources and prompts at `/mcp` | `src/nebari_apps_mcp/server.py` (tools, `nebari-apps://` resources, prompts), `auth.py` (device flow, sessions), `untrusted.py` (fencing app output) |
 | `ui/` | React + Vite UI on the Nebari design registry | `src/pages/`, `src/components/` (`app-form/`: state, sections), `src/hooks/use-app-actions.ts`, `src/lib/api.ts`, `src/lib/types.ts` (over the generated `crd.gen.ts`) |
 | `charts/nebari-apps/` | Helm chart: CRD, operator, api, ui, mcp | `values.yaml`, `templates/`, `crds/apps.nebari.dev_apps.yaml` (generated) |
 | `skill/new-nebari-app/` | Claude Code skill that scaffolds an app + launch manifest | `SKILL.md`, `references/manifest.md` |
@@ -77,8 +77,10 @@ helm lint charts/nebari-apps --set clusterDomain=nebari.example.com
   environment variables, never shell interpolation. The `app` container stays first and
   keeps its name (logs default to it); restricted Apps, Apps that can idle and image Apps add the
   `authz` sidecar after it. The operator reads idle Apps' activity from the pod, so treat that answer as
-  untrusted too (bounded, clamped, failure counts as activity). MCP tools return app-controlled text
-  (logs, files) only through the fences in `mcp/src/nebari_apps_mcp/untrusted.py`.
+  untrusted too (bounded, clamped, failure counts as activity). MCP tools and resources return app-controlled text
+  (logs, files, events) only through the fences in `mcp/src/nebari_apps_mcp/untrusted.py`, and
+  resources read through the same apps-api calls as the matching tools, so they share the API's
+  owner/manager/admin authorization.
 - **Secret values never enter the App.** `spec.runtime.secretKeys` holds names only;
   apps-api writes values (request field `secrets`) to the App-owned Secret
   `app-<name>-secrets` with create/patch (it has no get/list/watch on Secrets) and never

@@ -1,14 +1,17 @@
 """Fencing for content that apps write and agents read.
 
-Pod logs and inline source files are authored by whoever launched the app, so
-anything in them - including text that reads like instructions - reaches the
-agent's context. Tools return such content capped, inside markers whose name
-carries a random nonce (the content cannot close the fence early, because it
-cannot know the nonce), next to a notice that it is data.
+Pod logs, inline source files and Kubernetes events (whose messages quote
+container output and spec values) are authored, directly or not, by whoever
+launched the app, so anything in them - including text that reads like
+instructions - reaches the agent's context. Tools and resources return such
+content capped, inside markers whose name carries a random nonce (the content
+cannot close the fence early, because it cannot know the nonce), next to a
+notice that it is data.
 """
 
 from __future__ import annotations
 
+import json
 import secrets
 from typing import Any, Literal
 
@@ -19,6 +22,8 @@ NOTICE = (
 # Characters returned per log response and per inline file.
 LOG_CAP = 64 * 1024
 FILE_CAP = 16 * 1024
+# Characters of JSON-encoded events per response (newest first, so the head is kept).
+EVENTS_CAP = 32 * 1024
 
 
 def fence(text: str, cap: int, keep: Literal["head", "tail"] = "head") -> tuple[str, bool]:
@@ -33,6 +38,12 @@ def fence(text: str, cap: int, keep: Literal["head", "tail"] = "head") -> tuple[
 def fence_logs(logs: str) -> dict[str, Any]:
     content, truncated = fence(logs, LOG_CAP, keep="tail")
     return {"notice": NOTICE, "logs": content, "truncated": truncated}
+
+
+def fence_events(events: Any) -> dict[str, Any]:
+    """An app's events, newest first, as one fenced JSON document."""
+    content, truncated = fence(json.dumps(events, indent=1), EVENTS_CAP)
+    return {"notice": NOTICE, "events": content, "truncated": truncated}
 
 
 def fence_app(app: Any) -> Any:
