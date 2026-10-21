@@ -13,12 +13,11 @@ description: What CI checks on every pull request, how images and charts are bui
 | | UI e2e + a11y | Playwright on Chromium against the UI job's build (apps-api mocked): a user flow or keyboard path that breaks, or a `critical`/`serious` axe violation (WCAG 2.0/2.1 A and AA) on any page in light or dark, at desktop width and at 390px (where a page that scrolls sideways also fails); uploads the HTML report every run |
 | | Helm chart | `helm lint`/`helm template` errors, `values.schema.json`, a stale chart README, chart RBAC assertions, the alert rules (promtool), kubeconform on the examples and rendered chart |
 | | Repo invariants | a path in `AGENTS.md` or the skill that does not exist, version strings that disagree with the release manifest, a pin file that disagrees with its Dockerfile, actionlint, zizmor |
-| **Images** (`images.yaml`) | one per image | the image does not build, has a HIGH/CRITICAL vulnerability with a fix available (Trivy), or (`apps-ui`) serves the wrong security headers; on changes to the images' sources only |
+| **Images** (`images.yaml`) | one per image | the image does not build, or (`apps-ui`) serves the wrong security headers; on changes to the images' sources only |
 | **Docs** (`docs.yml`) | docs | the site's tests or build, or a broken external link (on docs changes only) |
 
-CI and Images also run weekly, so advisories published after a merge surface even when
-nothing changes: `pip-audit`, `npm audit` and Trivy (against images rebuilt from their
-digest-pinned bases). The weekly run is also the only one that checks the vendored
+CI also runs weekly, so advisories published after a merge surface even when nothing
+changes: `pip-audit` and `npm audit`. Images are not scanned for vulnerabilities. The weekly run is also the only one that checks the vendored
 nebari-ui skill against the registry, since the registry moving is not something a pull
 request caused.
 
@@ -31,12 +30,12 @@ Every action is pinned to a commit SHA, and every workflow starts from
 ## Images
 
 `images.yaml` builds the five images (`apps-operator`, `apps-authz`, `apps-api`,
-`apps-ui`, `apps-mcp`). Pull requests build and scan each image once, on `linux/amd64`, without
+`apps-ui`, `apps-mcp`). Pull requests build each image once, on `linux/amd64`, without
 pushing. Every merge to `main` builds them for `linux/amd64` and `linux/arm64` through the
 org's reusable `pack-build-image` workflow, pushes `ghcr.io/nebari-dev/apps-pack/<image>`
 and `quay.io/nebari/apps-pack-<image>`, tagged `sha-<short commit>` and `latest`, and signs
 each image keyless with cosign, with a build-provenance attestation and an SBOM. The push
-does not wait for the scan, so a newly published CVE cannot block `latest` or a release's
+does not wait for the check job, so a failing check cannot block `latest` or a release's
 images. `latest` tracks `main` for development only; released charts pin `sha-` tags.
 
 To verify a signature, see
