@@ -3,7 +3,7 @@ import { EVENTS } from "./data";
 import { expect, test } from "./fixtures";
 
 async function openDocsSite(page: Page) {
-  await page.goto("/apps/apps/docs-site");
+  await page.goto("/apps/docs-site");
   await expect(page.getByRole("heading", { level: 1, name: "Docs Site" })).toBeVisible();
 }
 
@@ -47,7 +47,7 @@ test.describe("app detail", () => {
     page,
     api,
   }) => {
-    await page.goto("/apps/apps/broken-app");
+    await page.goto("/apps/broken-app");
     await expect(page.getByRole("heading", { level: 1, name: "Broken App" })).toBeVisible();
 
     const alert = page.getByRole("alert");
@@ -60,7 +60,7 @@ test.describe("app detail", () => {
     );
 
     await alert.getByRole("button", { name: "View logs" }).click();
-    await expect(page).toHaveURL("/apps/apps/broken-app?tab=logs");
+    await expect(page).toHaveURL("/apps/broken-app?tab=logs");
     await expect(page.getByRole("tab", { name: "Logs" })).toHaveAttribute("aria-selected", "true");
 
     await alert.getByRole("button", { name: "Restart" }).click();
@@ -119,7 +119,7 @@ test.describe("app detail", () => {
   });
 
   test("shows an error for an app that does not exist", async ({ page }) => {
-    await page.goto("/apps/apps/missing");
+    await page.goto("/apps/missing");
     await expect(page.getByRole("alert")).toContainText("Could not load app");
     await expect(page.getByRole("alert")).toContainText("App apps/missing not found");
   });
@@ -212,5 +212,56 @@ test.describe("app actions by keyboard", () => {
     await page.keyboard.press("Escape");
     await expect(dark).toBeHidden();
     await expect(trigger).toBeFocused();
+  });
+});
+
+test.describe("app URLs", () => {
+  test("drops the namespace for an app in the default namespace", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("link", { name: "Docs Site", exact: true })).toHaveAttribute(
+      "href",
+      "/apps/docs-site",
+    );
+    await openDocsSite(page);
+    await expect(page.getByRole("link", { name: "Edit" })).toHaveAttribute(
+      "href",
+      "/apps/docs-site/edit",
+    );
+  });
+
+  test("keeps the namespace for an app in any other namespace", async ({ page }) => {
+    await page.goto("/");
+    const link = page.getByRole("link", { name: "Sales Dashboard", exact: true });
+    await expect(link).toHaveAttribute("href", "/apps/team-data/sales-dashboard");
+    await link.click();
+    await expect(page).toHaveURL("/apps/team-data/sales-dashboard");
+    await expect(page.getByRole("heading", { level: 1, name: "Sales Dashboard" })).toBeVisible();
+
+    await page.getByRole("link", { name: "Edit" }).click();
+    await expect(page).toHaveURL("/apps/team-data/sales-dashboard/edit");
+    await expect(page.getByRole("heading", { level: 1, name: "Edit app" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Sales Dashboard" })).toHaveAttribute(
+      "href",
+      "/apps/team-data/sales-dashboard",
+    );
+  });
+
+  test("opens the edit page at the short path", async ({ page }) => {
+    await page.goto("/apps/docs-site/edit");
+    await expect(page.getByRole("heading", { level: 1, name: "Edit app" })).toBeVisible();
+    await page.getByRole("link", { name: "Docs Site" }).click();
+    await expect(page).toHaveURL("/apps/docs-site");
+    await expect(page.getByRole("heading", { level: 1, name: "Docs Site" })).toBeVisible();
+  });
+
+  test("redirects the full path of a default-namespace app to the short one", async ({ page }) => {
+    await page.goto("/apps/apps/broken-app?tab=logs");
+    await expect(page).toHaveURL("/apps/broken-app?tab=logs");
+    await expect(page.getByRole("heading", { level: 1, name: "Broken App" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Logs" })).toHaveAttribute("aria-selected", "true");
+
+    await page.goto("/apps/apps/docs-site/edit");
+    await expect(page).toHaveURL("/apps/docs-site/edit");
+    await expect(page.getByRole("heading", { level: 1, name: "Edit app" })).toBeVisible();
   });
 });

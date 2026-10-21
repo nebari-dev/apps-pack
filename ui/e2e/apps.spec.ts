@@ -73,7 +73,7 @@ test.describe("apps list", () => {
     await expect(page.getByRole("columnheader", { name: /Namespace/ })).toHaveCount(0);
 
     await broken.getByRole("link", { name: "Logs" }).click();
-    await expect(page).toHaveURL("/apps/apps/broken-app?tab=logs");
+    await expect(page).toHaveURL("/apps/broken-app?tab=logs");
     await expect(page.getByRole("tab", { name: "Logs" })).toHaveAttribute("aria-selected", "true");
   });
 
@@ -141,7 +141,7 @@ test.describe("apps list", () => {
     await page.goto("/");
     await page.getByRole("link", { name: "Docs Site", exact: true }).click();
 
-    await expect(page).toHaveURL("/apps/apps/docs-site");
+    await expect(page).toHaveURL("/apps/docs-site");
     const heading = page.getByRole("heading", { level: 1, name: "Docs Site" });
     await expect(heading).toBeFocused();
     await expect(page).toHaveTitle("docs-site · Nebari Apps");

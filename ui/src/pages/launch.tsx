@@ -5,6 +5,7 @@ import { toast } from "@/components/ui/toast";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { api } from "@/lib/api";
 import { getConfig } from "@/lib/auth";
+import { appPath } from "@/lib/paths";
 import type { AppCreate } from "@/lib/types";
 
 export function LaunchPage() {
@@ -28,7 +29,7 @@ export function LaunchPage() {
         title: `Launched ${app.displayName || app.name}`,
         description: "Deploying now — status will update on the app page.",
       });
-      void navigate(`/apps/${app.namespace}/${app.name}`);
+      void navigate(appPath(app));
     },
     onError: (err) =>
       toast.add({

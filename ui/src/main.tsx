@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { type ComponentType, lazy, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { CanonicalAppRoute } from "@/components/canonical-app-route";
 import { Layout } from "@/components/layout";
 import { Toaster } from "@/components/ui/toast";
 import { ThemeProvider } from "@/hooks/theme-provider";
@@ -101,8 +102,30 @@ createRoot(container).render(
               {/* The apps list is the home page; /apps redirects for old bookmarks. */}
               <Route index element={<AppsPage />} />
               <Route path="apps" element={<Navigate to="/" replace />} />
-              <Route path="apps/:namespace/:name" element={<AppDetailPage />} />
-              <Route path="apps/:namespace/:name/edit" element={<EditPage />} />
+              {/* Apps in the default namespace drop it: /apps/<name>. Every other
+                  namespace keeps the full /apps/<namespace>/<name>, and the full
+                  form of a default-namespace App redirects to the short one.
+                  The static `edit` segment outranks a dynamic one, so an App
+                  literally named "edit" outside the default namespace can't be
+                  reached at /apps/<namespace>/edit (accepted). */}
+              <Route path="apps/:name" element={<AppDetailPage />} />
+              <Route path="apps/:name/edit" element={<EditPage />} />
+              <Route
+                path="apps/:namespace/:name"
+                element={
+                  <CanonicalAppRoute>
+                    <AppDetailPage />
+                  </CanonicalAppRoute>
+                }
+              />
+              <Route
+                path="apps/:namespace/:name/edit"
+                element={
+                  <CanonicalAppRoute suffix="edit">
+                    <EditPage />
+                  </CanonicalAppRoute>
+                }
+              />
               <Route path="launch" element={<LaunchPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="*" element={<NotFoundPage />} />

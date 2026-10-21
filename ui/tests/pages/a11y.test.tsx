@@ -81,20 +81,8 @@ const { SettingsPage } = await import("@/pages/settings");
 // name, URL, route path, page, h1, and text that shows the page's data has loaded.
 const PAGES: [string, string, string, ReactElement, string, string?][] = [
   ["apps", "/", "", <AppsPage key="a" />, "Apps", "2 apps need attention"],
-  [
-    "app detail",
-    "/apps/apps/docs-site",
-    "apps/:namespace/:name",
-    <AppDetailPage key="ad" />,
-    "Docs Site",
-  ],
-  [
-    "edit",
-    "/apps/apps/docs-site/edit",
-    "apps/:namespace/:name/edit",
-    <EditPage key="e" />,
-    "Edit app",
-  ],
+  ["app detail", "/apps/docs-site", "apps/:name", <AppDetailPage key="ad" />, "Docs Site"],
+  ["edit", "/apps/docs-site/edit", "apps/:name/edit", <EditPage key="e" />, "Edit app"],
   ["launch", "/launch", "launch", <LaunchPage key="l" />, "Launch an app"],
   ["settings", "/settings", "settings", <SettingsPage key="s" />, "Settings", "sha-api1234"],
 ];

@@ -118,17 +118,17 @@ describe("edit page", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const { container } = render(
       <QueryClientProvider client={client}>
-        <MemoryRouter initialEntries={["/apps/apps/docs/edit"]}>
+        <MemoryRouter initialEntries={["/apps/docs/edit"]}>
           <Routes>
-            <Route path="/apps/:namespace/:name/edit" element={<EditPage />} />
-            <Route path="/apps/:namespace/:name" element={<Where />} />
+            <Route path="/apps/:name/edit" element={<EditPage />} />
+            <Route path="/apps/:name" element={<Where />} />
           </Routes>
         </MemoryRouter>
       </QueryClientProvider>,
     );
     expect(await screen.findByRole("status")).toHaveTextContent("Loading app");
     expect(screen.getByRole("heading", { level: 1, name: "Edit app" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "docs" })).toHaveAttribute("href", "/apps/apps/docs");
+    expect(screen.getByRole("link", { name: "docs" })).toHaveAttribute("href", "/apps/docs");
     expect(screen.getByText("Basics")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
     // No form controls until the values they hold arrive.
@@ -136,6 +136,6 @@ describe("edit page", () => {
     expectHiddenSkeletons(container);
 
     await user.click(screen.getByRole("button", { name: "Cancel" }));
-    expect(screen.getByTestId("where")).toHaveTextContent("/apps/apps/docs");
+    expect(screen.getByTestId("where")).toHaveTextContent("/apps/docs");
   });
 });
