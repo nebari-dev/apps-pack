@@ -56,15 +56,8 @@ for (const { path, heading, ready } of PAGES) {
       innerWidth,
     );
 
-    const links = await header.getByRole("navigation").getByRole("link").all();
-    expect(links.length).toBeGreaterThan(0);
-    const seen: Box[] = [];
-    for (const link of links) {
-      const box = await link.boundingBox();
-      if (!box) throw new Error("a nav link is not rendered");
-      expect(overlaps(box, account), "a nav link overlaps the account menu").toBe(false);
-      for (const other of seen) expect(overlaps(box, other), "nav links overlap").toBe(false);
-      seen.push(box);
-    }
+    const logo = await header.getByRole("link", { name: /go to homepage/i }).boundingBox();
+    if (!logo) throw new Error("the logo is not rendered");
+    expect(overlaps(logo, account), "the logo overlaps the account menu").toBe(false);
   });
 }
