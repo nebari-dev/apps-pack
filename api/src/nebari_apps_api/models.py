@@ -246,6 +246,9 @@ class AppStatus(BaseModel):
     message: str = ""
     # When the app last served a request (apps that can idle only).
     lastActivityTime: str = ""
+    # The metadata.generation the operator last reconciled; below AppOut.generation
+    # while it has yet to act on a spec change (0 before its first reconcile).
+    observedGeneration: int = 0
 
 
 class AppOut(BaseModel):
@@ -263,6 +266,8 @@ class AppOut(BaseModel):
     access: AppAccess | None = None
     landingPage: AppLandingPage | None = None
     status: AppStatus = Field(default_factory=AppStatus)
+    # metadata.generation: bumped by the apiserver on every spec change.
+    generation: int = 0
     # The caller's relationship to this App: owner, manager, admin, or ""
     # (computed per request, not stored on the CR).
     role: Role = ""

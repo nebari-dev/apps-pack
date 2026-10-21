@@ -101,7 +101,7 @@ export function AppDetailPage() {
   const app = useQuery({
     queryKey: ["app", namespace, name],
     queryFn: () => api.getApp(namespace, name),
-    refetchInterval: (q) => pollFor([q.state.data?.status.phase], 5_000, 30_000),
+    refetchInterval: (q) => pollFor([q.state.data], 5_000, 30_000),
   });
   const phase = app.data?.status.phase;
   // Stopped and idle apps have no pods: nothing to follow or measure.
@@ -115,12 +115,12 @@ export function AppDetailPage() {
   const events = useQuery({
     queryKey: ["events", namespace, name],
     queryFn: () => api.events(namespace, name),
-    refetchInterval: pollFor([phase], 10_000, 60_000),
+    refetchInterval: () => pollFor([app.data], 10_000, 60_000),
   });
   const metrics = useQuery({
     queryKey: ["metrics", namespace, name],
     queryFn: () => api.metrics(namespace, name),
-    refetchInterval: phaseStopped ? false : pollFor([phase], 5_000, 15_000),
+    refetchInterval: () => (phaseStopped ? false : pollFor([app.data], 5_000, 15_000)),
     retry: false,
   });
 

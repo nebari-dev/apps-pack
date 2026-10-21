@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { errorMessage } from "@/components/query-error";
 import { toast } from "@/components/ui/toast";
 import { api } from "@/lib/api";
+import { markActed } from "@/lib/polling";
 import type { App } from "@/lib/types";
 
 export type AppAction = "start" | "stop" | "restart" | "delete";
@@ -35,11 +36,18 @@ const DONE: Record<AppAction, { title: string; description?: string }> = {
   delete: { title: "Deleted" },
 };
 
-/** The apps list (with its restart counts) and the App's own page both show the result. */
+/**
+ * The apps list (with its restart counts) and the App's own page both show the result.
+ * `acted` are the Apps just changed: they poll fast for a while (lib/polling), since
+ * the refetch this starts usually lands before the operator has reacted.
+ */
 export function useInvalidateApps() {
   const queryClient = useQueryClient();
-  return (app?: App) => {
-    if (app) void queryClient.invalidateQueries({ queryKey: ["app", app.namespace, app.name] });
+  return (acted: App | App[] = []) => {
+    const apps = Array.isArray(acted) ? acted : [acted];
+    markActed(apps);
+    for (const app of apps)
+      void queryClient.invalidateQueries({ queryKey: ["app", app.namespace, app.name] });
     void queryClient.invalidateQueries({ queryKey: ["apps"] });
     void queryClient.invalidateQueries({ queryKey: ["cluster-metrics"] });
   };

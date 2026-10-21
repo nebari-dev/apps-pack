@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { AppForm, type SubmitPayload } from "@/components/app-form";
@@ -6,6 +6,7 @@ import { AppFormSkeleton, LoadingStatus, TextLine } from "@/components/loading-s
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
+import { useInvalidateApps } from "@/hooks/use-app-actions";
 import { useArrived } from "@/hooks/use-changed";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { api } from "@/lib/api";
@@ -17,7 +18,7 @@ export function EditPage() {
   const heading = usePageTitle("Edit app");
   const { namespace = DEFAULT_NAMESPACE, name = "" } = useParams();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const invalidate = useInvalidateApps();
 
   const app = useQuery({
     queryKey: ["app", namespace, name],
@@ -34,8 +35,7 @@ export function EditPage() {
       return api.patchApp(namespace, name, payload.body);
     },
     onSuccess: (updated) => {
-      void queryClient.invalidateQueries({ queryKey: ["app", namespace, name] });
-      void queryClient.invalidateQueries({ queryKey: ["apps"] });
+      invalidate(updated);
       toast.add({ type: "success", title: `Saved ${updated.displayName || updated.name}` });
       void navigate(appPath({ namespace, name }));
     },

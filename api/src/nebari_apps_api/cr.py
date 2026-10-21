@@ -187,6 +187,7 @@ def from_cr(cr: dict[str, Any], role: Role = "") -> AppOut:
         access=spec.get("access"),
         landingPage=spec.get("landingPage"),
         role=role,
+        generation=meta.get("generation", 0),
         status=AppStatus.model_validate(
             {
                 "phase": status.get("phase", "Pending"),
@@ -195,6 +196,7 @@ def from_cr(cr: dict[str, Any], role: Role = "") -> AppOut:
                 "conditions": status.get("conditions", []),
                 "message": status.get("message", ""),
                 "lastActivityTime": status.get("lastActivityTime", ""),
+                "observedGeneration": status.get("observedGeneration", 0),
             }
         ),
     )
