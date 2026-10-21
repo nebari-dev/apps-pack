@@ -61,6 +61,7 @@ import { accessLine, managersLine, roleNote } from "@/lib/access";
 import { api } from "@/lib/api";
 import { copyText } from "@/lib/clipboard";
 import { ENTER, FADE_IN } from "@/lib/motion";
+import { appPath, DEFAULT_NAMESPACE } from "@/lib/paths";
 import { pollFor } from "@/lib/polling";
 import { relativeTime } from "@/lib/time";
 import type { App } from "@/lib/types";
@@ -75,7 +76,7 @@ type DetailTab = (typeof TABS)[number];
 const isDetailTab = (value: unknown): value is DetailTab => TABS.includes(value as DetailTab);
 
 export function AppDetailPage() {
-  const { namespace = "", name = "" } = useParams();
+  const { namespace = DEFAULT_NAMESPACE, name = "" } = useParams();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get("tab");
@@ -274,7 +275,7 @@ export function AppDetailPage() {
           <Button
             variant="outline"
             render={
-              <Link to={`/apps/${namespace}/${name}/edit`}>
+              <Link to={appPath({ namespace, name }, "edit")}>
                 Edit <Pencil />
               </Link>
             }

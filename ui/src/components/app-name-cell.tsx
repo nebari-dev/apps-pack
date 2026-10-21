@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { AppThumbnail } from "@/components/app-bits";
+import { appPath } from "@/lib/paths";
 import type { App } from "@/lib/types";
 
 /**
@@ -34,7 +35,7 @@ export function AppNameCell({
       {/* Table cells grow to fit nowrap text, so cap the width below sm for
           the sub-line to truncate instead of pushing the table wide. */}
       <div className="min-w-0 max-sm:max-w-32">
-        <Link to={`/apps/${app.namespace}/${app.name}`} className="font-medium hover:underline">
+        <Link to={appPath(app)} className="font-medium hover:underline">
           {app.displayName || app.name}
         </Link>
         <p className="truncate font-mono text-muted-foreground text-xs">{subline}</p>

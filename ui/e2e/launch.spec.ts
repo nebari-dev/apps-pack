@@ -18,7 +18,7 @@ test.describe("launch form", () => {
     await expect(page.getByLabel("Subdomain")).toHaveValue("my-site");
     await page.getByRole("button", { name: "Launch app" }).click();
 
-    await expect(page).toHaveURL("/apps/apps/my-site");
+    await expect(page).toHaveURL("/apps/my-site");
     await expect(page.getByRole("heading", { level: 1, name: "My Site" })).toBeVisible();
     expect(api.requests).toEqual([
       {
@@ -49,7 +49,7 @@ test.describe("launch form", () => {
     await page.getByLabel("Port", { exact: true }).fill("8501");
     await page.getByRole("button", { name: "Launch app" }).click();
 
-    await expect(page).toHaveURL("/apps/apps/dash");
+    await expect(page).toHaveURL("/apps/dash");
     expect(api.requests).toMatchObject([
       {
         method: "POST",
@@ -78,7 +78,7 @@ test.describe("launch form", () => {
     await value.fill("sk-test");
     await page.getByRole("button", { name: "Launch app" }).click();
 
-    await expect(page).toHaveURL("/apps/apps/llm-site");
+    await expect(page).toHaveURL("/apps/llm-site");
     expect(api.requests).toMatchObject([
       {
         method: "POST",
@@ -104,7 +104,7 @@ test.describe("launch form", () => {
     await page.getByRole("switch", { name: /landing page/ }).click();
     await page.getByRole("button", { name: "Launch app" }).click();
 
-    await expect(page).toHaveURL("/apps/apps/team-site");
+    await expect(page).toHaveURL("/apps/team-site");
     await expect(
       page.getByText("Keycloak SSO at the gateway · restricted to groups: analysts, finance"),
     ).toBeVisible();
@@ -140,7 +140,7 @@ test.describe("launch form", () => {
     });
     await page.getByRole("button", { name: "Launch app" }).click();
 
-    await expect(page).toHaveURL("/apps/apps/upload-site");
+    await expect(page).toHaveURL("/apps/upload-site");
     expect(api.requests).toHaveLength(1);
     expect(api.requests[0]).toMatchObject({
       method: "POST",
@@ -208,7 +208,7 @@ test.describe("launch form", () => {
     await page.getByRole("tab", { name: "Git" }).click();
     await page.getByLabel("Repository URL").fill("https://github.com/example/sized");
     await page.getByRole("button", { name: "Launch app" }).click();
-    await expect(page).toHaveURL("/apps/apps/sized");
+    await expect(page).toHaveURL("/apps/sized");
     expect(api.requests).toMatchObject([
       {
         body: {

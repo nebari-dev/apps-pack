@@ -10,13 +10,13 @@ import { expect, test } from "./fixtures";
 const PAGES: { path: string; heading: string; ready?: string }[] = [
   { path: "/", heading: "Apps", ready: "2 apps need attention" },
   { path: "/launch", heading: "Launch an app" },
-  { path: "/apps/apps/docs-site", heading: "Docs Site" },
+  { path: "/apps/docs-site", heading: "Docs Site" },
   {
-    path: "/apps/apps/broken-app",
+    path: "/apps/broken-app",
     heading: "Broken App",
     ready: "WorkloadReady failed: CrashLoopBackOff",
   },
-  { path: "/apps/apps/docs-site/edit", heading: "Edit app" },
+  { path: "/apps/docs-site/edit", heading: "Edit app" },
   { path: "/settings", heading: "Settings", ready: "ghcr.io/example" },
   { path: "/no-such-page", heading: "Page not found" },
 ];
@@ -66,8 +66,8 @@ for (const { path, heading, ready } of PAGES) {
 // Pages render their chrome with skeletons for the pending data, which must fit too.
 const SKELETONS: { path: string; hold: RegExp }[] = [
   { path: "/", hold: /^\/apps$/ },
-  { path: "/apps/apps/docs-site", hold: /^\/apps\/apps\/docs-site$/ },
-  { path: "/apps/apps/docs-site/edit", hold: /^\/apps\/apps\/docs-site$/ },
+  { path: "/apps/docs-site", hold: /^\/apps\/apps\/docs-site$/ },
+  { path: "/apps/docs-site/edit", hold: /^\/apps\/apps\/docs-site$/ },
 ];
 
 for (const { path, hold } of SKELETONS) {

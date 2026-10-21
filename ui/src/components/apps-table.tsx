@@ -28,6 +28,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { appKey, appLabel, isIdle, isStopped, type useAppActions } from "@/hooks/use-app-actions";
 import { useArrived } from "@/hooks/use-changed";
 import { ENTER, FADE_IN } from "@/lib/motion";
+import { appPath } from "@/lib/paths";
 import { failureReason } from "@/lib/phase";
 import type { App } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -166,7 +167,7 @@ export function AppsTable({
               const restartCount = restarts?.get(appKey(app)) ?? 0;
               const url = openUrl(app);
               const checked = selected.has(appKey(app));
-              const detail = `/apps/${app.namespace}/${app.name}`;
+              const detail = appPath(app);
               // The whole row opens the App for pointer users; keyboard and screen
               // reader users get the same destination from the name link.
               const openRow = (e: MouseEvent<HTMLTableRowElement>) => {
@@ -227,7 +228,7 @@ export function AppsTable({
                           <ScrollText />
                         </IconLink>
                       ) : null}
-                      <IconLink to={`${detail}/edit`} label="Edit" className="max-sm:hidden">
+                      <IconLink to={appPath(app, "edit")} label="Edit" className="max-sm:hidden">
                         <Pencil />
                       </IconLink>
                       {url ? (

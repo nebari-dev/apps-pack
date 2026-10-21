@@ -104,7 +104,7 @@ describe("apps page", () => {
       "/",
       <>
         <Route path="/" element={<AppsPage />} />
-        <Route path="/apps/:namespace/:name" element={<LocationProbe />} />
+        <Route path="/apps/:name" element={<LocationProbe />} />
       </>,
     );
     await screen.findByRole("link", { name: list[1].displayName });
@@ -151,7 +151,7 @@ describe("apps page", () => {
     expect(screen.getByText("1 selected")).toBeInTheDocument();
 
     await user.click(within(alpha).getByText("alice"));
-    expect(screen.getByLabelText("location")).toHaveTextContent("/apps/apps/alpha");
+    expect(screen.getByLabelText("location")).toHaveTextContent("/apps/alpha");
   });
 
   it("shows the reason and a Logs shortcut on Failed rows, and no View icon", async () => {
@@ -167,7 +167,7 @@ describe("apps page", () => {
     expect(within(gamma).getByText("CrashLoopBackOff")).toHaveClass("text-xs");
     expect(within(gamma).getByRole("link", { name: "Logs" })).toHaveAttribute(
       "href",
-      "/apps/apps/gamma?tab=logs",
+      "/apps/gamma?tab=logs",
     );
     const alpha = rowOf("Alpha Docs");
     expect(within(alpha).queryByRole("link", { name: "Logs" })).not.toBeInTheDocument();
@@ -478,7 +478,7 @@ function LocationProbe() {
 
 describe("app detail page", () => {
   /** Renders the detail page for `a`; `before` overrides the default API mocks. */
-  const renderDetail = async (a: App, path = "/apps/apps/docs", before?: () => void) => {
+  const renderDetail = async (a: App, path = "/apps/docs", before?: () => void) => {
     mocked.getApp.mockResolvedValue(a);
     mocked.logs.mockResolvedValue({ logs: "GET / 200\nGET /missing 404\n" });
     mocked.events.mockResolvedValue([]);
@@ -490,7 +490,7 @@ describe("app detail page", () => {
     renderAt(
       path,
       <Route
-        path="/apps/:namespace/:name"
+        path="/apps/:name"
         element={
           <>
             <AppDetailPage />
@@ -534,17 +534,17 @@ describe("app detail page", () => {
 
   it("opens the tab named by ?tab= and writes the chosen tab back to the URL", async () => {
     const user = userEvent.setup();
-    await renderDetail(app("docs"), "/apps/apps/docs?tab=logs");
+    await renderDetail(app("docs"), "/apps/docs?tab=logs");
     expect(screen.getByRole("tab", { name: "Logs" })).toHaveAttribute("aria-selected", "true");
     expect(await screen.findByText(/GET \/missing 404/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "Events" }));
     expect(screen.getByRole("tab", { name: "Events" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByLabelText("location")).toHaveTextContent("/apps/apps/docs?tab=events");
+    expect(screen.getByLabelText("location")).toHaveTextContent("/apps/docs?tab=events");
   });
 
   it("labels the conditions tab Health and falls back to it for an unknown ?tab=", async () => {
-    await renderDetail(app("docs"), "/apps/apps/docs?tab=nope");
+    await renderDetail(app("docs"), "/apps/docs?tab=nope");
     expect(screen.getByRole("tab", { name: "Health" })).toHaveAttribute("aria-selected", "true");
     expect(screen.queryByRole("tab", { name: "Conditions" })).not.toBeInTheDocument();
   });
@@ -687,7 +687,7 @@ describe("app detail page", () => {
 
     await user.click(within(alert).getByRole("button", { name: "View logs" }));
     expect(screen.getByRole("tab", { name: "Logs" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByLabelText("location")).toHaveTextContent("/apps/apps/docs?tab=logs");
+    expect(screen.getByLabelText("location")).toHaveTextContent("/apps/docs?tab=logs");
 
     mocked.restartApp.mockResolvedValue(failed());
     await user.click(within(alert).getByRole("button", { name: "Restart" }));
@@ -749,7 +749,7 @@ describe("app detail page", () => {
   });
 
   it("explains why logs are unavailable", async () => {
-    await renderDetail(app("docs"), "/apps/apps/docs?tab=logs", () =>
+    await renderDetail(app("docs"), "/apps/docs?tab=logs", () =>
       mocked.logs.mockRejectedValue(new Error("pod has no containers")),
     );
     expect(await screen.findByText("No logs available")).toBeInTheDocument();
@@ -759,7 +759,7 @@ describe("app detail page", () => {
 
   it("shows event times relative to now, with the absolute time as a title", async () => {
     const at = new Date(Date.now() - 2 * 60_000).toISOString();
-    await renderDetail(app("docs"), "/apps/apps/docs?tab=events", () =>
+    await renderDetail(app("docs"), "/apps/docs?tab=events", () =>
       mocked.events.mockResolvedValue([
         {
           type: "Normal",
@@ -803,16 +803,13 @@ describe("app detail page", () => {
     mocked.events.mockReturnValue(new Promise(() => {}));
     mocked.metrics.mockReturnValue(new Promise(() => {}));
     const { container } = renderAt(
-      "/apps/apps/docs",
-      <Route path="/apps/:namespace/:name" element={<AppDetailPage />} />,
+      "/apps/docs",
+      <Route path="/apps/:name" element={<AppDetailPage />} />,
     );
     expect(await screen.findByRole("status")).toHaveTextContent("Loading app");
     // Static chrome: back link, Edit, card titles and the tabs.
     expect(screen.getByRole("link", { name: "Apps" })).toHaveAttribute("href", "/");
-    expect(screen.getByRole("link", { name: "Edit" })).toHaveAttribute(
-      "href",
-      "/apps/apps/docs/edit",
-    );
+    expect(screen.getByRole("link", { name: "Edit" })).toHaveAttribute("href", "/apps/docs/edit");
     expect(screen.getByRole("button", { name: "More actions" })).toBeDisabled();
     for (const title of ["URL", "Replicas", "CPU", "Memory"]) {
       expect(screen.getByText(title, { exact: true })).toBeInTheDocument();
@@ -836,10 +833,7 @@ describe("app detail page", () => {
     mocked.logs.mockResolvedValue({ logs: "" });
     mocked.events.mockResolvedValue([]);
     mocked.metrics.mockResolvedValue({ available: false, pods: [] });
-    renderAt(
-      "/apps/apps/docs",
-      <Route path="/apps/:namespace/:name" element={<AppDetailPage />} />,
-    );
+    renderAt("/apps/docs", <Route path="/apps/:name" element={<AppDetailPage />} />);
     await screen.findByRole("status");
     resolve(app("docs"));
     const heading = await screen.findByRole("heading", { level: 1, name: "docs" });
@@ -850,7 +844,7 @@ describe("app detail page", () => {
 
   it("shows skeletons, not empty-state text, while logs, events and metrics load", async () => {
     const user = userEvent.setup();
-    await renderDetail(app("docs"), "/apps/apps/docs", () => {
+    await renderDetail(app("docs"), "/apps/docs", () => {
       mocked.logs.mockReturnValue(new Promise(() => {}));
       mocked.events.mockReturnValue(new Promise(() => {}));
       mocked.metrics.mockReturnValue(new Promise(() => {}));
@@ -869,7 +863,7 @@ describe("app detail page", () => {
 
   it("says when an app has no log lines yet instead of loading forever", async () => {
     const user = userEvent.setup();
-    await renderDetail(app("docs"), "/apps/apps/docs?tab=logs", () => {
+    await renderDetail(app("docs"), "/apps/docs?tab=logs", () => {
       mocked.logs.mockResolvedValue({ logs: "" });
     });
     await user.click(screen.getByRole("tab", { name: "Logs" }));
@@ -881,10 +875,7 @@ describe("app detail page", () => {
     mocked.logs.mockResolvedValue({ logs: "" });
     mocked.events.mockResolvedValue([]);
     mocked.metrics.mockResolvedValue({ available: false, pods: [] });
-    renderAt(
-      "/apps/apps/gone",
-      <Route path="/apps/:namespace/:name" element={<AppDetailPage />} />,
-    );
+    renderAt("/apps/gone", <Route path="/apps/:name" element={<AppDetailPage />} />);
     expect(await screen.findByText("Could not load app")).toBeInTheDocument();
     expect(screen.getByText(/404 Not Found/)).toBeInTheDocument();
   });

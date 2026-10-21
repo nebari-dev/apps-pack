@@ -11,10 +11,11 @@ import { usePageTitle } from "@/hooks/use-page-title";
 import { api } from "@/lib/api";
 import { getConfig } from "@/lib/auth";
 import { FADE_IN } from "@/lib/motion";
+import { appPath, DEFAULT_NAMESPACE } from "@/lib/paths";
 
 export function EditPage() {
   const heading = usePageTitle("Edit app");
-  const { namespace = "", name = "" } = useParams();
+  const { namespace = DEFAULT_NAMESPACE, name = "" } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -36,7 +37,7 @@ export function EditPage() {
       void queryClient.invalidateQueries({ queryKey: ["app", namespace, name] });
       void queryClient.invalidateQueries({ queryKey: ["apps"] });
       toast.add({ type: "success", title: `Saved ${updated.displayName || updated.name}` });
-      void navigate(`/apps/${namespace}/${name}`);
+      void navigate(appPath({ namespace, name }));
     },
     onError: (err) =>
       toast.add({
@@ -48,7 +49,7 @@ export function EditPage() {
 
   // The form fades in where its placeholder stood; a cached App shows at once.
   const arrived = useArrived(app.data !== undefined);
-  const back = `/apps/${namespace}/${name}`;
+  const back = appPath({ namespace, name });
 
   if (app.isError || (!app.isLoading && !app.data)) {
     return (

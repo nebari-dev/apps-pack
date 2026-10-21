@@ -34,7 +34,7 @@ test.describe("with motion allowed", () => {
   });
 
   test("dialogs transition with the theme's duration token", async ({ page }) => {
-    await page.goto("/apps/apps/docs-site");
+    await page.goto("/apps/docs-site");
     await page.getByRole("button", { name: "More actions" }).click();
     await page.getByRole("menuitem", { name: "Delete" }).click();
     const dialog = page.getByRole("dialog");
@@ -67,7 +67,7 @@ test.describe("with prefers-reduced-motion: reduce", () => {
   });
 
   test("dialogs open without a transition", async ({ page }) => {
-    await page.goto("/apps/apps/docs-site");
+    await page.goto("/apps/docs-site");
     await page.getByRole("button", { name: "More actions" }).click();
     await page.getByRole("menuitem", { name: "Delete" }).click();
     const dialog = page.getByRole("dialog");
