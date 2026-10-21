@@ -190,7 +190,40 @@ def test_metrics_unavailable(client, store):
     client.post("/api/v1/apps", json=make_app_body())
     resp = client.get("/api/v1/apps/apps/docs-site/metrics")
     assert resp.status_code == 200
-    assert resp.json() == {"available": False, "pods": []}
+    body = resp.json()
+    assert body["available"] is False
+    # Without a metrics server the pod-status data still comes back.
+    [pod] = body["pods"]
+    assert pod["cpu"] == "" and pod["memory"] == ""
+    assert pod["limits"] == {"cpu": "500m", "memory": "512Mi"}
+    assert pod["requests"] == {"cpu": "100m", "memory": "128Mi"}
+    assert pod["startedAt"] == "2026-07-15T00:00:00Z"
+    assert pod["restarts"] == 0 and pod["lastTermination"] is None
+
+
+def test_metrics_join_usage_with_pod_health(client, store):
+    oom = {"reason": "OOMKilled", "exitCode": 137, "finishedAt": "2026-07-15T00:05:00Z"}
+    store.pods = [
+        {"name": "app-docs-site-abc123", "restarts": 4, "lastTermination": oom, "startedAt": "2026-07-15T00:06:00Z"},
+        {"name": "app-docs-site-new", "restarts": 0, "startedAt": None},
+    ]
+    client.post("/api/v1/apps", json=make_app_body())
+    body = client.get("/api/v1/apps/apps/docs-site/metrics").json()
+    assert body["available"] is True
+    first, second = body["pods"]
+    assert first["cpu"] == "12m" and first["memory"] == "34Mi"
+    assert first["restarts"] == 4
+    assert first["lastTermination"] == oom
+    # A pod metrics.k8s.io has not sampled yet: no usage, health still there.
+    assert second["name"] == "app-docs-site-new"
+    assert second["cpu"] == "" and second["startedAt"] is None
+    assert second["limits"] == {"cpu": "", "memory": ""}
+
+
+def test_metrics_drop_usage_of_pods_that_are_gone(client, store):
+    store.pods = []
+    client.post("/api/v1/apps", json=make_app_body())
+    assert client.get("/api/v1/apps/apps/docs-site/metrics").json() == {"available": True, "pods": []}
 
 
 def test_logs_and_events(client):

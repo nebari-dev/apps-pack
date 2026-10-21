@@ -466,12 +466,25 @@ def create_app(store: AppStore | None = None) -> FastAPI:
 
     @app.get(PREFIX + "/apps/{namespace}/{name}/metrics", response_model=AppMetrics)
     def app_metrics(namespace: str, name: str, store: Store, user: Me) -> AppMetrics:
+        """Per-pod usage (metrics.k8s.io) joined with health from the pods.
+
+        available=false means no metrics server: cpu/memory are then "", but
+        restarts, lastTermination, startedAt, limits and requests still come
+        back, from pod status and spec.
+        """
         authorized_app(store, user, namespace, name)
+        pods = {p["name"]: p for p in store.pod_health(namespace, name)}
         try:
-            pods = store.pod_metrics(namespace, name)
+            usage = store.pod_metrics(namespace, name)
+            available = True
         except NotFoundError:
-            return AppMetrics(available=False, pods=[])
-        return AppMetrics(available=True, pods=[PodMetric.model_validate(p) for p in pods])
+            usage, available = [], False
+        for u in usage:
+            # Usage for a pod the list no longer has (it just finished or
+            # went away) is dropped: the pod list is the set of live pods.
+            if u["name"] in pods:
+                pods[u["name"]].update(cpu=u["cpu"], memory=u["memory"])
+        return AppMetrics(available=available, pods=[PodMetric.model_validate(p) for p in pods.values()])
 
     # -------------------------------------------------------------- analytics
     @app.get(PREFIX + "/analytics/summary", response_model=AnalyticsSummary)

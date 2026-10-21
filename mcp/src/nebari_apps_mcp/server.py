@@ -648,9 +648,16 @@ async def restart_app(ctx: Context, namespace: str, name: str) -> Any:
 
 @mcp.tool(annotations=READ_ONLY)
 async def get_app_metrics(ctx: Context, namespace: str, name: str) -> Any:
-    """Instantaneous CPU (millicores) and memory (Mi) usage per pod, from metrics.k8s.io.
-    Returns {available, pods:[{name, cpu, memory}]}; available=false when the cluster has no
-    metrics server. Use to judge whether an app needs more replicas or resources.
+    """Per-pod usage and health of an app. Returns {available, pods:[{name, cpu, memory,
+    restarts, lastTermination, startedAt, limits, requests}]}.
+    cpu (millicores, "12m") and memory (Mi, "34Mi") are instantaneous usage from metrics.k8s.io;
+    available=false means the cluster has no metrics server and they are "". The rest comes from
+    the pod and is always filled, all about the `app` container (the authz sidecar is left out):
+    restarts (its restart count), lastTermination ({reason, exitCode, finishedAt} of its previous
+    run or null; reason is a Kubernetes identifier such as OOMKilled or Error, never the
+    container's own message), startedAt (when it started running, null while it is not), and
+    limits/requests ({cpu, memory} in the same units, "" when unset). Use to judge whether an
+    app needs more replicas or resources: OOMKilled means the memory limit is too low for it.
     """
     try:
         async with await _api(ctx) as api:

@@ -207,10 +207,16 @@ async def test_metrics(store):
     metrics = await call("get_app_metrics", {"namespace": "apps", "name": "docs-site"})
     assert metrics["available"] is True
     assert metrics["pods"][0]["cpu"] == "12m"
+    assert metrics["pods"][0]["limits"] == {"cpu": "500m", "memory": "512Mi"}
 
     store.metrics_available = False
     unavailable = await call("get_app_metrics", {"namespace": "apps", "name": "docs-site"})
-    assert unavailable == {"available": False, "pods": []}
+    assert unavailable["available"] is False
+    # Pod health needs no metrics server.
+    [pod] = unavailable["pods"]
+    assert pod["cpu"] == ""
+    assert pod["restarts"] == 3
+    assert pod["lastTermination"]["reason"] == "OOMKilled"
 
 
 async def test_logs_and_missing_app():

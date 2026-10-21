@@ -79,7 +79,7 @@ create.
 | `GET /apps/{ns}/{name}/status` | Phase, URL, replicas, conditions, message. |
 | `GET /apps/{ns}/{name}/logs?lines=200&container=` | Recent pod logs (`lines` 1–5000, default 200). |
 | `GET /apps/{ns}/{name}/events` | Kubernetes events for the app's resources. |
-| `GET /apps/{ns}/{name}/metrics` | Instantaneous per-pod CPU (millicores) and memory (Mi) from `metrics.k8s.io`. `{available, pods:[{name, cpu, memory}]}`; `available:false` when the cluster has no metrics server. |
+| `GET /apps/{ns}/{name}/metrics` | The app's live pods: instantaneous CPU (millicores, `"12m"`) and memory (Mi, `"34Mi"`) usage from `metrics.k8s.io`, joined with the `app` container's health from the pod. `{available, pods:[{name, cpu, memory, restarts, lastTermination, startedAt, limits, requests}]}`. `available:false` when the cluster has no metrics server: `cpu`/`memory` are then `""`, the rest still comes back. `restarts` counts the `app` container only (not the authz sidecar); `lastTermination` is `{reason, exitCode, finishedAt}` of its previous run, or `null` (`reason` is a Kubernetes identifier such as `OOMKilled`, never the container's termination message); `startedAt` is when it started running, `null` while it is not; `limits` and `requests` are `{cpu, memory}` in the same units, `""` when unset. |
 | `GET /analytics/summary?namespace=` | Over the apps the caller may see: totals and breakdowns by phase / source type / namespace, plus replica readiness. |
 | `GET /analytics/metrics` | Resource usage of the apps the caller may see, aggregated per app and per namespace, plus restart counts. `{usageAvailable, apps:[{namespace, name, cpu, memory, restarts}], byNamespace:[…]}`. Restart counts always populate (pod status); CPU/memory require a metrics server. |
 

@@ -30,7 +30,11 @@ def pod(name, rs):
             labels={"apps.nebari.dev/app": "demo"},
             owner_references=[SimpleNamespace(kind="ReplicaSet", name=rs)],
         ),
-        status=SimpleNamespace(container_statuses=[SimpleNamespace(restart_count=0)]),
+        spec=SimpleNamespace(containers=[]),
+        status=SimpleNamespace(
+            phase="Running",
+            container_statuses=[SimpleNamespace(name="app", restart_count=0, state=None, last_state=None)],
+        ),
     )
 
 
@@ -78,6 +82,7 @@ def test_every_call_has_a_timeout(kube):
     kube.app_events("apps", "demo")
     kube.restart_app("apps", "demo")
     kube.pod_metrics("apps", "demo")
+    kube.pod_health("apps", "demo")
     kube.cluster_pod_metrics()
     kube.app_restarts()
     calls = kube._custom.mock_calls + kube._core.mock_calls + kube._apps.mock_calls
