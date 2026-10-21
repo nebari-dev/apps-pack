@@ -268,14 +268,7 @@ export function AppsPage() {
               >
                 <X className="size-3.5" />
               </button>
-            ) : (
-              <kbd
-                aria-hidden
-                className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-2.5 z-10 rounded-sm border border-border bg-muted px-1.5 font-mono text-muted-foreground text-xs leading-5"
-              >
-                /
-              </kbd>
-            )}
+            ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
             {me ? (
