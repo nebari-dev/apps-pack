@@ -2,7 +2,7 @@ module github.com/nebari-dev/nebari-apps-pack/operator
 
 go 1.26.1
 
-toolchain go1.27.2
+toolchain go1.27.3
 
 require (
 	k8s.io/api v0.37.1
