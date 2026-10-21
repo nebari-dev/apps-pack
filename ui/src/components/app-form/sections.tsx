@@ -16,6 +16,7 @@ import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { App } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import {
   type AppKind,
   canEditManagers,
@@ -84,6 +85,61 @@ function FieldError({ form, field }: { form: FormContext; field: Field }) {
   ) : null;
 }
 
+/** Help text under a control, and the same muted copy elsewhere in the form. */
+const HELP = "text-muted-foreground text-sm";
+
+/**
+ * One labelled control: a label row of fixed height (whether or not it holds
+ * an info tip or a lock), the control, then help text and the error. The fixed
+ * row is what keeps controls in the same grid row on one top edge.
+ *
+ * `id` is the control's id; a control that is not a native input (a select
+ * trigger) passes `labelId` instead and names itself with aria-labelledby.
+ */
+function FormField({
+  id,
+  labelId,
+  label,
+  adornment,
+  help,
+  form,
+  className,
+  children,
+}: {
+  id?: string;
+  labelId?: string;
+  label: string;
+  /** An InfoTip or FixedAfterLaunch beside the label. */
+  adornment?: ReactNode;
+  /** Rendered as `${id}-help`; the control names it in aria-describedby. */
+  help?: ReactNode;
+  /** Pass for a validated control: its error shows under it. Its id is the Field. */
+  form?: FormContext;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={cn("flex min-w-0 flex-col gap-1.5", className)}>
+      <div className="flex h-5 items-center gap-1.5">
+        <Label id={labelId} htmlFor={labelId ? undefined : id}>
+          {label}
+        </Label>
+        {adornment}
+      </div>
+      {children}
+      {help ? (
+        <p id={`${id}-help`} className={HELP}>
+          {help}
+        </p>
+      ) : null}
+      {form ? <FieldError form={form} field={id as Field} /> : null}
+    </div>
+  );
+}
+
+/** Select triggers share the text inputs' inset and flat surface. */
+const SELECT_TRIGGER = "pl-3 shadow-none";
+
 /** An info button that explains a term on hover or focus. */
 function InfoTip({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -95,7 +151,9 @@ function InfoTip({ label, children }: { label: string; children: ReactNode }) {
             variant="ghost"
             size="icon-xs"
             aria-label={label}
-            className="text-muted-foreground"
+            // The button is taller than a label's text; the negative margin
+            // keeps it from growing whatever row it sits in.
+            className="-my-1.5 text-muted-foreground"
           >
             <Info aria-hidden="true" />
           </Button>
@@ -142,12 +200,20 @@ export function BasicsSection({ form }: { form: FormContext }) {
       <CardHeader>
         <CardTitle>Basics</CardTitle>
       </CardHeader>
+      {/* Pairs that belong together share a row (the two names, then where it
+          runs and what it is); free text spans the card. */}
       <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-1.5">
-            <Label htmlFor="name">Name</Label>
-            {isEdit ? <FixedAfterLaunch /> : null}
-          </div>
+        <FormField
+          id="name"
+          label="Name"
+          adornment={isEdit ? <FixedAfterLaunch /> : null}
+          help={
+            isEdit
+              ? null
+              : "Lowercase letters, digits and hyphens. Also used as the default subdomain."
+          }
+          form={form}
+        >
           <Input
             id="name"
             {...fieldProps("name", isEdit ? undefined : "name-help")}
@@ -156,15 +222,8 @@ export function BasicsSection({ form }: { form: FormContext }) {
             disabled={isEdit}
             onChange={(e) => dispatch({ type: "name", value: e.target.value })}
           />
-          {isEdit ? null : (
-            <p id="name-help" className="text-muted-foreground text-xs">
-              Lowercase letters, digits and hyphens. Also used as the default subdomain.
-            </p>
-          )}
-          <FieldError form={form} field="name" />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="displayName">Display name</Label>
+        </FormField>
+        <FormField id="displayName" label="Display name" form={form}>
           <Input
             id="displayName"
             {...fieldProps("displayName")}
@@ -172,31 +231,30 @@ export function BasicsSection({ form }: { form: FormContext }) {
             value={displayName}
             onChange={(e) => set("displayName", e.target.value)}
           />
-          <FieldError form={form} field="displayName" />
-        </div>
-        <div className="space-y-1.5 sm:col-span-2">
-          <Label htmlFor="description">Description</Label>
+        </FormField>
+        <FormField id="description" label="Description" className="sm:col-span-2">
           <Input
             id="description"
             placeholder="Optional short description"
             value={description}
             onChange={(e) => set("description", e.target.value)}
           />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="thumbnail">Thumbnail URL</Label>
+        </FormField>
+        <FormField id="thumbnail" label="Thumbnail URL" className="sm:col-span-2">
           <Input
             id="thumbnail"
             placeholder="https://…/icon.png (optional)"
             value={thumbnail}
             onChange={(e) => set("thumbnail", e.target.value)}
           />
-        </div>
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-1.5">
-            <Label id="namespace-label">Namespace</Label>
-            {isEdit ? <FixedAfterLaunch /> : null}
-          </div>
+        </FormField>
+        <FormField
+          id="namespace"
+          labelId="namespace-label"
+          label="Namespace"
+          adornment={isEdit ? <FixedAfterLaunch /> : null}
+          form={form}
+        >
           <Select
             value={namespace}
             onValueChange={(v) => set("namespace", v as string)}
@@ -205,6 +263,7 @@ export function BasicsSection({ form }: { form: FormContext }) {
             <SelectTrigger
               id="namespace"
               aria-labelledby="namespace-label"
+              className={SELECT_TRIGGER}
               {...fieldProps("namespace")}
             >
               <SelectValue />
@@ -217,20 +276,19 @@ export function BasicsSection({ form }: { form: FormContext }) {
               ))}
             </SelectContent>
           </Select>
-          <FieldError form={form} field="namespace" />
-        </div>
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-1.5">
-            <Label id="kind-label">App type</Label>
-            {imageLocked ? <FixedAfterLaunch /> : null}
-          </div>
+        </FormField>
+        <FormField
+          labelId="kind-label"
+          label="App type"
+          adornment={imageLocked ? <FixedAfterLaunch /> : null}
+        >
           <Select
             value={kind}
             onValueChange={(v) => set("kind", v as AppKind)}
             items={kindItems}
             disabled={imageLocked}
           >
-            <SelectTrigger aria-labelledby="kind-label">
+            <SelectTrigger aria-labelledby="kind-label" className={SELECT_TRIGGER}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -241,16 +299,21 @@ export function BasicsSection({ form }: { form: FormContext }) {
               ))}
             </SelectContent>
           </Select>
-        </div>
+        </FormField>
         {kind === "pixi" ? (
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-1">
-              <Label htmlFor="pixiTask">Launch task</Label>
+          <FormField
+            id="pixiTask"
+            label="Launch task"
+            adornment={
               <InfoTip label="About Launch task">
                 A task defined in your pixi.toml. The app starts with{" "}
                 <span className="font-mono">pixi run {pixiTask || "<task>"}</span>.
               </InfoTip>
-            </div>
+            }
+            help="The pixi task that starts your server."
+            form={form}
+            className="sm:col-span-2"
+          >
             <Input
               id="pixiTask"
               {...fieldProps("pixiTask", "pixiTask-help")}
@@ -259,11 +322,7 @@ export function BasicsSection({ form }: { form: FormContext }) {
               value={pixiTask}
               onChange={(e) => set("pixiTask", e.target.value)}
             />
-            <p id="pixiTask-help" className="text-muted-foreground text-xs">
-              The pixi task that starts your server.
-            </p>
-            <FieldError form={form} field="pixiTask" />
-          </div>
+          </FormField>
         ) : null}
       </CardContent>
     </Card>
@@ -355,7 +414,7 @@ export function SourceSection({ form }: { form: FormContext }) {
                 ) : kind === "pixi" ? (
                   <>
                     <p className="font-medium text-sm">Drop a .zip of your pixi project</p>
-                    <p className="text-muted-foreground text-xs">
+                    <p className={HELP}>
                       Needs a pixi.toml (or pyproject.toml) at the root · text files only · up to
                       ~900KB
                     </p>
@@ -365,7 +424,7 @@ export function SourceSection({ form }: { form: FormContext }) {
                     <p className="font-medium text-sm">
                       Drop a .zip of your site, or a single .html file
                     </p>
-                    <p className="text-muted-foreground text-xs">
+                    <p className={HELP}>
                       Needs an index.html at the root · text assets only · up to ~900KB
                     </p>
                   </>
@@ -386,8 +445,7 @@ export function SourceSection({ form }: { form: FormContext }) {
           )}
 
           <TabsPanel value="git" className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div className="space-y-1.5 sm:col-span-3">
-              <Label htmlFor="gitUrl">Repository URL</Label>
+            <FormField id="gitUrl" label="Repository URL" form={form} className="sm:col-span-3">
               <Input
                 id="gitUrl"
                 {...fieldProps("gitUrl")}
@@ -395,26 +453,22 @@ export function SourceSection({ form }: { form: FormContext }) {
                 value={gitUrl}
                 onChange={(e) => set("gitUrl", e.target.value)}
               />
-              <FieldError form={form} field="gitUrl" />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="gitRef">Branch / tag</Label>
+            </FormField>
+            <FormField id="gitRef" label="Branch / tag">
               <Input id="gitRef" value={gitRef} onChange={(e) => set("gitRef", e.target.value)} />
-            </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label htmlFor="gitSubdir">Subdirectory</Label>
+            </FormField>
+            <FormField id="gitSubdir" label="Subdirectory" className="sm:col-span-2">
               <Input
                 id="gitSubdir"
                 placeholder="e.g. public (optional)"
                 value={gitSubdir}
                 onChange={(e) => set("gitSubdir", e.target.value)}
               />
-            </div>
+            </FormField>
           </TabsPanel>
 
           <TabsPanel value="pvc" className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label htmlFor="pvcClaim">Claim name</Label>
+            <FormField id="pvcClaim" label="Claim name" form={form} className="sm:col-span-2">
               <Input
                 id="pvcClaim"
                 {...fieldProps("pvcClaim")}
@@ -422,17 +476,15 @@ export function SourceSection({ form }: { form: FormContext }) {
                 value={pvcClaim}
                 onChange={(e) => set("pvcClaim", e.target.value)}
               />
-              <FieldError form={form} field="pvcClaim" />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="pvcSubPath">Sub-path</Label>
+            </FormField>
+            <FormField id="pvcSubPath" label="Sub-path">
               <Input
                 id="pvcSubPath"
                 placeholder="site/ (optional)"
                 value={pvcSubPath}
                 onChange={(e) => set("pvcSubPath", e.target.value)}
               />
-            </div>
+            </FormField>
           </TabsPanel>
         </Tabs>
       </CardContent>
@@ -453,9 +505,28 @@ function ImageSourceCard({ form }: { form: FormContext }) {
           image that needs root will not start.
         </CardDescription>
       </CardHeader>
-      <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="space-y-1.5 sm:col-span-2">
-          <Label htmlFor="imageRef">Image</Label>
+      {/* The reference spans the card (it and the registry list run long); the
+          two numbers pair up, then command and arguments with their shared help. */}
+      <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <FormField
+          id="imageRef"
+          label="Image"
+          help={
+            <>
+              With a tag or a digest.{" "}
+              {imageRegistries.length > 0 ? (
+                <>
+                  Allowed registries:{" "}
+                  {/* break-words, not break-all: wrap between entries, and
+                      inside one only when it is longer than the line. */}
+                  <span className="break-words font-mono">{imageRegistries.join(", ")}</span>
+                </>
+              ) : null}
+            </>
+          }
+          form={form}
+          className="sm:col-span-2"
+        >
           <Input
             id="imageRef"
             {...fieldProps("imageRef", "imageRef-help")}
@@ -464,25 +535,18 @@ function ImageSourceCard({ form }: { form: FormContext }) {
             value={imageRef}
             onChange={(e) => set("imageRef", e.target.value)}
           />
-          <p id="imageRef-help" className="text-muted-foreground text-xs">
-            With a tag or a digest.{" "}
-            {imageRegistries.length > 0 ? (
-              <>
-                Allowed registries:{" "}
-                <span className="break-all font-mono">{imageRegistries.join(", ")}</span>
-              </>
-            ) : null}
-          </p>
-          <FieldError form={form} field="imageRef" />
-        </div>
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-1">
-            <Label htmlFor="imagePort">Port</Label>
+        </FormField>
+        <FormField
+          id="imagePort"
+          label="Port"
+          adornment={
             <InfoTip label="About Port">
               The port your server listens on, also passed as $PORT. 8080 and 8082 are taken by the
               app's sign-in sidecar.
             </InfoTip>
-          </div>
+          }
+          form={form}
+        >
           <Input
             id="imagePort"
             {...fieldProps("imagePort")}
@@ -491,34 +555,13 @@ function ImageSourceCard({ form }: { form: FormContext }) {
             value={imagePort}
             onChange={(e) => set("imagePort", e.target.value)}
           />
-          <FieldError form={form} field="imagePort" />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="imageCommand">Command</Label>
-          <Textarea
-            id="imageCommand"
-            aria-describedby="imageArgs-help"
-            className="font-mono"
-            rows={2}
-            placeholder="Image default"
-            value={imageCommand}
-            onChange={(e) => set("imageCommand", e.target.value)}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="imageArgs">Arguments</Label>
-          <Textarea
-            id="imageArgs"
-            aria-describedby="imageArgs-help"
-            className="font-mono"
-            rows={2}
-            placeholder="Image default"
-            value={imageArgs}
-            onChange={(e) => set("imageArgs", e.target.value)}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="imageRunAsUser">Run as user ID</Label>
+        </FormField>
+        <FormField
+          id="imageRunAsUser"
+          label="Run as user ID"
+          help="For images whose user is a name, not a number."
+          form={form}
+        >
           <Input
             id="imageRunAsUser"
             {...fieldProps("imageRunAsUser", "imageRunAsUser-help")}
@@ -527,12 +570,32 @@ function ImageSourceCard({ form }: { form: FormContext }) {
             value={imageRunAsUser}
             onChange={(e) => set("imageRunAsUser", e.target.value)}
           />
-          <p id="imageRunAsUser-help" className="text-muted-foreground text-xs">
-            For images whose user is a name, not a number.
-          </p>
-          <FieldError form={form} field="imageRunAsUser" />
-        </div>
-        <p id="imageArgs-help" className="text-muted-foreground text-xs sm:col-span-3">
+        </FormField>
+        <FormField id="imageCommand" label="Command">
+          <Textarea
+            id="imageCommand"
+            aria-describedby="imageArgs-help"
+            className="font-mono placeholder:font-sans"
+            rows={2}
+            placeholder="Image default"
+            value={imageCommand}
+            onChange={(e) => set("imageCommand", e.target.value)}
+          />
+        </FormField>
+        <FormField id="imageArgs" label="Arguments">
+          <Textarea
+            id="imageArgs"
+            aria-describedby="imageArgs-help"
+            className="font-mono placeholder:font-sans"
+            rows={2}
+            placeholder="Image default"
+            value={imageArgs}
+            onChange={(e) => set("imageArgs", e.target.value)}
+          />
+        </FormField>
+        {/* The negative margin sets the shared help as close to both boxes as
+            a field's own help (gap-1.5) sits to its control. */}
+        <p id="imageArgs-help" className="-mt-2.5 text-muted-foreground text-sm sm:col-span-2">
           Command and arguments replace the image's entrypoint and arguments: one per line, no
           shell.
         </p>
@@ -569,7 +632,7 @@ function IdleFields({ form }: { form: FormContext }) {
           <p id="keepAlive-label" className="font-medium text-sm">
             Keep running when idle
           </p>
-          <p id="keepAlive-help" className="text-muted-foreground text-xs">
+          <p id="keepAlive-help" className={HELP}>
             Never scale this app to zero. Use it for apps that must answer at once or work in the
             background.
           </p>
@@ -581,8 +644,12 @@ function IdleFields({ form }: { form: FormContext }) {
           aria-describedby="keepAlive-help"
         />
       </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="idleTimeout">Idle timeout (minutes)</Label>
+      <FormField
+        id="idleTimeout"
+        label="Idle timeout (minutes)"
+        help={`After this long without a request the app scales to zero, and the next visit starts it again (a few seconds, longer for Python apps). ${IDLE_MIN} to ${IDLE_MAX}; leave empty for the cluster default.`}
+        form={form}
+      >
         <Input
           id="idleTimeout"
           inputMode="numeric"
@@ -593,13 +660,7 @@ function IdleFields({ form }: { form: FormContext }) {
           value={idleTimeout}
           onChange={(e) => set("idleTimeout", e.target.value)}
         />
-        <p id="idleTimeout-help" className="text-muted-foreground-strong text-sm">
-          After this long without a request the app scales to zero, and the next visit starts it
-          again (a few seconds, longer for Python apps). {IDLE_MIN} to {IDLE_MAX}; leave empty for
-          the cluster default.
-        </p>
-        <FieldError form={form} field="idleTimeout" />
-      </div>
+      </FormField>
     </div>
   );
 }
@@ -714,9 +775,9 @@ export function RuntimeSection({ form }: { form: FormContext }) {
                 </Button>
               ))}
             </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="replicas">Replicas</Label>
+            {/* Same columns as the resources below, so Replicas lines up with them. */}
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <FormField id="replicas" label="Replicas">
                 <Input
                   id="replicas"
                   type="number"
@@ -725,48 +786,44 @@ export function RuntimeSection({ form }: { form: FormContext }) {
                   value={replicas}
                   onChange={(e) => set("replicas", Number(e.target.value))}
                 />
-              </div>
+              </FormField>
             </div>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="cpuReq">CPU request</Label>
+              <FormField id="cpuReq" label="CPU request">
                 <Input
                   id="cpuReq"
                   placeholder="250m"
                   value={cpuReq}
                   onChange={(e) => set("cpuReq", e.target.value)}
                 />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="memReq">Memory request</Label>
+              </FormField>
+              <FormField id="memReq" label="Memory request">
                 <Input
                   id="memReq"
                   placeholder="512Mi"
                   value={memReq}
                   onChange={(e) => set("memReq", e.target.value)}
                 />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="cpuLim">CPU limit</Label>
+              </FormField>
+              <FormField id="cpuLim" label="CPU limit">
                 <Input
                   id="cpuLim"
                   placeholder="500m"
                   value={cpuLim}
                   onChange={(e) => set("cpuLim", e.target.value)}
                 />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="memLim">Memory limit</Label>
+              </FormField>
+              <FormField id="memLim" label="Memory limit">
                 <Input
                   id="memLim"
                   placeholder="1Gi"
                   value={memLim}
                   onChange={(e) => set("memLim", e.target.value)}
                 />
-              </div>
+              </FormField>
             </div>
             <IdleFields form={form} />
-            <p className="text-muted-foreground-strong text-sm">
+            <p className={HELP}>
               Python apps must serve on <span className="font-mono">0.0.0.0:$PORT</span> (8080, or
               8081 when groups or users restrict the app or it can idle).
             </p>
@@ -798,7 +855,7 @@ export function AccessSection({ form }: { form: FormContext }) {
               <p id="public-label" className="font-medium text-sm">
                 Public app
               </p>
-              <p id="public-help" className="text-muted-foreground text-xs">
+              <p id="public-help" className={HELP}>
                 Anyone with the URL can use it - no login required.
               </p>
             </div>
@@ -811,8 +868,11 @@ export function AccessSection({ form }: { form: FormContext }) {
           </div>
           {!isPublic ? (
             <div className={`space-y-4 ${row}`}>
-              <div className="space-y-1.5">
-                <Label htmlFor="groups">Allowed groups</Label>
+              <FormField
+                id="groups"
+                label="Allowed groups"
+                help="Only members of these Keycloak groups can open the app; everyone else gets 403. Leave groups and users empty to allow any signed-in user. Changes apply when a user's session token refreshes (a few minutes)."
+              >
                 <Input
                   id="groups"
                   placeholder="comma-separated"
@@ -820,14 +880,12 @@ export function AccessSection({ form }: { form: FormContext }) {
                   value={groups}
                   onChange={(e) => set("groups", e.target.value)}
                 />
-                <p id="groups-help" className="text-muted-foreground-strong text-sm">
-                  Only members of these Keycloak groups can open the app; everyone else gets 403.
-                  Leave groups and users empty to allow any signed-in user. Changes apply when a
-                  user's session token refreshes (a few minutes).
-                </p>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="users">Allowed users</Label>
+              </FormField>
+              <FormField
+                id="users"
+                label="Allowed users"
+                help="Keycloak usernames who can open the app even if they are not in an allowed group."
+              >
                 <Input
                   id="users"
                   placeholder="comma-separated usernames"
@@ -835,14 +893,16 @@ export function AccessSection({ form }: { form: FormContext }) {
                   value={users}
                   onChange={(e) => set("users", e.target.value)}
                 />
-                <p id="users-help" className="text-muted-foreground-strong text-sm">
-                  Keycloak usernames who can open the app even if they are not in an allowed group.
-                </p>
-              </div>
+              </FormField>
             </div>
           ) : null}
-          <div className={`space-y-1.5 ${row}`}>
-            <Label htmlFor="subdomain">Subdomain</Label>
+          <FormField
+            id="subdomain"
+            label="Subdomain"
+            help={isEdit ? "Subdomain is fixed after launch." : null}
+            form={form}
+            className={row}
+          >
             <div className="flex w-full max-w-md">
               <div className="min-w-0 flex-1">
                 <Input
@@ -854,17 +914,11 @@ export function AccessSection({ form }: { form: FormContext }) {
                   onChange={(e) => set("subdomain", e.target.value)}
                 />
               </div>
-              <span className="inline-flex max-w-[60%] shrink-0 items-center truncate rounded-r-md border border-border border-l-0 bg-muted px-3 font-mono text-muted-foreground-strong text-sm">
+              <span className="inline-flex max-w-[60%] shrink-0 items-center truncate rounded-r-md border border-input border-l-0 bg-muted px-3 font-mono text-muted-foreground-strong text-sm">
                 .{appsDomain}
               </span>
             </div>
-            {isEdit ? (
-              <p id="subdomain-help" className="text-muted-foreground text-xs">
-                Subdomain is fixed after launch.
-              </p>
-            ) : null}
-            <FieldError form={form} field="subdomain" />
-          </div>
+          </FormField>
           {LANDING_PAGE_LOCKED ? (
             <div className={`space-y-1 ${row}`}>
               <p className="font-medium text-sm">Show on the landing page</p>
@@ -879,7 +933,7 @@ export function AccessSection({ form }: { form: FormContext }) {
                 <p id="landing-label" className="font-medium text-sm">
                   Show on the landing page
                 </p>
-                <p id="landing-help" className="text-muted-foreground text-xs">
+                <p id="landing-help" className={HELP}>
                   Add a tile for this app to the Nebari landing page. Off by default - the app is
                   reachable at its URL and listed here either way.
                 </p>
@@ -978,7 +1032,7 @@ export function SecretsSection({ form }: { form: FormContext }) {
             <Plus /> Add secret
           </Button>
           <FieldError form={form} field="secrets" />
-          <p id="secrets-help" className="text-muted-foreground-strong text-sm">
+          <p id="secrets-help" className={HELP}>
             Names are environment variable names, such as OPENAI_API_KEY.
             {isEdit
               ? " Leave a saved value empty to keep it. Saving a new value restarts the app."
@@ -1007,8 +1061,7 @@ export function ManagersSection({ form }: { form: FormContext }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="managerUsers">Manager users</Label>
+        <FormField id="managerUsers" label="Manager users">
           <Input
             id="managerUsers"
             placeholder="comma-separated usernames"
@@ -1017,9 +1070,8 @@ export function ManagersSection({ form }: { form: FormContext }) {
             disabled={!editable}
             onChange={(e) => set("managerUsers", e.target.value)}
           />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="managerGroups">Manager groups</Label>
+        </FormField>
+        <FormField id="managerGroups" label="Manager groups">
           <Input
             id="managerGroups"
             placeholder="comma-separated"
@@ -1028,15 +1080,15 @@ export function ManagersSection({ form }: { form: FormContext }) {
             disabled={!editable}
             onChange={(e) => set("managerGroups", e.target.value)}
           />
-        </div>
-        <p id="managers-help" className="text-muted-foreground-strong text-sm">
+        </FormField>
+        <p id="managers-help" className={HELP}>
           Keycloak usernames and groups. Group membership is read from each person's sign-in token,
           so a change to their groups applies when it refreshes.
         </p>
         {editable ? null : (
           <p
             id="managers-locked"
-            className="flex items-center gap-1.5 text-muted-foreground-strong text-sm"
+            className="flex items-center gap-1.5 text-muted-foreground text-sm"
           >
             <Lock aria-hidden="true" className="size-3.5 shrink-0" />
             Only the owner or an admin can change who manages this app.
