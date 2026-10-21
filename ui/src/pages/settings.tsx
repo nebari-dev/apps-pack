@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { Bug, Check, Copy, ExternalLink } from "lucide-react";
+import { AlertTriangle, Bug, Check, Copy, ExternalLink } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { sourceLabel } from "@/components/app-bits";
 import { LoadingStatus, PillSkeleton, TextLine } from "@/components/loading-skeletons";
 import { QueryError } from "@/components/query-error";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +13,7 @@ import { useArrived } from "@/hooks/use-changed";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { api } from "@/lib/api";
 import { getConfig } from "@/lib/auth";
+import { getBranding } from "@/lib/branding";
 import { copyText } from "@/lib/clipboard";
 import { FADE_IN } from "@/lib/motion";
 import type { ApiVersion, Capabilities, Me } from "@/lib/types";
@@ -32,11 +34,40 @@ export function versionLine(version?: string, build?: string): string {
   return build && build !== version ? `${version} (${build})` : version;
 }
 
+type Build = { version?: string; build?: string };
+
+/**
+ * The UI's own release (baked in from ui/package.json at build time) and the
+ * image tag its pod runs (rendered into /config.json by the chart; absent
+ * outside it, e.g. with ui.existingConfigMap or in local development).
+ */
+export function uiBuild(): Build {
+  const { build } = getBranding();
+  return {
+    version: import.meta.env.UI_VERSION,
+    build: typeof build === "string" && build ? build : undefined,
+  };
+}
+
+const known = (value?: string) => !!value && value !== "unknown";
+
+/**
+ * Whether the UI and the API report different releases or images, as during a
+ * rollout. A build either side does not know is not compared.
+ */
+export function buildsDiffer(ui: Build, apiVersion?: ApiVersion): boolean {
+  if (!apiVersion) return false;
+  if (known(ui.version) && known(apiVersion.version) && ui.version !== apiVersion.version) {
+    return true;
+  }
+  return known(ui.build) && known(apiVersion.build) && ui.build !== apiVersion.build;
+}
+
 /**
  * A new bug report on GitHub with the "Pack version" field filled in. GitHub
  * issue forms take a field's id as a query parameter.
  */
-export function bugReportUrl(ui: { version?: string; build?: string }, apiVersion?: ApiVersion) {
+export function bugReportUrl(ui: Build, apiVersion?: ApiVersion) {
   const lines = [`UI ${versionLine(ui.version, ui.build)}`];
   if (apiVersion) lines.push(`API ${versionLine(apiVersion.version, apiVersion.build)}`);
   const params = new URLSearchParams({ template: "bug-report.yml", version: lines.join(", ") });
@@ -191,8 +222,9 @@ function ExternalButton({ href, children }: { href: string; children: ReactNode 
 }
 
 function About({ apiVersion }: { apiVersion: Query<ApiVersion> }) {
-  const ui = getConfig();
+  const ui = uiBuild();
   const arrived = useArrived(!apiVersion.isPending);
+  const differ = buildsDiffer(ui, apiVersion.data);
   return (
     <Section
       id="settings-about"
@@ -217,6 +249,15 @@ function About({ apiVersion }: { apiVersion: Query<ApiVersion> }) {
           </span>
         </Field>
       </Fields>
+      {differ ? (
+        <Alert variant="warning" className={cn(arrived && FADE_IN)}>
+          <AlertTriangle aria-hidden="true" />
+          <AlertDescription>
+            The UI and API are on different builds. A rollout may be in progress; reload in a
+            minute, and if they still differ, mention it in your report.
+          </AlertDescription>
+        </Alert>
+      ) : null}
       <div className="flex flex-wrap gap-2">
         <ExternalButton href={LINKS.docs}>Documentation</ExternalButton>
         <ExternalButton href={LINKS.changelog}>Changelog</ExternalButton>

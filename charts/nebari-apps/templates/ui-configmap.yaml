@@ -12,6 +12,9 @@ data:
   # the image, so branding changes need no rebuild - only a helm upgrade (which
   # rolls the UI pod via the checksum annotation on its Deployment).
   #
+  # `build` is the UI's image tag, resolved like apps-api's APPS_BUILD, so the
+  # Settings page can tell the two builds apart.
+  #
   # Keycloak settings are deliberately absent: the UI reads those from the API
   # (GET /api/v1/config), unlike the other Nebari pack frontends. Every branding
   # field is rendered as-is (empty strings / empty maps by default) and the UI
@@ -24,6 +27,7 @@ data:
       "logoUrlDark": {{ .Values.ui.branding.logoUrlDark | quote }},
       "faviconUrl":  {{ .Values.ui.branding.faviconUrl | quote }},
       "theme":       {{ .Values.ui.branding.theme | toJson }},
-      "banners":     {{ .Values.ui.branding.banners | toJson }}
+      "banners":     {{ .Values.ui.branding.banners | toJson }},
+      "build":       {{ .Values.ui.image.tag | default .Chart.AppVersion | quote }}
     }
 {{- end }}

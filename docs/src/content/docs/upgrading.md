@@ -55,8 +55,10 @@ kubectl get apps -A        # every App should return to Running
 curl -s https://apps.<cluster-domain>/api/v1/version
 ```
 
-The UI's **Settings** page (account menu → **Settings**) shows the same version, next to the
-UI's own.
+The UI's **Settings** page (account menu → **Settings**) shows that version and build next to
+the UI's own: the UI's version is built into its bundle and its build is the UI image tag the
+chart rendered. During a rollout the two can differ for a minute, and the page says so; if
+they still differ afterwards, one of the Deployments did not roll.
 
 ## Roll back
 

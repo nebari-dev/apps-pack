@@ -25,7 +25,7 @@ const PAGES: { name: string; path: string; heading: string; ready?: string }[] =
     ready: "WorkloadReady failed: CrashLoopBackOff",
   },
   { name: "edit form", path: "/apps/apps/docs-site/edit", heading: "Edit app" },
-  { name: "settings", path: "/settings", heading: "Settings", ready: "sha-e2eapi" },
+  { name: "settings", path: "/settings", heading: "Settings", ready: "ghcr.io/example" },
   { name: "not found", path: "/no-such-page", heading: "Page not found" },
 ];
 
@@ -94,7 +94,7 @@ const LOADING: {
       ["link", { name: /Report a bug/ }],
       ["button", { name: "Copy MCP server URL" }],
     ],
-    loaded: "sha-e2eapi",
+    loaded: "ghcr.io/example",
   },
 ];
 
@@ -199,6 +199,16 @@ for (const theme of ["light", "dark"] satisfies Theme[]) {
       await page.goto("/apps");
       await page.getByRole("button", { name: "Account menu" }).click();
       await expect(page.getByRole("menuitemradio", { name: "Dark mode" })).toBeVisible();
+      await expectNoCriticalOrSeriousA11yViolations(page);
+    });
+
+    test(`settings with the UI and API on different builds has no critical or serious violations @a11y`, async ({
+      page,
+      api,
+    }) => {
+      api.version = { version: "9.9.9", build: "sha-newer" };
+      await page.goto("/settings");
+      await expect(page.getByText(/The UI and API are on different builds/)).toBeVisible();
       await expectNoCriticalOrSeriousA11yViolations(page);
     });
 

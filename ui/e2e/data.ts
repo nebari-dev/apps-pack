@@ -3,6 +3,8 @@
  * types (src/lib/types.ts, over the generated crd.gen.ts), so a change to those
  * types fails `tsc -b` here as well as in the app.
  */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type {
   ApiVersion,
   App,
@@ -16,17 +18,36 @@ import type {
 export const APPS_DOMAIN = "apps.example.com";
 export const NAMESPACES = ["apps", "team-data"];
 
-/** GET /api/v1/config with `api.auth.enabled=false`: keycloak-js is never loaded. */
+/**
+ * GET /api/v1/config with `api.auth.enabled=false`: keycloak-js is never loaded.
+ * Its version and build are the API's, kept distinct so a test notices if the
+ * UI shows them as its own.
+ */
 export const UI_CONFIG: UiConfig = {
-  version: "0.0.0-e2e",
-  build: "sha-e2e",
+  version: "0.0.0-config",
+  build: "sha-config",
   authEnabled: false,
   keycloak: { url: "", realm: "", clientId: "" },
   appsDomain: APPS_DOMAIN,
   appsScheme: "https",
 };
 
-/** /config.json as the chart renders it with no ui.branding.* set (public/config.json). */
+/**
+ * The UI's own release, which vite.config.ts bakes into the bundle from
+ * package.json. Read from the working directory (ui/, for both Playwright and
+ * Vitest, which also imports this file and resolves import.meta.url to http:).
+ */
+export const UI_VERSION: string = JSON.parse(
+  readFileSync(join(process.cwd(), "package.json"), "utf8"),
+).version;
+
+/** The UI image tag the chart renders into /config.json as `build`. */
+export const UI_BUILD = "sha-e2e";
+
+/**
+ * /config.json as the chart renders it with no ui.branding.* set: public/config.json
+ * plus the UI's image tag.
+ */
 export const BRANDING = {
   title: "",
   logoUrl: "",
@@ -34,6 +55,7 @@ export const BRANDING = {
   faviconUrl: "",
   theme: { light: {}, dark: {} },
   banners: { top: {}, bottom: {} },
+  build: UI_BUILD,
 };
 
 export const CAPABILITIES: Capabilities = {
@@ -44,8 +66,8 @@ export const CAPABILITIES: Capabilities = {
   imageRegistries: ["ghcr.io/example"],
 };
 
-/** GET /api/v1/version. */
-export const API_VERSION: ApiVersion = { version: "0.0.0-e2e", build: "sha-e2eapi" };
+/** GET /api/v1/version: the same release and image as the UI, as after a rollout. */
+export const API_VERSION: ApiVersion = { version: UI_VERSION, build: UI_BUILD };
 
 /** GET /api/v1/auth/me with auth disabled: the anonymous caller, an admin. */
 export const ME: Me = {

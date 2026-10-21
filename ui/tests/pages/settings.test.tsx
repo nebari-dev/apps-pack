@@ -15,17 +15,25 @@ vi.mock("@/lib/auth", async (importOriginal) => ({
   getConfig: vi.fn(),
 }));
 
+vi.mock("@/lib/branding", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/branding")>()),
+  getBranding: vi.fn(() => ({ build: "sha-ui5678" })),
+}));
+
 vi.mock("@/lib/clipboard", () => ({ copyText: vi.fn(async () => {}) }));
 
 const { api } = await import("@/lib/api");
 const { getConfig } = await import("@/lib/auth");
 const { copyText } = await import("@/lib/clipboard");
-const { SettingsPage, bugReportUrl, idleTimeoutLine, versionLine } = await import(
-  "@/pages/settings"
-);
+const { getBranding } = await import("@/lib/branding");
+const { SettingsPage, buildsDiffer, bugReportUrl, idleTimeoutLine, uiBuild, versionLine } =
+  await import("@/pages/settings");
 const mocked = vi.mocked(api);
 
-const VERSION: ApiVersion = { version: "0.4.0", build: "sha-api1234" };
+/** ui/package.json's version, baked in by vite.config.ts. */
+const UI_VERSION = import.meta.env.UI_VERSION;
+// The API on the same release and image as the UI, as after a finished rollout.
+const VERSION: ApiVersion = { version: UI_VERSION, build: "sha-ui5678" };
 const ME: Me = {
   username: "alice",
   email: "alice@example.com",
@@ -66,21 +74,49 @@ beforeEach(() => {
     authEnabled: true,
     keycloak: { url: "", realm: "", clientId: "" },
     appsDomain: "apps.example.ai",
-    version: "0.4.0",
-    build: "sha-ui5678",
+    // /config carries the API's version; the UI must not show it as its own.
+    version: "9.9.9",
+    build: "sha-config",
   });
+  vi.mocked(getBranding).mockReturnValue({ build: "sha-ui5678" });
   mocked.version.mockResolvedValue(VERSION);
   mocked.me.mockResolvedValue(ME);
   mocked.capabilities.mockResolvedValue(CAPS);
 });
 
 describe("SettingsPage", () => {
-  it("names the page and shows the UI version at once", async () => {
+  it("names the page and shows the UI's own version and build at once", async () => {
+    mocked.version.mockResolvedValue({ version: UI_VERSION, build: "sha-api1234" });
     renderPage();
     expect(screen.getByRole("heading", { level: 1, name: "Settings" })).toBeInTheDocument();
     expect(document.title).toContain("Settings");
-    expect(within(region("About")).getByText("sha-ui5678")).toBeInTheDocument();
-    expect(await within(region("About")).findByText("sha-api1234")).toBeInTheDocument();
+    const about = region("About");
+    expect(within(about).getAllByText(UI_VERSION)[0]).toBeInTheDocument();
+    expect(within(about).getByText("sha-ui5678")).toBeInTheDocument();
+    expect(within(about).queryByText("9.9.9")).not.toBeInTheDocument();
+    expect(within(about).queryByText("sha-config")).not.toBeInTheDocument();
+    expect(await within(about).findByText("sha-api1234")).toBeInTheDocument();
+  });
+
+  it("shows unknown for the UI build outside the chart", () => {
+    vi.mocked(getBranding).mockReturnValue({});
+    renderPage();
+    expect(within(region("About")).getByText("unknown")).toBeInTheDocument();
+  });
+
+  it("does not flag matching builds", async () => {
+    renderPage();
+    const about = region("About");
+    await within(about).findAllByText("sha-ui5678");
+    expect(within(about).queryByText(/different builds/)).not.toBeInTheDocument();
+  });
+
+  it("notes when the UI and the API are on different builds", async () => {
+    mocked.version.mockResolvedValue({ version: UI_VERSION, build: "sha-api1234" });
+    renderPage();
+    expect(
+      await within(region("About")).findByText(/The UI and API are on different builds/),
+    ).toBeInTheDocument();
   });
 
   it("renders headings and labels while the data loads, with placeholders for the values", async () => {
@@ -146,12 +182,15 @@ describe("SettingsPage", () => {
   });
 
   it("links a bug report with both versions, the docs and the changelog", async () => {
+    mocked.version.mockResolvedValue({ version: "0.4.0", build: "sha-api1234" });
     renderPage();
     const about = region("About");
     await within(about).findByText("sha-api1234");
     const bug = within(about).getByRole("link", { name: /report a bug/i });
     const url = new URL(bug.getAttribute("href") ?? "");
-    expect(url.searchParams.get("version")).toBe("UI 0.4.0 (sha-ui5678), API 0.4.0 (sha-api1234)");
+    expect(url.searchParams.get("version")).toBe(
+      `UI ${UI_VERSION} (sha-ui5678), API 0.4.0 (sha-api1234)`,
+    );
     expect(within(about).getByRole("link", { name: /documentation/i })).toHaveAttribute(
       "href",
       "https://packs.nebari.dev/apps-pack/",
@@ -193,6 +232,25 @@ describe("settings helpers", () => {
     const url = new URL(bugReportUrl({ version: "0.4.0", build: "sha-ui" }));
     expect(url.searchParams.get("template")).toBe("bug-report.yml");
     expect(url.searchParams.get("version")).toBe("UI 0.4.0 (sha-ui)");
+  });
+
+  it("reads the UI's version from the bundle and its build from /config.json", () => {
+    vi.mocked(getBranding).mockReturnValue({ build: "sha-ui1" });
+    expect(uiBuild()).toEqual({ version: UI_VERSION, build: "sha-ui1" });
+    vi.mocked(getBranding).mockReturnValue({ build: "" });
+    expect(uiBuild().build).toBeUndefined();
+  });
+
+  it("compares builds only where both sides know them", () => {
+    const api = { version: "0.4.0", build: "sha-a" };
+    expect(buildsDiffer({ version: "0.4.0", build: "sha-a" }, api)).toBe(false);
+    expect(buildsDiffer({ version: "0.4.0", build: "sha-b" }, api)).toBe(true);
+    expect(buildsDiffer({ version: "0.5.0", build: "sha-a" }, api)).toBe(true);
+    expect(buildsDiffer({ version: "0.4.0" }, api)).toBe(false);
+    expect(buildsDiffer({ version: "0.4.0", build: "sha-b" }, { ...api, build: "unknown" })).toBe(
+      false,
+    );
+    expect(buildsDiffer({ version: "0.4.0", build: "sha-b" })).toBe(false);
   });
 
   it("formats the idle timeout", () => {

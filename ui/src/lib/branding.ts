@@ -92,6 +92,12 @@ export type BrandingConfig = {
   theme?: { light?: ThemeTokens; dark?: ThemeTokens };
   /** Optional classification banners pinned above the header / below content. */
   banners?: { top?: BannerConfig; bottom?: BannerConfig };
+  /**
+   * The image tag the UI pod runs (the chart's ui.image.tag, or its appVersion),
+   * rendered by the chart like apps-api's APPS_BUILD. Not branding, but it
+   * rides in the same file; absent outside the chart.
+   */
+  build?: string;
 };
 
 // Block CSS injection vectors: rule terminators, braces, HTML chars, quotes,
