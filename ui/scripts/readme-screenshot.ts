@@ -1,5 +1,5 @@
 /*
- * The apps list screenshot used by the README and the docs landing page
+ * The apps list screenshot used by the README
  * (docs/src/assets/screenshots/apps-list.png). Run `npm run build` and then
  * `npm run screenshot`; it uses the e2e suite's mocked apps-api with the
  * made-up apps below, so the image holds no real data.
