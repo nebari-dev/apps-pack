@@ -48,7 +48,7 @@ asyncio_mode = "auto"
 source = ["nebari_apps_mcp"]
 
 [tool.coverage.report]
-fail_under = 76
+fail_under = 81
 show_missing = true
 skip_covered = true
 

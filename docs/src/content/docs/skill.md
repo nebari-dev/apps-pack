@@ -80,5 +80,8 @@ When the user asks, the agent:
 4. polls `get_app_status` until `Running` (checking `get_app_logs` on failure),
 5. reports the app URL.
 
+The MCP server's `launch_from_manifest` prompt encodes the same steps, so any MCP client can
+follow them (and `triage_app` takes over when the launch fails); see [Prompts](/mcp/#prompts).
+
 The committed `nebari-app.yaml`
 also doubles as the GitOps artifact for teams who keep their apps in version control.
