@@ -155,11 +155,12 @@ in).
 | `mcp.image.repository` / `tag` / `pullPolicy` | `ghcr.io/nebari-dev/apps-pack/apps-mcp` / `""` / `IfNotPresent` | MCP image. |
 | `mcp.replicaCount` | `1` | **Keep at 1**: device-flow sessions are held in process memory. |
 | `mcp.resources` | `250m/256Mi` (requests = limits) | Pod resources. |
+| `mcp.orgCABundle.configMapName` / `key` | `""` / `ca-bundle.crt` | ConfigMap (release namespace) with a PEM CA bundle the MCP server trusts for outbound HTTPS. Set it when `keycloak.url` has a certificate from a private CA, or `authenticate` fails with `CERTIFICATE_VERIFY_FAILED`. The bundle replaces the image's trust store, so include the public roots too. |
 
 Environment: `API_URL`, `AUTH_ENABLED`, `OIDC_ISSUER`, `OIDC_ISSUER_INTERNAL`,
 `OIDC_DEVICE_CLIENT_ID` (from the UI's OIDC Secret); optional `OIDC_JWKS_URL`,
 `OIDC_AUDIENCE`, `HOST`, `PORT`, `LOG_LEVEL`, `MCP_SESSION_TTL_SECONDS` (default 28800:
-how long an idle device-flow login is kept).
+how long an idle device-flow login is kept), `SSL_CERT_FILE` (set by `mcp.orgCABundle`).
 
 ## Logs and probes
 

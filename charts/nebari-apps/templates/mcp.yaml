@@ -31,6 +31,11 @@ spec:
               value: http://{{ include "nebari-apps.fullname" . }}-api.{{ .Release.Namespace }}.svc.cluster.local:8080
             # The SPA id: bearer passthrough may carry a UI token.
             {{- include "nebari-apps.oidcEnv" (dict "root" . "spaVar" "OIDC_SPA_CLIENT_ID") | nindent 12 }}
+            {{- if .Values.mcp.orgCABundle.configMapName }}
+            # httpx (the device flow's Keycloak calls) reads SSL_CERT_FILE.
+            - name: SSL_CERT_FILE
+              value: /etc/ssl/nebari/ca-bundle.crt
+            {{- end }}
             {{- /* Last, so an extraEnv entry overrides a chart variable of the same name. */}}
             {{- with .Values.mcp.extraEnv }}
             {{- toYaml . | nindent 12 }}
@@ -62,10 +67,25 @@ spec:
             # The only writable path: Python's tempfile and any library cache.
             - name: tmp
               mountPath: /tmp
+            {{- if .Values.mcp.orgCABundle.configMapName }}
+            - name: org-ca
+              mountPath: /etc/ssl/nebari
+              readOnly: true
+            {{- end }}
       volumes:
         - name: tmp
           emptyDir:
             sizeLimit: 64Mi
+        {{- with .Values.mcp.orgCABundle }}
+        {{- if .configMapName }}
+        - name: org-ca
+          configMap:
+            name: {{ .configMapName }}
+            items:
+              - key: {{ .key }}
+                path: ca-bundle.crt
+        {{- end }}
+        {{- end }}
 ---
 apiVersion: v1
 kind: Service

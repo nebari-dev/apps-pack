@@ -62,6 +62,8 @@ wrong type fails the install.
 | mcp.image.pullPolicy | string | `"IfNotPresent"` | Image pull policy. |
 | mcp.image.repository | string | `"ghcr.io/nebari-dev/apps-pack/apps-mcp"` | apps-mcp image repository. |
 | mcp.image.tag | string | `""` | Image tag. Empty defaults to the chart's appVersion. |
+| mcp.orgCABundle.configMapName | string | `""` | ConfigMap in the release namespace holding the bundle. Empty disables it and the image's default roots apply. |
+| mcp.orgCABundle.key | string | `"ca-bundle.crt"` | Key in the ConfigMap that holds the bundle. |
 | mcp.replicaCount | int | `1` | apps-mcp replicas. |
 | mcp.resources | object | `{"limits":{"cpu":"250m","memory":"256Mi"},"requests":{"cpu":"250m","memory":"256Mi"}}` | Container resources. Requests equal limits, so the pod is Guaranteed. |
 | nameOverride | string | `""` | Override the chart name used in resource names. |
