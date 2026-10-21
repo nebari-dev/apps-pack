@@ -289,7 +289,8 @@ tears down routing/cert/OIDC client.
 
 ### Authorization model
 - **Who can launch / manage an app:** enforced by apps-api using the caller's Keycloak groups.
-  An app's `access.groups`/`access.users` plus an `owner` field define management rights.
+  An app's `owner` field plus `access.managers` define management rights; `access.groups`
+  (the only access restriction) decides who may open it.
 - **Who can *view/use* a running app:** enforced at the gateway by the `NebariApp`
   `SecurityPolicy` (`allowedGroups`) — same mechanism every Nebari app uses. `public: true`
   disables it for anonymous apps.
@@ -407,7 +408,7 @@ Jotai, Keycloak via the standard Nebari SSO. Exposed as a `NebariApp`.
    - **Source**: tabs for *Upload* (a zip or a single `.html` file — rendered into the CR as
      `inline` or `pvc`) and *Git*.
    - **Resources** (cpu/mem/replicas) and **env vars** (key-value editor).
-   - **Access**: public toggle, groups/users selector, subdomain.
+   - **Access**: public toggle, groups selector, subdomain.
    - Submit → `POST /apps` → redirect to the app detail page (spawn-pending → running).
 3. **App detail / observability** — status + conditions timeline, live URL, **logs viewer**
    (streamed), **events**, metrics (cpu/mem), and edit/stop/start/delete actions.

@@ -60,8 +60,7 @@ def app_managers(cr: dict[str, Any]) -> dict[str, list[str]]:
 
 
 def is_manager(user: User, cr: dict[str, Any]) -> bool:
-    """Listed in spec.access.managers by username (case-insensitive, like
-    access.users) or through a group in the caller's verified token (a leading
+    """Listed in spec.access.managers by username (case-insensitive) or through a group in the caller's verified token (a leading
     "/" ignored on both sides, like api.adminGroups).
     """
     managers = app_managers(cr)

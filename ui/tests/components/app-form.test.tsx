@@ -124,7 +124,7 @@ describe("AppForm (create)", () => {
     const details = summary.closest("details") as HTMLDetailsElement;
     expect(details).not.toHaveAttribute("open");
     expect(details).toHaveTextContent(
-      "Python apps must serve on 0.0.0.0:$PORT (8080, or 8081 when groups or users restrict the app or it can idle).",
+      "Python apps must serve on 0.0.0.0:$PORT (8080, or 8081 when groups restrict the app or it can idle).",
     );
     for (const label of [
       "Replicas",
@@ -163,13 +163,12 @@ describe("AppForm (create)", () => {
     expect(screen.getByRole("button", { name: "About PVC" })).toBeInTheDocument();
   });
 
-  it("submits an upload with the manifest, allowed groups and users, and no landing tile", async () => {
+  it("submits an upload with the manifest, allowed groups, and no landing tile", async () => {
     const { user, onSubmit, submit } = setup();
     await user.type(screen.getByLabelText("Name"), "sales");
     await user.type(screen.getByLabelText("Display name"), "Sales");
     await user.type(screen.getByLabelText("Description"), "Quarterly numbers");
     await user.type(screen.getByLabelText("Allowed groups"), "analytics, finance ,");
-    await user.type(screen.getByLabelText("Allowed users"), " alice,bob ");
     await user.upload(screen.getByLabelText(/Drop a \.zip/), site());
     await submit();
 
@@ -187,7 +186,6 @@ describe("AppForm (create)", () => {
       access: {
         public: false,
         groups: ["analytics", "finance"],
-        users: ["alice", "bob"],
         subdomain: "sales",
       },
       // The landing-page switch is locked: new apps are registered off.
@@ -195,13 +193,10 @@ describe("AppForm (create)", () => {
     });
   });
 
-  it("describes who the groups and users fields let in", () => {
+  it("describes who the groups field lets in", () => {
     setup();
     expect(screen.getByLabelText("Allowed groups")).toHaveAccessibleDescription(
       /Only members of these Keycloak groups can open the app; everyone else gets 403/,
-    );
-    expect(screen.getByLabelText("Allowed users")).toHaveAccessibleDescription(
-      "Keycloak usernames who can open the app even if they are not in an allowed group.",
     );
   });
 
@@ -245,7 +240,7 @@ describe("AppForm (create)", () => {
       },
       pixiTask: "",
     });
-    expect(payload.body.access).toEqual({ public: true, groups: [], users: [], subdomain: "docs" });
+    expect(payload.body.access).toEqual({ public: true, groups: [], subdomain: "docs" });
     expect(screen.getByTestId("url-preview")).toHaveTextContent("https://docs.apps.example.ai");
   });
 
@@ -465,7 +460,6 @@ describe("AppForm (edit)", () => {
     expect(payload.body.access).toEqual({
       public: false,
       groups: ["analytics"],
-      users: [],
       subdomain: "docs-site",
     });
     // Resources the form does not show (set with kubectl) survive the edit.
@@ -507,26 +501,25 @@ describe("AppForm (edit)", () => {
     expect(payload.body).not.toHaveProperty("secrets");
   });
 
-  it("round-trips allowed users and never changes a registered tile", async () => {
+  it("round-trips allowed groups and never changes a registered tile", async () => {
     const listed = {
       ...EXISTING,
-      access: { public: false, groups: [], users: ["alice", "bob"], subdomain: "docs-site" },
+      access: { public: false, groups: ["alice-team", "bob-team"], subdomain: "docs-site" },
       landingPage: { enabled: true },
     } as App;
     const { user, onSubmit, submit } = setup({ mode: "edit", initial: listed });
     expect(screen.getByText(/^Listed\./)).toBeInTheDocument();
-    const users = screen.getByLabelText("Allowed users");
-    expect(users).toHaveValue("alice, bob");
-    await user.clear(users);
-    await user.type(users, "carol");
+    const groups = screen.getByLabelText("Allowed groups");
+    expect(groups).toHaveValue("alice-team, bob-team");
+    await user.clear(groups);
+    await user.type(groups, "carol-team");
     await submit();
 
     const payload = onSubmit.mock.calls[0][0];
     if (payload.kind !== "patch") throw new Error(`expected a patch, got ${payload.kind}`);
     expect(payload.body.access).toEqual({
       public: false,
-      groups: [],
-      users: ["carol"],
+      groups: ["carol-team"],
       subdomain: "docs-site",
     });
     expect(payload.body).not.toHaveProperty("landingPage");

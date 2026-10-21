@@ -13,9 +13,9 @@ import (
 
 const (
 	// AppPort is the port the Service and the chart's NetworkPolicy target.
-	// The app container listens on it, unless the App restricts access to
-	// groups or users: then the authz sidecar takes it and the app moves to
-	// AppInternalPort (authz.go). Sign-in is enforced at the gateway by the
+	// The app container listens on it, unless the App runs the authz sidecar
+	// (it restricts access to groups, can idle, or runs an image): then the
+	// sidecar takes it and the app moves to AppInternalPort (authz.go). Sign-in is enforced at the gateway by the
 	// NebariApp SecurityPolicy, so apps serve plain HTTP here.
 	AppPort = 8080
 

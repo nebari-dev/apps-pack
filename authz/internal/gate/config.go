@@ -1,7 +1,6 @@
 // Package gate is the apps-authz sidecar: a reverse proxy in front of an app
 // container that lets a request through only when it carries a valid
-// Keycloak access token whose groups claim names one of the allowed groups
-// or whose username is one of the allowed users (either is enough).
+// Keycloak access token whose groups claim names one of the allowed groups.
 package gate
 
 import (
@@ -41,16 +40,10 @@ type Config struct {
 	// GroupsClaim is the top-level claim holding the user's groups
 	// (AUTHZ_GROUPS_CLAIM, default "groups").
 	GroupsClaim string
-	// Users lets in these usernames, compared case-insensitively
-	// (AUTHZ_USERS, comma-separated).
-	Users []string
-	// UsersClaim is the top-level claim holding the username
-	// (AUTHZ_USERS_CLAIM, default "preferred_username").
-	UsersClaim string
 	// Passthrough proxies every request without checking a token
 	// (AUTHZ_PASSTHROUGH=true). The operator sets it on Apps that restrict
 	// nobody but may be scaled to zero when idle, where the sidecar only
-	// records activity. It cannot be combined with groups or users.
+	// records activity. It cannot be combined with groups.
 	Passthrough bool
 }
 
@@ -65,8 +58,6 @@ func FromEnv(getenv func(string) string) (Config, error) {
 		ClientID:     strings.TrimSpace(getenv("AUTHZ_CLIENT_ID")),
 		Groups:       splitList(getenv("AUTHZ_GROUPS")),
 		GroupsClaim:  orDefault(getenv("AUTHZ_GROUPS_CLAIM"), "groups"),
-		Users:        splitList(getenv("AUTHZ_USERS")),
-		UsersClaim:   orDefault(getenv("AUTHZ_USERS_CLAIM"), "preferred_username"),
 		Passthrough:  strings.TrimSpace(getenv("AUTHZ_PASSTHROUGH")) == "true",
 	}
 
@@ -83,8 +74,8 @@ func FromEnv(getenv func(string) string) (Config, error) {
 	}
 	if cfg.Passthrough {
 		// Refuse rather than silently open an App that meant to restrict.
-		if len(cfg.Groups) > 0 || len(cfg.Users) > 0 {
-			errs = append(errs, errors.New("AUTHZ_PASSTHROUGH cannot be combined with AUTHZ_GROUPS or AUTHZ_USERS"))
+		if len(cfg.Groups) > 0 {
+			errs = append(errs, errors.New("AUTHZ_PASSTHROUGH cannot be combined with AUTHZ_GROUPS"))
 		}
 		return cfg, errors.Join(errs...)
 	}
@@ -99,10 +90,10 @@ func FromEnv(getenv func(string) string) (Config, error) {
 	if cfg.ClientID == "" {
 		errs = append(errs, errors.New("AUTHZ_CLIENT_ID is required"))
 	}
-	if len(cfg.Groups) == 0 && len(cfg.Users) == 0 {
+	if len(cfg.Groups) == 0 {
 		// The sidecar exists only to restrict; with nothing to allow it
 		// would deny everyone, which is a misconfiguration, not a policy.
-		errs = append(errs, errors.New("AUTHZ_GROUPS or AUTHZ_USERS is required (comma-separated)"))
+		errs = append(errs, errors.New("AUTHZ_GROUPS is required (comma-separated)"))
 	}
 	return cfg, errors.Join(errs...)
 }

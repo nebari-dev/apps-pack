@@ -175,7 +175,7 @@ type AppRuntime struct {
 	// environment from the app source and executes `pixi run <PixiTask>`.
 	// Not allowed with source type image, which runs its own server.
 	// The task must start a server on $PORT: 8080, or 8081 when access.groups
-	// or access.users restricts the app (the authz sidecar takes 8080).
+	// restricts the app or it can idle (the authz sidecar takes 8080).
 	// +kubebuilder:validation:MaxLength=64
 	// +optional
 	PixiTask string `json:"pixiTask,omitempty"`
@@ -190,23 +190,17 @@ type AppAccess struct {
 	// Groups are the Keycloak/OIDC groups allowed to open a private app.
 	// Enforced in the app pod by the authz sidecar, which checks the access
 	// token the gateway forwards: everyone else gets 403. A user in any
-	// listed group OR listed in users is let in. Empty (with no users) allows
-	// any signed-in realm user. Changes apply when the user's access token
+	// listed group is let in. Empty allows any signed-in realm user. Also
+	// forwarded to the NebariApp, where it sets landing-page tile visibility.
+	// Changes apply when the user's access token
 	// refreshes (Keycloak's access token lifespan, 5 minutes by default).
 	// +optional
 	Groups []string `json:"groups,omitempty"`
 
-	// Users are Keycloak usernames (preferred_username, case-insensitive)
-	// allowed to open a private app, in addition to the members of groups.
-	// Enforced in the app pod like groups. Not forwarded to the NebariApp,
-	// so they do not affect landing-page tile visibility.
-	// +optional
-	Users []string `json:"users,omitempty"`
-
 	// Managers may manage the app (edit, start, stop, restart, delete, read
 	// logs and metrics) through apps-api, the UI and the MCP server, like its
 	// owner. Only the owner and api.adminGroups members may change this list.
-	// It does not grant opening the app: that is still public, groups and users.
+	// It does not grant opening the app: that is still public and groups.
 	// +optional
 	Managers *AppManagers `json:"managers,omitempty"`
 

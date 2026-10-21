@@ -21,8 +21,7 @@ type Handler struct {
 	Activity *Activity
 	proxy    *httputil.ReverseProxy
 	log      *slog.Logger
-	// forbidden is the 403 body: it names the groups when only groups are
-	// configured, and stays generic when usernames (PII) are configured.
+	// forbidden is the 403 body: it names the allowed groups.
 	forbidden string
 }
 
@@ -61,10 +60,7 @@ func NewHandler(cfg Config, v *Verifier, transport http.RoundTripper, log *slog.
 			http.Error(w, "Bad Gateway: the app is not responding", http.StatusBadGateway)
 		},
 	}
-	forbidden := "Forbidden: this app is restricted to specific groups or users"
-	if len(cfg.Users) == 0 {
-		forbidden = "Forbidden: this app is restricted to groups: " + strings.Join(cfg.Groups, ", ")
-	}
+	forbidden := "Forbidden: this app is restricted to groups: " + strings.Join(cfg.Groups, ", ")
 	return &Handler{verifier: v, proxy: proxy, log: log, forbidden: forbidden}
 }
 

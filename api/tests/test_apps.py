@@ -436,55 +436,37 @@ def test_landing_page_opt_in_and_out(client, store):
     assert "landingPage" not in store.apps[("apps", "docs-site")]["spec"]
 
 
-def test_access_users_round_trip_on_create(client, store):
-    body = make_app_body()
-    body["access"]["users"] = ["alice", "bob"]
-    body["access"]["groups"] = ["analysts"]
-    resp = client.post("/api/v1/apps", json=body)
-    assert resp.status_code == 201
-    stored = store.apps[("apps", "docs-site")]["spec"]["access"]
-    assert stored["users"] == ["alice", "bob"]
-    assert stored["groups"] == ["analysts"]
-    assert client.get("/api/v1/apps/apps/docs-site").json()["access"]["users"] == ["alice", "bob"]
-
-
-def test_access_users_round_trip_on_upload(client, store):
+def test_access_users_is_refused(client, store):
+    """The users list was removed from access: a client still sending it gets a 422, not an
+    App open to more people than it asked for.
+    """
     import json
 
-    manifest = {k: v for k, v in make_app_body().items() if k != "source"}
-    manifest["access"]["users"] = ["alice"]
+    body = make_app_body()
+    body["access"]["users"] = ["alice"]
+    assert client.post("/api/v1/apps", json=body).status_code == 422
+
+    manifest = {k: v for k, v in body.items() if k != "source"}
     resp = client.post(
         "/api/v1/apps/upload",
         data={"manifest": json.dumps(manifest)},
         files={"file": ("index.html", b"<h1>hi</h1>", "text/html")},
     )
-    assert resp.status_code == 201
-    assert store.apps[("apps", "docs-site")]["spec"]["access"]["users"] == ["alice"]
+    assert resp.status_code == 422
+    assert store.apps == {}
 
-
-def test_access_users_round_trip_on_patch(client, store):
     assert client.post("/api/v1/apps", json=make_app_body()).status_code == 201
     resp = client.patch(
         "/api/v1/apps/apps/docs-site",
         json={"access": {"public": False, "users": ["alice"], "subdomain": "docs-site"}},
     )
-    assert resp.status_code == 200
-    assert store.apps[("apps", "docs-site")]["spec"]["access"]["users"] == ["alice"]
-    assert resp.json()["access"]["users"] == ["alice"]
-    # An empty list clears it.
-    resp = client.patch(
-        "/api/v1/apps/apps/docs-site",
-        json={"access": {"public": False, "users": [], "groups": ["team"], "subdomain": "docs-site"}},
-    )
-    assert resp.status_code == 200
-    access = store.apps[("apps", "docs-site")]["spec"]["access"]
-    assert "users" not in access
-    assert access["groups"] == ["team"]
+    assert resp.status_code == 422
+    assert "users" not in store.apps[("apps", "docs-site")]["spec"]["access"]
 
 
-@pytest.mark.parametrize("field", ["groups", "users"])
 @pytest.mark.parametrize("entry", ["a,b", " ", ""])
-def test_access_list_entries_must_be_single_names(client, store, field, entry):
+def test_access_group_entries_must_be_single_names(client, store, entry):
+    field = "groups"
     body = make_app_body()
     body["access"][field] = [entry]
     resp = client.post("/api/v1/apps", json=body)
@@ -500,10 +482,14 @@ def test_access_list_entries_must_be_single_names(client, store, field, entry):
 
 
 def test_cr_with_users_still_readable(client, store):
-    """A kubectl-authored CR that sets users must not break reads."""
+    """A CR stored before the users list was removed from access must not break reads; the
+    field is not returned.
+    """
     assert client.post("/api/v1/apps", json=make_app_body()).status_code == 201
     store.apps[("apps", "docs-site")]["spec"]["access"]["users"] = ["alice"]
-    assert client.get("/api/v1/apps/apps/docs-site").status_code == 200
+    resp = client.get("/api/v1/apps/apps/docs-site")
+    assert resp.status_code == 200
+    assert "users" not in resp.json()["access"]
     assert client.get("/api/v1/apps").status_code == 200
 
 

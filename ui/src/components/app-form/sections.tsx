@@ -825,7 +825,7 @@ export function RuntimeSection({ form }: { form: FormContext }) {
             <IdleFields form={form} />
             <p className={HELP}>
               Python apps must serve on <span className="font-mono">0.0.0.0:$PORT</span> (8080, or
-              8081 when groups or users restrict the app or it can idle).
+              8081 when groups restrict the app or it can idle).
             </p>
           </div>
         </details>
@@ -836,7 +836,7 @@ export function RuntimeSection({ form }: { form: FormContext }) {
 
 /** Public or signed-in access, who may open it, the subdomain, and the landing-page tile. */
 export function AccessSection({ form }: { form: FormContext }) {
-  const { isPublic, groups, users, subdomain, onLandingPage } = form.state;
+  const { isPublic, groups, subdomain, onLandingPage } = form.state;
   const { set, fieldProps, isEdit, appsDomain } = form;
   const row = "py-4 first:pt-0 last:pb-0";
   return (
@@ -867,34 +867,20 @@ export function AccessSection({ form }: { form: FormContext }) {
             />
           </div>
           {!isPublic ? (
-            <div className={`space-y-4 ${row}`}>
-              <FormField
+            <FormField
+              id="groups"
+              label="Allowed groups"
+              help="Only members of these Keycloak groups can open the app; everyone else gets 403. Leave it empty to allow any signed-in user. Changes apply when a user's session token refreshes (a few minutes)."
+              className={row}
+            >
+              <Input
                 id="groups"
-                label="Allowed groups"
-                help="Only members of these Keycloak groups can open the app; everyone else gets 403. Leave groups and users empty to allow any signed-in user. Changes apply when a user's session token refreshes (a few minutes)."
-              >
-                <Input
-                  id="groups"
-                  placeholder="comma-separated"
-                  aria-describedby="groups-help"
-                  value={groups}
-                  onChange={(e) => set("groups", e.target.value)}
-                />
-              </FormField>
-              <FormField
-                id="users"
-                label="Allowed users"
-                help="Keycloak usernames who can open the app even if they are not in an allowed group."
-              >
-                <Input
-                  id="users"
-                  placeholder="comma-separated usernames"
-                  aria-describedby="users-help"
-                  value={users}
-                  onChange={(e) => set("users", e.target.value)}
-                />
-              </FormField>
-            </div>
+                placeholder="comma-separated"
+                aria-describedby="groups-help"
+                value={groups}
+                onChange={(e) => set("groups", e.target.value)}
+              />
+            </FormField>
           ) : null}
           <FormField
             id="subdomain"

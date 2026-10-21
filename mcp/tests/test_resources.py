@@ -242,7 +242,6 @@ async def test_review_access_prompt_covers_managers_and_restrictions():
     for needle in (
         "public: true",
         "groups",
-        "users",
         "access.managers",
         "only the",
         "role",

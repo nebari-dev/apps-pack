@@ -98,7 +98,6 @@ export const DOCS_SITE: App = {
   access: {
     public: false,
     groups: ["analytics"],
-    users: ["grace"],
     managers: { users: ["dave"], groups: ["docs-team"] },
     subdomain: "docs-site",
   },

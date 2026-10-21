@@ -45,11 +45,6 @@ func (in *AppAccess) DeepCopyInto(out *AppAccess) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
-	if in.Users != nil {
-		in, out := &in.Users, &out.Users
-		*out = make([]string, len(*in))
-		copy(*out, *in)
-	}
 	if in.Managers != nil {
 		in, out := &in.Managers, &out.Managers
 		*out = new(AppManagers)

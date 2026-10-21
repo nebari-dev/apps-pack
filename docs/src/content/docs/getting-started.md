@@ -73,7 +73,7 @@ kubectl apply -n argocd -f examples/argocd-application.yaml
 ```
 
 This deploys four components. A fifth image, **apps-authz**, is not a Deployment: the
-operator adds it as a sidecar to Apps that list `access.groups` or `access.users`.
+operator adds it as a sidecar to Apps that list `access.groups`, that can idle, or that run an image.
 
 | Component | Where it ends up |
 |---|---|
@@ -166,15 +166,15 @@ it the HTTPRoute, certificate, and OIDC client) are all garbage-collected.
 The pack is alpha: the happy path works, and these are the gaps to know about before a demo
 or pilot.
 
-- **`access.groups` / `access.users` are enforced in the app pod, not at the gateway.** The
+- **`access.groups` is enforced in the app pod, not at the gateway.** The
   nebari-operator `SecurityPolicy` only signs users in
   ([nebari-operator#153](https://github.com/nebari-dev/nebari-operator/issues/153)), so a
-  private app that lists groups or users gets the apps-authz sidecar, which checks the
+  private app that lists groups gets the apps-authz sidecar, which checks the
   forwarded access token and returns `403` to everyone else. Group changes apply when the
-  user's token refreshes (5 minutes by default). A private app with neither list is open to
-  any signed-in realm user. See [Access control](/launching-apps/#access-control).
-- **Landing-page tile visibility is group-based only.** `access.users` cannot hide a tile, so
-  the launch form's landing-page switch is locked for now. Tiles are off by default for
+  user's token refreshes (5 minutes by default). A private app with no groups is open to any
+  signed-in realm user. Access is by group only; there is no per-user allow list. See
+  [Access control](/launching-apps/#access-control).
+- **The launch form's landing-page switch is locked for now.** Tiles are off by default for
   launched apps (`apps.landingPage.enabled` / `spec.landingPage.enabled`); only the pack's own
   "Apps" tile is registered. See [Landing page](/launching-apps/#landing-page).
 - **Authorization is owner, manager or admin.** The API lets a user see and manage the Apps

@@ -319,7 +319,6 @@ func TestEnvtestRestrictedAppGetsAuthzSidecar(t *testing.T) {
 	app.Generation = 0
 	app.Spec.Access.Public = false
 	app.Spec.Access.Groups = []string{"analysts"}
-	app.Spec.Access.Users = []string{"alice"}
 	if err := c.Create(ctx, app); err != nil {
 		t.Fatal(err)
 	}
@@ -353,7 +352,7 @@ func TestEnvtestRestrictedAppGetsAuthzSidecar(t *testing.T) {
 	if err := c.Get(ctx, key, edit); err != nil {
 		t.Fatal(err)
 	}
-	edit.Spec.Access.Groups, edit.Spec.Access.Users = nil, nil
+	edit.Spec.Access.Groups = nil
 	if err := c.Update(ctx, edit); err != nil {
 		t.Fatal(err)
 	}

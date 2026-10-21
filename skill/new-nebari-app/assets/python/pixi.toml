@@ -9,6 +9,6 @@ fastapi = "*"
 uvicorn = "*"
 
 [tasks]
-# The platform injects PORT (8080, or 8081 when access.groups/users is set)
+# The platform injects PORT (8080, or 8081 when access.groups is set or the app can idle)
 # and expects the task to serve on 0.0.0.0:$PORT. Locally: PORT=8080 pixi run start
 start = "uvicorn app:app --host 0.0.0.0 --port $PORT"

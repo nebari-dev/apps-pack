@@ -76,7 +76,6 @@ export interface FormState {
   memLim: string;
   isPublic: boolean;
   groups: string;
-  users: string;
   /** access.managers.users, comma-separated. */
   managerUsers: string;
   /** access.managers.groups, comma-separated. */
@@ -175,7 +174,6 @@ export function initialState(initial: App | undefined, isEdit: boolean): FormSta
     memLim: res?.limits?.memory ?? "",
     isPublic: initial?.access?.public ?? false,
     groups: (initial?.access?.groups ?? []).join(", "),
-    users: (initial?.access?.users ?? []).join(", "),
     managerUsers: (initial?.access?.managers?.users ?? []).join(", "),
     managerGroups: (initial?.access?.managers?.groups ?? []).join(", "),
     subdomain: initial?.access?.subdomain ?? "",
@@ -385,9 +383,8 @@ function buildSource(s: FormState): AppSource | undefined {
 }
 
 /**
- * The landing page cannot yet hide a tile from users outside an app's allowed
- * users (nebari-operator only knows groups), so the form does not offer the
- * switch: new apps are not listed and edits keep the App's current value.
+ * The form does not offer the landing-page switch yet: new apps are not
+ * listed and edits keep the App's current value.
  */
 export const LANDING_PAGE_LOCKED = true;
 
@@ -405,7 +402,7 @@ function buildManagers(s: FormState) {
   return users.length || groups.length ? { users, groups } : undefined;
 }
 
-/** "a, b ,c," -> ["a", "b", "c"]: the comma-separated groups and users fields. */
+/** "a, b ,c," -> ["a", "b", "c"]: the comma-separated list fields. */
 export function splitList(raw: string): string[] {
   return raw
     .split(",")
@@ -445,7 +442,6 @@ export function buildPayload(
       access: {
         public: s.isPublic,
         groups: splitList(s.groups),
-        users: splitList(s.users),
         subdomain: initial?.access?.subdomain ?? s.subdomain,
       },
     };
@@ -474,7 +470,6 @@ export function buildPayload(
     access: {
       public: s.isPublic,
       groups: splitList(s.groups),
-      users: splitList(s.users),
       subdomain: s.subdomain,
       ...(buildManagers(s) ? { managers: buildManagers(s) } : {}),
     },

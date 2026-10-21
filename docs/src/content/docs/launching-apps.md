@@ -11,7 +11,7 @@ This pack deploys three kinds of app:
 - **Python apps** — launched by a [pixi](https://pixi.sh) task (`runtime.pixiTask`); the
   platform runs `pixi install` then `pixi run <task>`, and the task must start a server
   on **0.0.0.0:$PORT** (`PORT` is injected: 8080, or 8081 when the app is
-  [restricted to groups or users](#access-control)).
+  [restricted to groups](#access-control) or can [idle](#idle-apps)).
 - **Container images** — a published image (Streamlit, Gradio, Shiny, Dash, a Node service)
   run as is, when the cluster allows its registry. See [Container images](#container-images).
 
@@ -49,7 +49,7 @@ Open `https://apps.<cluster-domain>`:
    as environment variables from its own Kubernetes Secret (see [Secrets](#secrets)). On an
    edit, saved secrets show their names only: leave a value empty to keep it, type to
    replace it, or remove the row.
-5. **Access** — public toggle, allowed groups and users, and the subdomain, which follows
+5. **Access** — public toggle, allowed groups, and the subdomain, which follows
    the name (lowercased, other characters turned into hyphens) until you edit it. The
    landing-page option is locked off for now (see [Landing page](#landing-page)).
 6. **Managers** — other users and groups who may manage the app with you (see
@@ -139,7 +139,7 @@ The contract:
   `pixi run <task>`.
 - The task must start a server listening on **0.0.0.0:$PORT**; `PORT` and `HOME=/app`
   are injected. `PORT` is 8080, or 8081 when the authz sidecar takes 8080 (the app lists
-  groups or users, or it can [idle](#idle-apps)), so read it rather than hard-coding a port. pixi task strings
+  groups, or it can [idle](#idle-apps)), so read it rather than hard-coding a port. pixi task strings
   support `$PORT` but not `${PORT:-8080}`; run `PORT=8080 pixi run start` locally.
   Routing, TLS, and SSO are identical to static apps.
 - First start resolves and downloads the environment, so cold starts take longer —
@@ -185,7 +185,7 @@ What to know:
   every start; a digest pins the image.
 - **The port.** Set `port` to where the server listens (on `0.0.0.0` or `127.0.0.1`), from
   1024 up and not 8080 or 8082: the pack's sidecar always sits in front of an image app on
-  8080, enforcing `access.groups`/`access.users` and recording activity for
+  8080, enforcing `access.groups` and recording activity for
   [idling](#idle-apps). The port is also passed as `$PORT`.
 - **Non-root.** The image must run as a non-root user, with no capabilities and no
   Kubernetes credentials. An image whose `USER` is root never starts: the app shows
@@ -280,20 +280,19 @@ set, rotate and remove secrets.
 - **Private (default)** — the app's `NebariApp` creates a gateway `SecurityPolicy`: users
   are redirected to Keycloak and must sign in. The app itself never sees or handles auth.
 
-- **Private with `access.groups` and/or `access.users`** — only those users get in: a
-  member of **any** listed group **or** a listed username (`preferred_username`,
-  case-insensitive). Everyone else who signs in gets **403**.
+- **Private with `access.groups`** — only members of **any** listed Keycloak group get in.
+  Everyone else who signs in gets **403**. Access is granted by group only: to let a
+  particular person in, add them to one of the app's groups in Keycloak.
 
-:::note[How groups and users are enforced]
+:::note[How groups are enforced]
 The gateway's `SecurityPolicy` only signs users in
 ([nebari-operator#153](https://github.com/nebari-dev/nebari-operator/issues/153)), so the
-pack enforces the lists in the app pod. For an App that lists groups or users, the
+pack enforces the groups in the app pod. For an App that lists groups, the
 operator sets `forwardAccessToken: true` on its `NebariApp`, so the gateway passes the
 user's Keycloak access token to the pod as `Authorization: Bearer …`, and adds the
 **apps-authz** sidecar on port 8080 in front of the app container (which moves to 8081).
 The sidecar verifies the token against the realm's keys (signature, expiry, issuer, and
-that it was issued to the app's own client) and checks its `groups` and
-`preferred_username` claims. A request with no token gets `401`; every other refusal is
+that it was issued to the app's own client) and checks its `groups` claim. A request with no token gets `401`; every other refusal is
 `403`.
 
 - **Group changes apply when the user's access token refreshes**: Keycloak's access-token
@@ -302,9 +301,8 @@ that it was issued to the app's own client) and checks its `groups` and
 - Needs nebari-operator `%NEBARI_OPERATOR_VERSION%` or later (for `forwardAccessToken`) and the
   chart's `keycloak.url` or `keycloak.internalUrl`; without them the App fails validation
   instead of running open.
-- `access.users` is not sent to the `NebariApp` (it has no per-user rule), so the
-  landing page cannot hide a tile from users outside the list. That is why the launch
-  form's landing-page switch is locked for now (see below).
+- The groups are also sent to the `NebariApp` as `auth.groups`, so a landing-page tile
+  is shown only to their members.
 - With the chart's `apps.networkPolicy.enabled`, only the gateway can reach the pod, and
   only on 8080. Static apps listen on loopback behind the sidecar; a Python task that
   binds `0.0.0.0` is reachable on 8081 from inside the cluster unless that policy is on.
@@ -322,7 +320,7 @@ app shows up in their Apps list and under **Mine**.
 - **Only the owner and admins** (`api.adminGroups`) can change the manager list. A manager's
   edit may send the list unchanged or leave it out; changing it is refused with `403`.
 - **Managing is not opening.** Managers of a restricted app still need to be in its
-  `access.groups` or `access.users` to open it; add them there too if they should.
+  `access.groups` to open it; add them to one of those groups if they should.
 - Group membership comes from the caller's verified access token, so adding someone to a
   manager group applies when their token refreshes.
 - Ownership itself cannot be transferred yet.
@@ -350,10 +348,8 @@ cluster default with the chart value `apps.landingPage.enabled: true`, after whi
 *out* with `enabled: false`. Either way the app is reachable at its URL and listed in the
 Apps UI.
 
-The launch form's "Show on the landing page" option is **locked** for now: the landing
-page can hide a tile only from users outside an app's groups, not outside its allowed
-users, so the form registers new apps with `enabled: false` and an edit keeps whatever the
-App already has. Register a tile through the API, the MCP tool or `kubectl` if you need
+The launch form's "Show on the landing page" option is **locked** for now: the form
+registers new apps with `enabled: false` and an edit keeps whatever the App already has. Register a tile through the API, the MCP tool or `kubectl` if you need
 one.
 
 ## Idle apps

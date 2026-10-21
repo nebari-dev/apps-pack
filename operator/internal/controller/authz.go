@@ -13,7 +13,7 @@ import (
 )
 
 // The gateway's SecurityPolicy only signs users in (nebari-operator #153), so
-// an App that lists access.groups or access.users gets the apps-authz
+// an App that lists access.groups gets the apps-authz
 // sidecar: it takes AppPort, checks the access token the gateway forwards
 // (NebariApp auth.forwardAccessToken) and proxies allowed requests to the
 // app container on AppInternalPort. Unrestricted Apps get no sidecar and an
@@ -43,14 +43,14 @@ var DefaultAuthzResources = corev1.ResourceRequirements{
 }
 
 // restricted reports whether an App limits who may open it beyond "any
-// signed-in user": a private App with groups or users.
+// signed-in user": a private App with groups.
 func restricted(app *appsv1alpha1.App) bool {
 	a := app.Spec.Access
-	return !a.Public && (len(a.Groups) > 0 || len(a.Users) > 0)
+	return !a.Public && len(a.Groups) > 0
 }
 
 // hasSidecar reports whether the App's pod runs the apps-authz sidecar:
-// restricted Apps (it enforces groups and users), Apps that can idle (in
+// restricted Apps (it enforces groups), Apps that can idle (in
 // passthrough mode it only records activity for the idle check) and image
 // Apps (it gives their own port the pack's one front port, AppPort).
 func (c OperatorConfig) hasSidecar(app *appsv1alpha1.App) bool {
@@ -128,16 +128,14 @@ func (c OperatorConfig) checkAuthz(app *appsv1alpha1.App) error {
 		return nil
 	}
 	if c.AuthzImage == "" {
-		return fmt.Errorf("access.groups/access.users need the authz sidecar, but the operator has no --authz-image (chart authz.image)")
+		return fmt.Errorf("access.groups need the authz sidecar, but the operator has no --authz-image (chart authz.image)")
 	}
 	if len(c.authzIssuers()) == 0 {
-		return fmt.Errorf("access.groups/access.users need the realm's URL, but the operator has no --keycloak-url or --keycloak-internal-url (chart keycloak.url, keycloak.internalUrl)")
+		return fmt.Errorf("access.groups need the realm's URL, but the operator has no --keycloak-url or --keycloak-internal-url (chart keycloak.url, keycloak.internalUrl)")
 	}
-	for _, list := range [][]string{app.Spec.Access.Groups, app.Spec.Access.Users} {
-		for _, v := range list {
-			if strings.TrimSpace(v) == "" || strings.Contains(v, ",") {
-				return fmt.Errorf("access.groups and access.users entries must be non-empty and must not contain ','")
-			}
+	for _, v := range app.Spec.Access.Groups {
+		if strings.TrimSpace(v) == "" || strings.Contains(v, ",") {
+			return fmt.Errorf("access.groups entries must be non-empty and must not contain ','")
 		}
 	}
 	return nil
@@ -183,13 +181,8 @@ func (r *AppReconciler) addAuthzSidecar(app *appsv1alpha1.App, pod *corev1.PodSp
 			corev1.EnvVar{Name: "AUTHZ_ISSUERS", Value: strings.Join(r.Config.authzIssuers(), ",")},
 			corev1.EnvVar{Name: "AUTHZ_JWKS_URL", Value: r.Config.authzJWKSURL()},
 			corev1.EnvVar{Name: "AUTHZ_CLIENT_ID", Value: oidcClientID(app)},
+			corev1.EnvVar{Name: "AUTHZ_GROUPS", Value: strings.Join(app.Spec.Access.Groups, ",")},
 		)
-		if g := app.Spec.Access.Groups; len(g) > 0 {
-			env = append(env, corev1.EnvVar{Name: "AUTHZ_GROUPS", Value: strings.Join(g, ",")})
-		}
-		if u := app.Spec.Access.Users; len(u) > 0 {
-			env = append(env, corev1.EnvVar{Name: "AUTHZ_USERS", Value: strings.Join(u, ",")})
-		}
 	} else {
 		env = append(env, corev1.EnvVar{Name: "AUTHZ_PASSTHROUGH", Value: "true"})
 	}

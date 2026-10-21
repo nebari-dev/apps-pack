@@ -1056,7 +1056,7 @@
     },
     "authz": {
       "type": "object",
-      "description": "The apps-authz sidecar that enforces access.groups and access.users in app pods.",
+      "description": "The apps-authz sidecar that enforces access.groups in app pods.",
       "properties": {
         "image": {
           "type": "object",

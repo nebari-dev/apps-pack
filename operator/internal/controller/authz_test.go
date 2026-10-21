@@ -16,10 +16,9 @@ import (
 
 const testAuthzImage = "ghcr.io/nebari-dev/apps-pack/apps-authz:test"
 
-func restrictedApp(app *appsv1alpha1.App, groups, users []string) *appsv1alpha1.App {
+func restrictedApp(app *appsv1alpha1.App, groups []string) *appsv1alpha1.App {
 	app.Spec.Access.Public = false
 	app.Spec.Access.Groups = groups
-	app.Spec.Access.Users = users
 	return app
 }
 
@@ -55,7 +54,7 @@ func deployed(t *testing.T, app *appsv1alpha1.App) (*appsv1.Deployment, *corev1.
 }
 
 func TestAuthzSidecarStaticApp(t *testing.T) {
-	app := restrictedApp(inlineApp("apps"), []string{"analysts", "admin"}, nil)
+	app := restrictedApp(inlineApp("apps"), []string{"analysts", "admin"})
 	app.Name = "web-terminal"
 	d, svc, cm, _ := deployed(t, app)
 	pod := d.Spec.Template.Spec
@@ -124,7 +123,7 @@ func TestAuthzSidecarStaticApp(t *testing.T) {
 }
 
 func TestAuthzSidecarPixiApp(t *testing.T) {
-	app := restrictedApp(pixiApp("apps"), nil, []string{"alice"})
+	app := restrictedApp(pixiApp("apps"), []string{"analysts"})
 	d, _, _, _ := deployed(t, app)
 	pod := d.Spec.Template.Spec
 	if len(pod.Containers) != 2 {
@@ -143,11 +142,8 @@ func TestAuthzSidecarPixiApp(t *testing.T) {
 		t.Error("the cold-start budget of the startup probe should be kept")
 	}
 	env := envOf(pod.Containers[1])
-	if env["AUTHZ_USERS"] != "alice" {
-		t.Errorf("AUTHZ_USERS = %q", env["AUTHZ_USERS"])
-	}
-	if _, has := env["AUTHZ_GROUPS"]; has {
-		t.Error("AUTHZ_GROUPS should be absent when the App lists only users")
+	if env["AUTHZ_GROUPS"] != "analysts" {
+		t.Errorf("AUTHZ_GROUPS = %q", env["AUTHZ_GROUPS"])
 	}
 }
 
@@ -156,7 +152,6 @@ func TestAuthzSidecarPixiApp(t *testing.T) {
 func TestUnrestrictedAppsHaveNoSidecar(t *testing.T) {
 	publicWithLists := inlineApp("team-a")
 	publicWithLists.Spec.Access.Groups = []string{"x"}
-	publicWithLists.Spec.Access.Users = []string{"u"}
 	private := inlineApp("team-a")
 	private.Spec.Access.Public = false
 	privatePixi := pixiApp("team-a")
@@ -211,7 +206,7 @@ func TestAuthzMisconfigurationFailsValidation(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			app := restrictedApp(inlineApp("team-a"), tc.groups, nil)
+			app := restrictedApp(inlineApp("team-a"), tc.groups)
 			r, c := newReconciler(t, managedNamespace("team-a"), app)
 			tc.edit(&r.Config)
 			reconcile(t, r, app)

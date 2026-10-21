@@ -62,10 +62,10 @@ kubectl -n <ns> logs deploy/app-<name> -c app           # the app itself
   `pixi.lock` makes the install `--locked` and faster.
 - **Python app is `Running` but never ready.** The task must listen on `0.0.0.0:$PORT` (the
   pod gets `PORT=8080`). A server bound to `127.0.0.1` fails the readiness probe. An App
-  that lists `access.groups` or `access.users` gets `PORT=8081`, because the authz sidecar
+  that lists `access.groups` (or can idle) gets `PORT=8081`, because the authz sidecar
   takes 8080: a task that hard-codes 8080 then collides with the sidecar.
 - **A restricted app returns `403` to someone who should get in.** The sidecar's log says
-  why (`kubectl logs deploy/app-<name> -c authz`): not in an allowed group or user list,
+  why (`kubectl logs deploy/app-<name> -c authz`): not in an allowed group,
   token issued to another client, issuer not accepted (check `keycloak.url` and
   `keycloak.internalUrl`), or expired. Group changes reach the token on its next refresh
   (5 minutes by default). A `401` means the gateway forwarded no token: the `NebariApp` has
