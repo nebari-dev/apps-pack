@@ -23,6 +23,10 @@ class FakeStore:
         self.logs = "hello from pod\n"
         self.restarted: list[tuple[str, str]] = []
         self.metrics_available = True
+        # (namespace, secret name) -> {"data", "owner", "labels", "version"}.
+        self.secrets: dict[tuple[str, str], dict[str, Any]] = {}
+        self.secret_writes = 0
+        self.fail_secret_writes = False
 
     def list_apps(self, namespace: str | None) -> list[dict[str, Any]]:
         return [copy.deepcopy(cr) for (ns, _), cr in sorted(self.apps.items()) if namespace is None or ns == namespace]
@@ -38,6 +42,7 @@ class FakeStore:
         if (namespace, name) in self.apps:
             raise ConflictError(name)
         body.setdefault("metadata", {})["creationTimestamp"] = "2026-07-15T00:00:00Z"
+        body["metadata"]["uid"] = f"uid-{namespace}-{name}"
         self.apps[(namespace, name)] = copy.deepcopy(body)
         return copy.deepcopy(body)
 
@@ -82,6 +87,24 @@ class FakeStore:
         if (namespace, app_name) not in self.apps:
             raise NotFoundError(f"app-{app_name}")
         self.restarted.append((namespace, app_name))
+
+    def write_secret(
+        self, namespace: str, name: str, owner: dict[str, str], labels: dict[str, str], changes: dict[str, str | None]
+    ) -> str:
+        if self.fail_secret_writes:
+            raise RuntimeError("apiserver said no")
+        self.secret_writes += 1
+        secret = self.secrets.setdefault((namespace, name), {"data": {}, "owners": []})
+        for key, value in changes.items():
+            if value is None:
+                secret["data"].pop(key, None)
+            else:
+                secret["data"][key] = value
+        if owner not in secret["owners"]:
+            secret["owners"].append(owner)
+        secret["labels"] = labels
+        secret["version"] = str(1000 + self.secret_writes)
+        return str(secret["version"])
 
     def pod_metrics(self, namespace: str, app_name: str) -> list[dict[str, Any]]:
         if not self.metrics_available:

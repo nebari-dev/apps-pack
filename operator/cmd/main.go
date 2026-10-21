@@ -149,6 +149,7 @@ func main() {
 		Scheme:     mgr.GetScheme(),
 		Config:     cfg,
 		APIReader:  mgr.GetAPIReader(),
+		Recorder:   mgr.GetEventRecorderFor("apps-operator"), //nolint:staticcheck // core v1 Events: the chart already grants them; events.k8s.io would need new RBAC
 		HTTPClient: controller.NewActivityClient(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "App")

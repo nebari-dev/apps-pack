@@ -77,6 +77,31 @@ Status fields in the backup are ignored; the operator recomputes them.
 
 ## Version notes
 
+### Upgrading to App secrets
+
+- **Re-apply the CRD first.** It adds `runtime.secretKeys`, caps `runtime.env` at 256
+  entries, and adds a CEL rule that refuses `runtime.env[].valueFrom.secretKeyRef`.
+- **Apps that read a Secret through `runtime.env` stop being served.** Before upgrading, find
+  them:
+
+  ```bash
+  kubectl get apps -A -o json | jq -r '.items[] | select(any(.spec.runtime.env[]?;
+    .valueFrom.secretKeyRef or (.valueFrom.configMapKeyRef.name // "" | test("^app-.*-(content|server)$"))))
+    | "\(.metadata.namespace)/\(.metadata.name)"'
+  ```
+
+  Such a reference let anyone who could write an App read any Secret in its namespace, so the
+  upgraded operator marks these Apps `Failed` (`Validated=False`, reason
+  `ForbiddenEnvReference`, plus a Warning event) and stops updating their Deployment. Pods
+  already running keep their old spec until the App is fixed, so fix them promptly. Move each
+  credential into the App's own Secret, `app-<name>-secrets`, list its key in
+  `runtime.secretKeys`, and drop the `valueFrom` entry. A `configMapKeyRef` to another App's
+  generated ConfigMap is refused the same way; references to your own ConfigMaps are fine.
+  Stored Apps stay editable as long as an edit leaves `runtime` alone; a `runtime` edit (from
+  `kubectl` or the UI) must remove the reference.
+- **The API's ServiceAccount can create and patch Secrets** in app namespaces (never read
+  them), to store App secrets ([details](/architecture/#secrets)).
+
 ### Upgrading to scale to zero
 
 - **Re-apply the CRD first.** It adds `runtime.idleTimeoutMinutes`, `status.lastActivityTime`

@@ -60,6 +60,11 @@ rules as [uploads](/launching-apps/#uploading-files)). The full schema and the
 manifest → `launch_app` mapping live in the skill's
 [`references/manifest.md`](https://github.com/nebari-dev/apps-pack/blob/main/skill/new-nebari-app/references/manifest.md).
 
+Credentials never go in the manifest: it is committed. The manifest lists only their names
+in `runtime.secretKeys`, and the values are supplied out of band, by the user in the Apps
+UI's **Secrets** section (preferred) or handed to the agent for `launch_app`'s `secrets`. See
+[Secrets](/launching-apps/#secrets).
+
 ## "Launch it"
 
 When the user asks, the agent:

@@ -68,6 +68,8 @@ export interface AppCreate {
   runtime?: AppRuntime;
   access: AppAccess;
   landingPage?: AppLandingPage;
+  /** Write-only secret values, NAME -> value; the API returns only the names (runtime.secretKeys). */
+  secrets?: Record<string, string>;
 }
 
 export interface AppPatch {
@@ -78,6 +80,8 @@ export interface AppPatch {
   runtime?: AppRuntime;
   access?: AppAccess;
   landingPage?: AppLandingPage;
+  /** Set or rotate (a value) or remove (null) secret keys; names not sent are kept. */
+  secrets?: Record<string, string | null>;
 }
 
 export interface PodMetric {

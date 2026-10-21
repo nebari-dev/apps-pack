@@ -12,7 +12,7 @@ from typing import Annotated, Any
 
 import httpx
 import structlog
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi import Body, Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import JSONResponse, Response
 
 from . import __version__
@@ -24,6 +24,7 @@ from .limits import BodySizeLimitMiddleware
 from .logs import RequestIdMiddleware, configure_logging
 from .metrics import METRICS_PATH, MetricsMiddleware, metrics_response
 from .models import (
+    MAX_SECRET_KEYS,
     SOURCE_TYPES,
     AnalyticsSummary,
     AppCreate,
@@ -35,6 +36,7 @@ from .models import (
     ClusterMetrics,
     NamespaceUsage,
     PodMetric,
+    SecretKey,
 )
 from .upload import PIXI_MANIFESTS, files_from_upload, read_capped
 
@@ -42,6 +44,9 @@ PREFIX = "/api/v1"
 # A JWKS fetch that succeeded is trusted this long before readyz fetches again,
 # so probes don't hammer Keycloak.
 JWKS_READY_TTL = 60.0
+# Total size of the secret values one request may set. A Secret holds at most
+# 1 MiB (base64 adds a third), and secrets are for credentials, not files.
+MAX_SECRET_BYTES = 256 * 1024
 
 log = structlog.get_logger("nebari_apps_api")
 
@@ -89,6 +94,24 @@ def create_app(store: AppStore | None = None) -> FastAPI:
         except NotFoundError:
             raise HTTPException(404, f"app {namespace}/{name} not found") from None
 
+    def write_secrets(store: AppStore, cr: dict[str, Any], changes: dict[str, str | None]) -> str:
+        """Write secret values to the App's own Secret, owned by the App so it
+        is deleted with it, and return the Secret's new resourceVersion. The
+        values are never logged, stored on the App or returned.
+        """
+        meta = cr.get("metadata") or {}
+        namespace, name, uid = meta.get("namespace", ""), meta.get("name", ""), meta.get("uid", "")
+        owner = {"apiVersion": crmod.API_VERSION, "kind": "App", "name": name, "uid": uid}
+        labels = {"app.kubernetes.io/managed-by": "apps-api", "apps.nebari.dev/app": name}
+        try:
+            if not uid:
+                raise ValueError("the App has no uid")
+            return store.write_secret(namespace, crmod.secret_name(name), owner, labels, changes)
+        except Exception as exc:
+            # The type only: an apiserver error body is not worth the risk.
+            log.error("writing app secret failed", namespace=namespace, app=name, error=type(exc).__name__)
+            raise HTTPException(502, f"could not store the secrets of app {namespace}/{name}; try again") from None
+
     def create_checked(store: AppStore, user: User, req: AppCreate) -> AppOut:
         _validate_request(req)
         check_namespace(store, req.namespace)
@@ -105,6 +128,19 @@ def create_app(store: AppStore | None = None) -> FastAPI:
             created = store.create_app(req.namespace, crmod.to_cr(req, user.username))
         except ConflictError:
             raise HTTPException(409, f"app {req.namespace}/{req.name} already exists") from None
+        if req.secrets:
+            # The Secret's owner reference needs the App's uid, so it is
+            # written second; until it exists the pod waits for it (the
+            # kubelet retries) rather than starting without its credentials.
+            try:
+                write_secrets(store, created, dict(req.secrets))
+            except HTTPException:
+                # Do not leave an App behind that can never start.
+                try:
+                    store.delete_app(req.namespace, req.name)
+                except Exception as exc:
+                    log.error("rolling back app failed", app=req.name, error=type(exc).__name__)
+                raise
         return crmod.from_cr(created, app_role(user, created))
 
     def authorized_app(store: AppStore, user: User, namespace: str, name: str) -> dict[str, Any]:
@@ -275,10 +311,14 @@ def create_app(store: AppStore | None = None) -> FastAPI:
         cr = authorized_app(store, user, namespace, name)
         return crmod.from_cr(cr, app_role(user, cr))
 
-    @app.patch(PREFIX + "/apps/{namespace}/{name}", response_model=AppOut)
-    def patch_app(namespace: str, name: str, patch: AppPatch, store: Store, user: Me) -> AppOut:
+    def patch_checked(store: AppStore, user: User, namespace: str, name: str, patch: AppPatch) -> AppOut:
         _check_access(patch.access)
         _check_source(patch.source)
+        if patch.secrets:
+            _check_secret_values(patch.secrets)
+        # The Secret is written once, before the first attempt to update the
+        # App; a retry after a conflict reuses its version.
+        written: list[str] = []
 
         def change(existing: dict[str, Any]) -> dict[str, Any]:
             current = ((existing.get("spec") or {}).get("access") or {}).get("subdomain")
@@ -293,10 +333,47 @@ def create_app(store: AppStore | None = None) -> FastAPI:
                 wanted = {key: list(sent.get(key) or []) for key in ("users", "groups")}
                 if wanted != app_managers(existing):
                     raise HTTPException(403, "only the owner or an admin can change who manages this app")
-            return crmod.apply_patch(existing, patch)
+            cr = crmod.apply_patch(existing, patch)
+            if patch.secrets:
+                keys = set(crmod.secret_keys(cr))
+                keys |= {k for k, v in patch.secrets.items() if v is not None}
+                keys -= {k for k, v in patch.secrets.items() if v is None}
+                if len(keys) > MAX_SECRET_KEYS:
+                    raise HTTPException(422, f"an app may have at most {MAX_SECRET_KEYS} secret keys")
+                _check_secret_names(keys, crmod.env_names(cr))
+                if not written:
+                    written.append(write_secrets(store, cr, dict(patch.secrets)))
+                crmod.set_secret_keys(cr, sorted(keys))
+                annotations = cr.setdefault("metadata", {}).setdefault("annotations", {})
+                annotations[crmod.SECRETS_VERSION_ANNOTATION] = written[0]
+            elif patch.runtime is not None:
+                _check_secret_names(set(crmod.secret_keys(cr)), crmod.env_names(cr))
+            if patch.runtime is not None:
+                env = ((cr.get("spec") or {}).get("runtime") or {}).get("env") or []
+                if problem := crmod.forbidden_env_ref(name, env):
+                    raise HTTPException(422, problem)
+            return cr
 
         cr = update_app(store, user, namespace, name, change)
         return crmod.from_cr(cr, app_role(user, cr))
+
+    @app.patch(PREFIX + "/apps/{namespace}/{name}", response_model=AppOut)
+    def patch_app(namespace: str, name: str, patch: AppPatch, store: Store, user: Me) -> AppOut:
+        return patch_checked(store, user, namespace, name, patch)
+
+    @app.patch(PREFIX + "/apps/{namespace}/{name}/secrets", response_model=AppOut)
+    def patch_secrets(
+        namespace: str,
+        name: str,
+        secrets: Annotated[dict[SecretKey, str | None], Body(max_length=MAX_SECRET_KEYS)],
+        store: Store,
+        user: Me,
+    ) -> AppOut:
+        """Set or rotate (a value) or remove (null) the App's secret keys; keys
+        not sent are kept. Write-only: the response lists key names
+        (runtime.secretKeys), never values. Rolls the app's pods.
+        """
+        return patch_checked(store, user, namespace, name, AppPatch(secrets=secrets))
 
     @app.delete(PREFIX + "/apps/{namespace}/{name}", status_code=204)
     def delete_app(namespace: str, name: str, store: Store, user: Me) -> None:
@@ -484,9 +561,28 @@ def _check_source(source: Any) -> None:
             raise HTTPException(422, f"source.git: {exc}") from None
 
 
+def _check_secret_values(secrets: dict[str, str | None]) -> None:
+    size = sum(len(v.encode()) for v in secrets.values() if v is not None)
+    if size > MAX_SECRET_BYTES:
+        raise HTTPException(413, f"secret values total {size} bytes, over the {MAX_SECRET_BYTES}-byte cap")
+
+
+def _check_secret_names(keys: set[str], env: set[str]) -> None:
+    """A secret key and a plain env var of the same name would race for one
+    variable; refuse it rather than pick a winner silently.
+    """
+    clash = sorted(keys & env)
+    if clash:
+        raise HTTPException(422, f"{', '.join(clash)}: set as both a secret and a plain environment variable; keep one")
+
+
 def _validate_request(req: AppCreate) -> None:
     _check_access(req.access)
     _check_source(req.source)
+    _check_secret_values(dict(req.secrets))
+    _check_secret_names(set(req.secrets), {e.name for e in req.runtime.env})
+    if problem := crmod.forbidden_env_ref(req.name, [e.model_dump() for e in req.runtime.env]):
+        raise HTTPException(422, problem)
     if getattr(req.source, req.source.type, None) is None:
         raise HTTPException(422, f"source.{req.source.type} is required for source type {req.source.type!r}")
     if req.runtime.pixiTask and req.source.type == "inline":

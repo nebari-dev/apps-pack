@@ -48,8 +48,9 @@ MIRRORS: dict[type[BaseModel], tuple[str, set[str], set[str]]] = {
     models.AppManagers: ("access.managers", set(), set()),
     models.AppLandingPage: ("landingPage", set(), set()),
     # owner is set by the API from the caller; name and namespace are metadata.
-    models.AppCreate: ("", {"owner"}, {"name", "namespace"}),
-    models.AppPatch: ("", {"owner"}, set()),
+    # secrets are write-only values for the App's Secret, never in the CR.
+    models.AppCreate: ("", {"owner"}, {"name", "namespace", "secrets"}),
+    models.AppPatch: ("", {"owner"}, {"secrets"}),
 }
 
 
@@ -85,6 +86,10 @@ def test_request_bounds_match_the_crd(spec):
     assert constraint(models.AppAccess, "subdomain", "max_length") == subdomain["maxLength"]
     assert constraint(models.AppAccess, "subdomain", "pattern") == subdomain["pattern"]
     assert constraint(models.AppRuntime, "pixiTask", "max_length") == at(spec, "runtime.pixiTask")["maxLength"]
+    keys = at(spec, "runtime.secretKeys")
+    assert keys["items"]["pattern"] == models.SECRET_KEY_PATTERN
+    assert keys["items"]["maxLength"] == models.SECRET_KEY_MAX_LENGTH
+    assert keys["maxItems"] == models.MAX_SECRET_KEYS
     idle = at(spec, "runtime.idleTimeoutMinutes")
     assert constraint(models.AppRuntime, "idleTimeoutMinutes", "ge") == idle["minimum"]
     assert constraint(models.AppRuntime, "idleTimeoutMinutes", "le") == idle["maximum"]

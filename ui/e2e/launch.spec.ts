@@ -37,6 +37,34 @@ test.describe("launch form", () => {
     ]);
   });
 
+  test("sends secrets write-only, apart from the runtime", async ({ page, api }) => {
+    await openLaunchForm(page);
+
+    await page.getByLabel("Name", { exact: true }).fill("llm-site");
+    await page.getByLabel("Display name").fill("LLM Site");
+    await page.getByRole("tab", { name: "Git" }).click();
+    await page.getByLabel("Repository URL").fill("https://github.com/example/llm-site");
+    await expect(page.getByText(/Put API keys, tokens and passwords/)).toBeVisible();
+    await page.getByRole("button", { name: "Add secret" }).click();
+    await page.getByLabel("Secret 1 name").fill("OPENAI_API_KEY");
+    const value = page.getByLabel("Value of secret OPENAI_API_KEY");
+    await expect(value).toHaveAttribute("type", "password");
+    await value.fill("sk-test");
+    await page.getByRole("button", { name: "Launch app" }).click();
+
+    await expect(page).toHaveURL("/apps/apps/llm-site");
+    expect(api.requests).toMatchObject([
+      {
+        method: "POST",
+        path: "/apps",
+        body: {
+          runtime: { replicas: 1, env: [], resources: null, pixiTask: "" },
+          secrets: { OPENAI_API_KEY: "sk-test" },
+        },
+      },
+    ]);
+  });
+
   test("restricts a private app to groups and users", async ({ page, api }) => {
     await openLaunchForm(page);
 

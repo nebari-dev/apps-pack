@@ -66,6 +66,10 @@ When the user asks to launch an app directory, read its `nebari-app.yaml` and dr
      (`runtime.pixiTask` set → `pixi_task`) must include `pixi.toml` or
      `pyproject.toml`. Text files only; keep the total under ~900KB — if larger, push
      the directory to git and use a `git` source instead.
+   - **`runtime.secretKeys`**: names only. Never put credentials in `env`, the manifest
+     or any committed file; supply them out of band as described in
+     [references/manifest.md#secrets](references/manifest.md#secrets) (the user enters them
+     in the Apps UI's **Secrets** section, or hands them to you for `secrets`).
 3. `launch_app` is **idempotent** on (namespace, name) — re-launching an existing app
    updates it, so retrying or iterating is safe.
 4. Poll `get_app_status` until `phase` is `Running` (typically seconds for static apps;
@@ -80,5 +84,8 @@ When the user asks to launch an app directory, read its `nebari-app.yaml` and dr
 - Static content is served with nginx on **port 8080**; pixi tasks must serve on
   **0.0.0.0:$PORT** themselves. The gateway terminates TLS and, for non-public apps,
   enforces Keycloak SSO — **never add auth code to the app itself**.
+- **No credentials in the app directory.** Not in `nebari-app.yaml`, `runtime.env`, a
+  `.env` or source files: list their names in `runtime.secretKeys` and read them from the
+  environment at runtime.
 - Keep `nebari-app.yaml` in version control — it is also the GitOps artifact: piped
   through `App` metadata, `kubectl apply` works on the rendered form.

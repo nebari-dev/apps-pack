@@ -9,6 +9,7 @@ import {
   type FormContext,
   ManagersSection,
   RuntimeSection,
+  SecretsSection,
   SourceSection,
 } from "./sections";
 import {
@@ -122,6 +123,7 @@ export function AppForm({
       <BasicsSection form={form} />
       <SourceSection form={form} />
       <RuntimeSection form={form} />
+      <SecretsSection form={form} />
       <AccessSection form={form} />
       <ManagersSection form={form} />
 

@@ -64,6 +64,12 @@ func (r *AppReconciler) buildDeployment(app *appsv1alpha1.App) (*appsv1.Deployme
 	if err != nil {
 		return nil, err
 	}
+	// Secret values are injected by the kubelet, never copied into the spec;
+	// only the app container gets them (not init containers or the sidecar).
+	podSpec.Containers[0].Env = append(podSpec.Containers[0].Env, secretEnv(app)...)
+	if v := app.Annotations[appsv1alpha1.SecretsVersionAnnotation]; v != "" && len(app.Spec.Runtime.SecretKeys) > 0 {
+		annotations[appsv1alpha1.SecretsVersionAnnotation] = v
+	}
 	if r.Config.hasSidecar(app) {
 		r.addAuthzSidecar(app, &podSpec)
 		// kubectl logs/exec pick the app, not the sidecar.
@@ -97,6 +103,25 @@ func (r *AppReconciler) buildDeployment(app *appsv1alpha1.App) (*appsv1.Deployme
 	}, nil
 }
 
+// secretEnv maps each of the App's secret keys to an environment variable
+// read from its own Secret (appsv1alpha1.SecretName). The name is derived
+// from the App, so a pod only ever references its own App's Secret. A missing
+// Secret or key keeps the container from starting (CreateContainerConfigError)
+// until it exists, rather than starting the app without its credentials.
+func secretEnv(app *appsv1alpha1.App) []corev1.EnvVar {
+	var env []corev1.EnvVar
+	for _, key := range app.Spec.Runtime.SecretKeys {
+		env = append(env, corev1.EnvVar{
+			Name: key,
+			ValueFrom: &corev1.EnvVarSource{SecretKeyRef: &corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{Name: appsv1alpha1.SecretName(app.Name)},
+				Key:                  key,
+			}},
+		})
+	}
+	return env
+}
+
 // buildStaticPodSpec serves static content with nginx; the content volume is
 // populated according to the source type.
 func (r *AppReconciler) buildStaticPodSpec(app *appsv1alpha1.App, annotations map[string]string) (corev1.PodSpec, error) {
@@ -119,7 +144,7 @@ func (r *AppReconciler) buildStaticPodSpec(app *appsv1alpha1.App, annotations ma
 				ContainerPort: AppPort,
 				Protocol:      corev1.ProtocolTCP,
 			}},
-			Env:       app.Spec.Runtime.Env,
+			Env:       append([]corev1.EnvVar(nil), app.Spec.Runtime.Env...),
 			Resources: r.Config.appResources(app),
 			ReadinessProbe: &corev1.Probe{
 				ProbeHandler: corev1.ProbeHandler{

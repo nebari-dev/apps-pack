@@ -65,9 +65,35 @@ type AppSource struct {
 }
 
 // AppRuntime configures how the app process runs.
+// The rule sits on runtime, not the root, so validation ratcheting lets an
+// App stored before it existed still take status updates and edits that
+// leave runtime alone (the operator refuses its workload instead).
+// +kubebuilder:validation:XValidation:rule="!has(self.env) || self.env.all(e, !has(e.valueFrom) || !has(e.valueFrom.secretKeyRef))",message="runtime.env may not use valueFrom.secretKeyRef: list the key in runtime.secretKeys, which reads the app's own Secret (app-<name>-secrets)"
 type AppRuntime struct {
+	// Env holds plain environment variables. Their values are stored in the
+	// App and shown to everyone who can read it: put credentials in
+	// secretKeys instead. No valueFrom.secretKeyRef (use secretKeys), and a
+	// configMapKeyRef may not name another App's generated ConfigMap: the
+	// kubelet resolves references with its own rights, so they would
+	// otherwise read other Apps' data.
+	// +kubebuilder:validation:MaxItems=256
 	// +optional
 	Env []corev1.EnvVar `json:"env,omitempty"`
+
+	// SecretKeys names keys of the App's Secret, app-<name>-secrets in its
+	// namespace, each injected into the app container as an environment
+	// variable of the same name (a secretKeyRef, resolved by the kubelet).
+	// The App holds only the names: apps-api writes the values to the Secret
+	// (owned by the App, so it is deleted with it), and GitOps can supply the
+	// Secret itself. A secret key wins over an env entry of the same name.
+	// The Deployment rolls when the apps.nebari.dev/secrets-version
+	// annotation on the App changes (apps-api sets it on every write).
+	// +kubebuilder:validation:MaxItems=64
+	// +kubebuilder:validation:items:MaxLength=128
+	// +kubebuilder:validation:items:Pattern=`^[A-Za-z_][A-Za-z0-9_]*$`
+	// +listType=set
+	// +optional
+	SecretKeys []string `json:"secretKeys,omitempty"`
 
 	// +optional
 	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
@@ -215,6 +241,18 @@ const (
 // is an RFC 3339 time that counts as a request. The activator (the page an
 // idle App's URL serves) and apps-api's start route set it.
 const WakeAnnotation = "apps.nebari.dev/wake-requested-at"
+
+// SecretsVersionAnnotation on an App names the version of its Secret
+// (apps-api sets the Secret's resourceVersion after each write); the operator
+// copies it onto the pod template, so rotating a value rolls the Deployment.
+const SecretsVersionAnnotation = "apps.nebari.dev/secrets-version"
+
+// SecretName is the Secret whose keys an App's spec.runtime.secretKeys
+// inject: derived from the App name, so an App can never reference another
+// App's Secret.
+func SecretName(appName string) string {
+	return "app-" + appName + "-secrets"
+}
 
 // Condition types published on App.status.conditions.
 const (

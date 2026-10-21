@@ -34,6 +34,8 @@ spec:
     env:
       - name: LOG_LEVEL
         value: info
+    secretKeys:            # names only; values live in the Secret app-team-site-secrets
+      - DATABASE_URL
     resources:
       requests: { cpu: 250m, memory: 512Mi }
       limits:   { cpu: "1",  memory: 1Gi }
@@ -60,7 +62,7 @@ status:
 | `thumbnail` | string | No | Data-URI image for catalogs / the landing-page tile. |
 | `owner` | string | No | Keycloak `preferred_username` that manages the app. The API sets this from the caller's token. It is the owner of record; the API also writes it to the `apps.nebari.dev/owner` label when the name is a valid label value (an email-style username such as `a@b.c` gets no label). |
 | `source` | [AppSource](#specsource) | Yes | Where the app's content comes from. |
-| `runtime` | [AppRuntime](#specruntime) | No | Process configuration: env, resources, replicas. |
+| `runtime` | [AppRuntime](#specruntime) | No | Process configuration: env, secret keys, resources, replicas. |
 | `access` | [AppAccess](#specaccess) | Yes | Who can reach the app and at which subdomain. |
 | `landingPage` | [AppLandingPage](#speclandingpage) | No | Whether the app gets a tile on the Nebari landing page. |
 
@@ -104,7 +106,8 @@ current state of the ref.
 
 | Field | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `env` | [][EnvVar](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#environment-variables) | No | — | Environment variables. |
+| `env` | [][EnvVar](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#environment-variables) | No | — | Plain environment variables, at most 256. Their values are stored in the App and shown to everyone who can read it (`kubectl get app`, `GET /apps`, MCP tools): never put credentials here, use `secretKeys`. The kubelet resolves `valueFrom` with its own rights, so references that would read other Apps' data are refused: **no `valueFrom.secretKeyRef`** (the CRD rejects it; use `secretKeys`), and no `configMapKeyRef` to another App's generated ConfigMap (`app-<other>-content`, `app-<other>-server`). The operator also checks both, so an App stored before these rules goes `Failed` with `Validated=False`, reason `ForbiddenEnvReference` (plus a Warning event), and its workload is not created or updated. `fieldRef`, `resourceFieldRef`, `fileKeyRef` and other `configMapKeyRef`s are allowed. |
+| `secretKeys` | []string | No | — | Names of keys in the App's Secret, `app-<name>-secrets` in its namespace, each injected into the `app` container as an environment variable of the same name (`valueFrom.secretKeyRef`). Names must be environment variable names (`^[A-Za-z_][A-Za-z0-9_]*$`, max 128 chars), unique, at most 64. The App holds only the names: apps-api writes the values and keeps this list in step (it ignores a list sent without values); GitOps can create the Secret itself. Until the Secret and each listed key exist the container does not start (`CreateContainerConfigError`). A changed `apps.nebari.dev/secrets-version` annotation on the App rolls the pods. See [Secrets](#secrets). |
 | `resources` | [ResourceRequirements](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) | No | chart `apps.defaultResources` | CPU/memory requests and limits. Any cpu/memory request or limit left unset is filled from the cluster default for the app kind (static or Python); a filled limit never drops below the App's own request. Init containers get the same bounds. |
 | `replicas` | int | No | `1` | Desired replicas, `0`–`10`. `0` stops the app (phase `Stopped`). |
 | `keepAlive` | bool | No | `false` | `true` exempts the app from [scale to zero](#scale-to-zero): it keeps running however long it goes without a request, whatever `idleTimeoutMinutes` or the cluster default say. |
@@ -162,7 +165,36 @@ For each `App` the operator creates (and owns, via `ownerReferences`):
 | Service | `app-<name>` | ClusterIP on port 8080 (the app, or the authz sidecar in front of it). |
 | NebariApp | `app-<name>` | Routing + TLS + auth + (opt-in) landing-page tile, reconciled by the nebari-operator (contract pinned to `%NEBARI_OPERATOR_VERSION%`). While the App is `Idle` or waking, `spec.service` points at the activator Service in the pack's namespace. |
 
-Deleting the `App` cascades through all of them.
+Deleting the `App` cascades through all of them, and through the App's Secret
+(`app-<name>-secrets`), which apps-api creates with an owner reference to the App when
+secret values are first set.
+
+## Secrets
+
+Credentials never go in the App. `runtime.secretKeys` lists names; the values live in the
+Secret `app-<name>-secrets` in the App's namespace:
+
+- **Through apps-api** (UI, REST, MCP), send values in `secrets` on launch or edit, or with
+  `PATCH /apps/{ns}/{name}/secrets` (`{"NAME": "value"}` sets or rotates, `{"NAME": null}`
+  removes). apps-api writes the Secret (owned by the App), updates `secretKeys`, and sets the
+  `apps.nebari.dev/secrets-version` annotation to the Secret's `resourceVersion`, which the
+  operator copies to the pod template so the pods restart with the new values. No response
+  ever includes a value.
+- **With kubectl or GitOps**, create the Secret yourself and list its keys:
+
+  ```bash
+  kubectl -n team-analytics create secret generic app-team-site-secrets \
+    --from-literal=DATABASE_URL='postgres://…'
+  ```
+
+  It is not owned by the App unless you add the owner reference, so it outlives the App.
+  After changing a value, roll the pods with `kubectl rollout restart deployment/app-team-site`
+  (or change the annotation).
+
+The name is fixed by the App's name, so an App's pods only ever reference their own Secret,
+and app pods have no ServiceAccount token to read others. `runtime.env` cannot name a Secret
+(`valueFrom.secretKeyRef` is refused by the CRD, apps-api and the operator), which would
+otherwise let anyone who can write an App read any Secret in its namespace through the kubelet.
 
 ## Scale to zero
 

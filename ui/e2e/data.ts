@@ -51,7 +51,7 @@ export const DOCS_SITE: App = {
   owner: "alice",
   createdAt: "2026-10-19T12:00:00Z",
   source: { type: "git", git: { url: "https://github.com/example/docs", ref: "main" } },
-  runtime: { replicas: 1, env: [{ name: "LOG_LEVEL", value: "info" }] },
+  runtime: { replicas: 1, env: [{ name: "LOG_LEVEL", value: "info" }], secretKeys: ["API_KEY"] },
   access: {
     public: false,
     groups: ["analytics"],

@@ -19,7 +19,7 @@ KUBECTL_RUNTIME = {
     "pixiTask": "",
     "env": [
         {"name": "LOG_LEVEL", "value": "info"},
-        {"name": "TOKEN", "valueFrom": {"secretKeyRef": {"name": "site", "key": "token"}}},
+        {"name": "TOKEN", "valueFrom": {"configMapKeyRef": {"name": "site", "key": "token"}}},
     ],
     "resources": {
         "requests": {"cpu": "100m", "memory": "128Mi", "ephemeral-storage": "1Gi"},
@@ -42,7 +42,7 @@ def kubectl_app(client, store):
 def test_get_returns_crd_only_fields(client, kubectl_app):
     runtime = client.get(URL).json()["runtime"]
     assert runtime["keepAlive"] is True
-    assert runtime["env"][1]["valueFrom"] == {"secretKeyRef": {"name": "site", "key": "token"}}
+    assert runtime["env"][1]["valueFrom"] == {"configMapKeyRef": {"name": "site", "key": "token"}}
     assert runtime["resources"]["limits"]["nvidia.com/gpu"] == "1"
 
 
@@ -58,7 +58,7 @@ def test_patch_runtime_merges_fields(client, kubectl_app):
     runtime = kubectl_app()["spec"]["runtime"]
     assert runtime["replicas"] == 3
     assert runtime["keepAlive"] is True
-    assert runtime["env"][1]["valueFrom"]["secretKeyRef"]["key"] == "token"
+    assert runtime["env"][1]["valueFrom"]["configMapKeyRef"]["key"] == "token"
     assert runtime["resources"]["requests"]["ephemeral-storage"] == "1Gi"
 
 
@@ -69,9 +69,23 @@ def test_ui_round_trip_keeps_everything(client, kubectl_app):
     assert client.patch(URL, json={"runtime": runtime}).status_code == 200
     stored = kubectl_app()["spec"]["runtime"]
     assert stored["env"][0] == {"name": "LOG_LEVEL", "value": "debug"}
-    assert stored["env"][1] == {"name": "TOKEN", "valueFrom": {"secretKeyRef": {"name": "site", "key": "token"}}}
+    assert stored["env"][1] == {"name": "TOKEN", "valueFrom": {"configMapKeyRef": {"name": "site", "key": "token"}}}
     assert stored["keepAlive"] is True
     assert stored["resources"]["limits"]["nvidia.com/gpu"] == "1"
+
+
+def test_runtime_edit_of_an_app_with_a_stored_secret_ref_must_drop_it(client, store, kubectl_app):
+    """An App written with kubectl before secretKeyRef was refused: an edit that
+    leaves runtime alone still works, a runtime edit must remove the reference.
+    """
+    env = [
+        {"name": "LOG_LEVEL", "value": "info"},
+        {"name": "TOKEN", "valueFrom": {"secretKeyRef": {"name": "site", "key": "token"}}},
+    ]
+    kubectl_app()["spec"]["runtime"]["env"] = env
+    assert client.patch(URL, json={"displayName": "Renamed"}).status_code == 200
+    assert client.patch(URL, json={"runtime": {"replicas": 3}}).status_code == 422
+    assert client.patch(URL, json={"runtime": {"env": [env[0]]}}).status_code == 200
 
 
 def test_patch_can_clear_a_runtime_field(client, kubectl_app):

@@ -1,4 +1,4 @@
-import { ChevronDown, Info, Lock, Plus, Trash2, UploadCloud } from "lucide-react";
+import { ChevronDown, Info, Lock, Plus, Trash2, TriangleAlert, UploadCloud } from "lucide-react";
 import type { Dispatch, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,6 +40,7 @@ export const CONTROL_IDS: Record<Field, string> = {
   gitUrl: "gitUrl",
   pvcClaim: "pvcClaim",
   idleTimeout: "idleTimeout",
+  secrets: "secrets-first",
   subdomain: "subdomain",
 };
 
@@ -491,6 +492,14 @@ export function RuntimeSection({ form }: { form: FormContext }) {
       <CardContent className="space-y-4">
         <fieldset className="flex flex-col items-start gap-2">
           <legend className="mb-2 font-medium text-sm leading-none">Environment variables</legend>
+          <p
+            id="env-warning"
+            className="flex items-start gap-1.5 text-muted-foreground-strong text-sm"
+          >
+            <TriangleAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+            Anyone who can see this app can read these values. Put API keys, tokens and passwords
+            under Secrets instead.
+          </p>
           {envVars.map((env, i) => (
             // biome-ignore lint/suspicious/noArrayIndexKey: positional editor rows
             <div key={i} className="flex w-full items-center gap-2">
@@ -510,6 +519,7 @@ export function RuntimeSection({ form }: { form: FormContext }) {
                 aria-label={`Value of ${env.name || `variable ${i + 1}`}`}
                 placeholder="value"
                 className="font-mono"
+                aria-describedby="env-warning"
                 // A valueFrom reference (set with kubectl) is kept but not editable here.
                 value={env.valueFrom ? describeValueFrom(env.valueFrom) : (env.value ?? "")}
                 disabled={Boolean(env.valueFrom)}
@@ -756,6 +766,98 @@ export function AccessSection({ form }: { form: FormContext }) {
   );
 }
 
+/**
+ * Write-only secret values. Saved keys show their name only: the API never
+ * returns a value, so an empty field keeps it and typing replaces it.
+ */
+export function SecretsSection({ form }: { form: FormContext }) {
+  const { secrets, removedSecrets } = form.state;
+  const { set, isEdit } = form;
+  const props = form.fieldProps("secrets", "secrets-help");
+  const update = (i: number, change: Partial<(typeof secrets)[number]>) =>
+    set(
+      "secrets",
+      secrets.map((row, j) => (j === i ? { ...row, ...change } : row)),
+    );
+  const remove = (i: number) => {
+    const row = secrets[i];
+    set(
+      "secrets",
+      secrets.filter((_, j) => j !== i),
+    );
+    if (row.stored) set("removedSecrets", [...removedSecrets, row.name]);
+  };
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Secrets</CardTitle>
+        <CardDescription>
+          Credentials such as API keys, tokens and database URLs, passed to the app as environment
+          variables. They are kept in a Kubernetes Secret only this app reads and are never shown
+          again, here or anywhere else.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <fieldset className="flex flex-col items-start gap-2">
+          <legend className="sr-only">Secrets</legend>
+          {secrets.map((row, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: positional editor rows
+            <div key={i} className="flex w-full items-center gap-2">
+              <Input
+                id={i === 0 && !row.stored ? CONTROL_IDS.secrets : undefined}
+                aria-label={`Secret ${i + 1} name`}
+                placeholder="NAME"
+                className="font-mono"
+                autoComplete="off"
+                spellCheck={false}
+                value={row.name}
+                // A saved key keeps its name: remove it and add a new one to rename.
+                readOnly={row.stored}
+                {...props}
+                onChange={(e) => update(i, { name: e.target.value })}
+              />
+              <Input
+                id={i === 0 && row.stored ? CONTROL_IDS.secrets : undefined}
+                type="password"
+                aria-label={`Value of secret ${row.name || i + 1}`}
+                placeholder={row.stored ? "Saved: type to replace" : "value"}
+                className="font-mono"
+                autoComplete="new-password"
+                spellCheck={false}
+                value={row.value}
+                {...props}
+                onChange={(e) => update(i, { value: e.target.value })}
+              />
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`Remove secret ${row.name || i + 1}`}
+                onClick={() => remove(i)}
+              >
+                <Trash2 aria-hidden="true" />
+              </Button>
+            </div>
+          ))}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => set("secrets", [...secrets, { name: "", value: "", stored: false }])}
+          >
+            <Plus /> Add secret
+          </Button>
+          <FieldError form={form} field="secrets" />
+          <p id="secrets-help" className="text-muted-foreground-strong text-sm">
+            Names are environment variable names, such as OPENAI_API_KEY.
+            {isEdit
+              ? " Leave a saved value empty to keep it. Saving a new value restarts the app."
+              : ""}
+          </p>
+        </fieldset>
+      </CardContent>
+    </Card>
+  );
+}
+
 /** Who besides the owner may manage the app; only the owner or an admin may change it. */
 export function ManagersSection({ form }: { form: FormContext }) {
   const { managerUsers, managerGroups } = form.state;
@@ -767,9 +869,9 @@ export function ManagersSection({ form }: { form: FormContext }) {
       <CardHeader>
         <CardTitle>Managers</CardTitle>
         <CardDescription>
-          Managers can edit, start, stop, restart and delete this app and read its logs, like its
-          owner, but cannot change this list. Admins can always manage it. This does not change who
-          can open the app.
+          Managers can edit, start, stop, restart and delete this app, replace its secrets and read
+          its logs, like its owner, but cannot change this list. Admins can always manage it. This
+          does not change who can open the app.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

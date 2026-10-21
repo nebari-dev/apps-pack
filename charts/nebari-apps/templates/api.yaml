@@ -38,8 +38,8 @@ subjects:
     name: {{ include "nebari-apps.fullname" . }}-api
     namespace: {{ .Release.Namespace }}
 ---
-# What the API may do inside an app namespace: write App CRs and read their
-# children for observability. Bound per namespace in api.allowedNamespaces
+# What the API may do inside an app namespace: write App CRs, write their
+# Secrets, and read their children for observability. Bound per namespace in api.allowedNamespaces
 # (RoleBindings); cluster-wide only when that list is empty, because then
 # app namespaces are discovered by label.
 apiVersion: rbac.authorization.k8s.io/v1
@@ -62,6 +62,15 @@ rules:
   - apiGroups: ["apps"]
     resources: ["deployments"]
     verbs: ["get", "patch"]
+  # Write each App's secret values to its Secret (app-<name>-secrets, owned
+  # by the App) from launch, edit and PATCH /apps/{ns}/{name}/secrets.
+  # No get, list or watch: the API never reads or enumerates Secrets (a write
+  # response carries the object; the API drops it), and it only ever names
+  # the Secret of an App the caller may manage. Scope it with
+  # api.allowedNamespaces; with that list empty this binding is cluster-wide.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create", "patch"]
 {{- $root := . }}
 {{- range .Values.api.allowedNamespaces }}
 ---

@@ -79,6 +79,14 @@ helm lint charts/nebari-apps --set clusterDomain=nebari.example.com
   sidecar after it. The operator reads idle Apps' activity from the pod, so treat that answer as
   untrusted too (bounded, clamped, failure counts as activity). MCP tools return app-controlled text
   (logs, files) only through the fences in `mcp/src/nebari_apps_mcp/untrusted.py`.
+- **Secret values never enter the App.** `spec.runtime.secretKeys` holds names only;
+  apps-api writes values (request field `secrets`) to the App-owned Secret
+  `app-<name>-secrets` with create/patch (it has no get/list/watch on Secrets) and never
+  returns, logs or stores them elsewhere. Keep MCP output, UI state sent back to the server
+  and error messages free of values (`api/tests/test_secrets.py`). `runtime.env` may not
+  use `valueFrom.secretKeyRef` (or a `configMapKeyRef` to another App's generated
+  ConfigMap): the kubelet would resolve it for any Secret in the namespace. The CRD's CEL
+  rule, apps-api (`cr.forbidden_env_ref`) and the operator (`envrefs.go`) all refuse it.
 - **Version strings are owned by release-please.** Never hand-edit the version in
   `charts/nebari-apps/Chart.yaml`, the `__version__` files, or `ui/package.json`; the
   "Version strings" check compares them with `.release-please-manifest.json`.

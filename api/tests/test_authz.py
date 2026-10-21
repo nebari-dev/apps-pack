@@ -54,6 +54,7 @@ def alice_app(as_user):
 APP_ROUTES = {
     ("GET", "/apps/{namespace}/{name}"): {},
     ("PATCH", "/apps/{namespace}/{name}"): {"json": {"displayName": "pwned"}},
+    ("PATCH", "/apps/{namespace}/{name}/secrets"): {"json": {"API_KEY": "pwned"}},
     ("DELETE", "/apps/{namespace}/{name}"): {},
     ("POST", "/apps/{namespace}/{name}/stop"): {},
     ("POST", "/apps/{namespace}/{name}/start"): {},
@@ -85,6 +86,7 @@ def test_non_owner_non_manager_gets_403(as_user, alice_app, store, method, path)
     # Nothing changed.
     assert store.apps[("apps", "alices")]["spec"]["displayName"] == "Docs Site"
     assert store.restarted == []
+    assert store.secrets == {}
 
 
 @pytest.mark.parametrize("method,path", sorted(APP_ROUTES))

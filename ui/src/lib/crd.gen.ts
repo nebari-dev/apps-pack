@@ -46,6 +46,7 @@ export type AppReplicas = {
 };
 
 export type AppRuntime = {
+  /** Env holds plain environment variables. */
   env?: EnvVar[];
   /** IdleTimeoutMinutes scales the app to zero after this many minutes without a request (phase Idle); the next request to its URL wakes it. */
   idleTimeoutMinutes?: number;
@@ -56,6 +57,8 @@ export type AppRuntime = {
   replicas?: number;
   /** ResourceRequirements describes the compute resource requirements. */
   resources?: ResourceRequirements;
+  /** SecretKeys names keys of the App's Secret, app-<name>-secrets in its namespace, each injected into the app container as an environment variable of the same name (a secretKeyRef, resolved by the kubelet). */
+  secretKeys?: string[];
 };
 
 export type AppSource = {

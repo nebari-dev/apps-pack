@@ -35,7 +35,8 @@ member of one of `access.managers.groups`), or a member of an **admin group**
 (`api.adminGroups`, default `["admin"]`); anyone else gets `403`. Group membership comes
 from the verified token's `groups` claim. Managers may do everything the owner can except
 change `access.managers`: a `PATCH` from a manager that changes the list gets `403`
-(sending it unchanged, or leaving it out, is fine). `GET /apps` and the `/analytics/*`
+(sending it unchanged, or leaving it out, is fine). Managers may set, rotate and remove an
+app's [secrets](#secrets) (write-only, like everyone). `GET /apps` and the `/analytics/*`
 endpoints return only the apps the caller owns or manages (every app for admins). Apps
 without an owner (created with `kubectl`) are admin-only unless they list managers.
 
@@ -64,8 +65,9 @@ create.
 | `POST /apps` | Create + launch. Body mirrors `App.spec` plus `name`/`namespace` (see below). `409` if the name exists in the namespace or the subdomain is used by any other app. |
 | `POST /apps/upload` | Create + launch an app from an upload. Multipart: `manifest` (JSON, source omitted) + `file` (`.zip` or `.html`). A manifest with `runtime.pixiTask` launches the zip as a Python/pixi app. |
 | `GET /apps/{ns}/{name}` | Full spec + status. |
-| `PATCH /apps/{ns}/{name}` | Update any of `displayName`, `description`, `thumbnail`, `source`, `runtime`, `access`. `runtime` and `access` merge field by field: a field you send replaces the stored one (`null` or empty removes it), and fields you leave out keep their value, including ones set with `kubectl` such as `env[].valueFrom` or extra resource names. `source` is replaced whole. `access.subdomain` cannot change (`422`). `access.managers` (`{users, groups}`) can be changed only by the owner or an admin (`403` otherwise); `null` clears it. |
-| `DELETE /apps/{ns}/{name}` | Delete (cascades to all children). |
+| `PATCH /apps/{ns}/{name}` | Update any of `displayName`, `description`, `thumbnail`, `source`, `runtime`, `access`, `secrets` (see [Secrets](#secrets)). `runtime` and `access` merge field by field: a field you send replaces the stored one (`null` or empty removes it), and fields you leave out keep their value, including ones set with `kubectl` such as `env[].valueFrom` or extra resource names. A `runtime` sent with an `env[].valueFrom.secretKeyRef`, or a `configMapKeyRef` to another app's generated ConfigMap, is refused (`422`); see [Secrets](#secrets). `source` is replaced whole. `access.subdomain` cannot change (`422`). `access.managers` (`{users, groups}`) can be changed only by the owner or an admin (`403` otherwise); `null` clears it. |
+| `PATCH /apps/{ns}/{name}/secrets` | Set or rotate (`{"NAME": "value"}`) or remove (`{"NAME": null}`) the app's secret values; names not sent are kept. Returns the app, whose `runtime.secretKeys` lists the names. Rolls the pods. See [Secrets](#secrets). |
+| `DELETE /apps/{ns}/{name}` | Delete (cascades to all children, the app's Secret included). |
 | `POST /apps/{ns}/{name}/stop` | Scale to zero. |
 | `POST /apps/{ns}/{name}/start` | Scale a stopped app back to one replica, or wake an `Idle` one (it keeps its replicas; the operator starts it as if a request had arrived). |
 | `POST /apps/{ns}/{name}/restart` | Roll the app's pods (like `kubectl rollout restart`) without changing the spec. `409` if the app is stopped. |
@@ -98,7 +100,8 @@ create.
     "env": [{ "name": "LOG_LEVEL", "value": "info" }],
     "resources": { "requests": { "cpu": "250m", "memory": "512Mi" } }
   },
-  "access": { "public": false, "groups": ["analytics"], "subdomain": "team-site" }
+  "access": { "public": false, "groups": ["analytics"], "subdomain": "team-site" },
+  "secrets": { "DATABASE_URL": "postgres://…" }
 }
 ```
 
@@ -112,6 +115,30 @@ must start a server on `0.0.0.0:$PORT` (8080, or 8081 when `access.groups` or
 
 The API validates the source before writing the CR, so impossible launches fail fast with a
 `422` and a human-readable `detail`.
+
+## Secrets
+
+`secrets` (on `POST /apps`, the upload manifest and `PATCH /apps/{ns}/{name}`) and the body
+of `PATCH /apps/{ns}/{name}/secrets` map environment variable names to values. They are
+**write-only**: the API stores them in the app's own Kubernetes Secret,
+`app-<name>-secrets`, owned by the App so it is deleted with it, and never reads them back.
+Responses list only the names, in `runtime.secretKeys`; a `secretKeys` list you send is
+ignored, since the API keeps it in step with the values it wrote.
+
+- On a launch, every entry needs a value. On a `PATCH`, a value sets or rotates the key,
+  `null` removes it, and keys you leave out keep their value.
+- Names follow `^[A-Za-z_][A-Za-z0-9_]*$` (max 128 characters), at most 64 per app; values
+  total at most 256 KiB per request (`413` beyond). A name already used by a plain
+  `runtime.env` entry is refused (`422`), whichever of the two you add second.
+- A write rolls the app's pods so they read the new values (the API stamps the Secret's
+  `resourceVersion` on the App as `apps.nebari.dev/secrets-version`).
+- If storing the Secret fails, the request fails with `502`; a launch is rolled back.
+
+Never put credentials in `runtime.env`: those values are part of the App and come back from
+`GET /apps`. And `runtime.env` cannot reference a Secret: `valueFrom.secretKeyRef` is refused
+with `422` (the kubelet would resolve it for any Secret in the namespace, including other
+apps'), as is a `configMapKeyRef` to another app's `app-<name>-content` or
+`app-<name>-server`. `fieldRef`, `resourceFieldRef` and other ConfigMaps are fine.
 
 ## Upload request
 
@@ -143,7 +170,8 @@ curl -X POST https://apps.example.ai/api/v1/apps/upload \
 | `403` | Namespace not available (not a launchable namespace), or the caller is neither the app's owner nor an admin. |
 | `404` | App (or its pods, for logs) not found. |
 | `409` | An app with that name already exists in the namespace, or the subdomain is already used by another app. |
-| `413` | Request body over 2 MiB, or inline files over the ~900 KB inline cap (`MAX_UPLOAD_BYTES`), whether they come from an upload (or its extracted contents) or from `source.inline.files` in a JSON `POST`/`PATCH`. Zip members are checked against the cap before they are decompressed. |
-| `422` | Invalid request: unsupported source type, missing required fields, or an `access.groups`/`access.users` entry that is blank or contains a comma. |
+| `413` | Request body over 2 MiB, secret values over 256 KiB, or inline files over the ~900 KB inline cap (`MAX_UPLOAD_BYTES`), whether they come from an upload (or its extracted contents) or from `source.inline.files` in a JSON `POST`/`PATCH`. Zip members are checked against the cap before they are decompressed. |
+| `422` | Invalid request: unsupported source type, missing required fields, an `access.groups`/`access.users` entry that is blank or contains a comma, an invalid, duplicated or env-clashing secret name, or a `runtime.env` reference to a Secret or to another app's ConfigMap. |
+| `502` | The app's Secret could not be written (the reason is in the API's log, never a value). |
 
 Error bodies are `{"detail": "..."}` with an actionable message.

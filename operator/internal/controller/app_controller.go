@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -108,6 +109,8 @@ type AppReconciler struct {
 	// APIReader reads pods and the ReferenceGrant without caching them
 	// cluster-wide (mgr.GetAPIReader()); nil uses the Client.
 	APIReader client.Reader
+	// Recorder emits Events on Apps (nil: none).
+	Recorder record.EventRecorder
 	// HTTPClient polls app pods' activity (nil: http.DefaultClient);
 	// ActivityURL and Now are test hooks.
 	HTTPClient  *http.Client
@@ -123,6 +126,7 @@ type AppReconciler struct {
 // +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list
+// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=referencegrants,verbs=get;create;update
 // +kubebuilder:rbac:groups=reconcilers.nebari.dev,resources=nebariapps,verbs=get;list;watch;create;update;patch;delete
 
@@ -168,6 +172,14 @@ func (r *AppReconciler) reconcileChildren(ctx context.Context, app *appsv1alpha1
 	// 1. Validate.
 	if err := r.validate(ctx, app); err != nil {
 		reason := "ValidationFailed"
+		if isForbiddenEnvRef(err) {
+			// The workload is left as it was: a spec that would read another
+			// App's data never reaches a pod.
+			reason = ForbiddenEnvReference
+			if r.Recorder != nil {
+				r.Recorder.Event(app, corev1.EventTypeWarning, reason, err.Error())
+			}
+		}
 		if isSubdomainTaken(err) {
 			reason = "SubdomainTaken"
 			if rerr := r.releaseHostname(ctx, app); rerr != nil {
@@ -296,6 +308,9 @@ func (r *AppReconciler) validate(ctx context.Context, app *appsv1alpha1.App) err
 		return fmt.Errorf("unknown source type %q", app.Spec.Source.Type)
 	}
 
+	if err := checkEnvRefs(app); err != nil {
+		return err
+	}
 	if app.Spec.Access.Subdomain == "" {
 		return fmt.Errorf("access.subdomain is required")
 	}
