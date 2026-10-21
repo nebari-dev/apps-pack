@@ -188,7 +188,7 @@ describe("AppForm (create)", () => {
         groups: ["analytics", "finance"],
         subdomain: "sales",
       },
-      // The landing-page switch is locked: new apps are registered off.
+      // Off is sent explicitly, so a cluster default of "on" does not list it.
       landingPage: { enabled: false },
     });
   });
@@ -200,12 +200,17 @@ describe("AppForm (create)", () => {
     );
   });
 
-  it("shows the locked landing-page option as a note, not a switch", () => {
-    setup();
-    expect(screen.queryByRole("switch", { name: /landing page/ })).toBeNull();
-    expect(
-      screen.getByText(/Not listed\. Changing this here is not available yet\./),
-    ).toBeVisible();
+  it("registers a landing-page tile when the switch is on", async () => {
+    const { user, onSubmit, submit } = setup();
+    await user.type(screen.getByLabelText("Name"), "docs");
+    await user.type(screen.getByLabelText("Display name"), "Docs");
+    await user.click(screen.getByRole("tab", { name: "Git" }));
+    await user.type(screen.getByLabelText("Repository URL"), "https://github.com/example/docs");
+    await user.click(screen.getByRole("switch", { name: /landing page/ }));
+    await submit();
+    const payload = onSubmit.mock.calls[0][0];
+    if (payload.kind !== "create") throw new Error(`expected a create, got ${payload.kind}`);
+    expect(payload.body.landingPage).toEqual({ enabled: true });
   });
 
   it("launches from git with resources, env and a public URL", async () => {
@@ -501,14 +506,14 @@ describe("AppForm (edit)", () => {
     expect(payload.body).not.toHaveProperty("secrets");
   });
 
-  it("round-trips allowed groups and never changes a registered tile", async () => {
+  it("round-trips allowed groups and leaves an unchanged tile alone", async () => {
     const listed = {
       ...EXISTING,
       access: { public: false, groups: ["alice-team", "bob-team"], subdomain: "docs-site" },
       landingPage: { enabled: true },
     } as App;
     const { user, onSubmit, submit } = setup({ mode: "edit", initial: listed });
-    expect(screen.getByText(/^Listed\./)).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: /landing page/ })).toBeChecked();
     const groups = screen.getByLabelText("Allowed groups");
     expect(groups).toHaveValue("alice-team, bob-team");
     await user.clear(groups);
@@ -523,6 +528,17 @@ describe("AppForm (edit)", () => {
       subdomain: "docs-site",
     });
     expect(payload.body).not.toHaveProperty("landingPage");
+  });
+
+  it("sends the tile when the landing-page switch is flipped on an edit", async () => {
+    const listed = { ...EXISTING, landingPage: { enabled: true } } as App;
+    const { user, onSubmit, submit } = setup({ mode: "edit", initial: listed });
+    await user.click(screen.getByRole("switch", { name: /landing page/ }));
+    await submit();
+
+    const payload = onSubmit.mock.calls[0][0];
+    if (payload.kind !== "patch") throw new Error(`expected a patch, got ${payload.kind}`);
+    expect(payload.body.landingPage).toEqual({ enabled: false });
   });
 
   it("lets the owner change managers and clear them with null", async () => {

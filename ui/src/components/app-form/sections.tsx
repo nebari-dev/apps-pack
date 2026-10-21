@@ -26,7 +26,6 @@ import {
   type FormState,
   IDLE_MAX,
   IDLE_MIN,
-  LANDING_PAGE_LOCKED,
   PRESETS,
   type Preset,
   type SourceTab,
@@ -905,33 +904,24 @@ export function AccessSection({ form }: { form: FormContext }) {
               </span>
             </div>
           </FormField>
-          {LANDING_PAGE_LOCKED ? (
-            <div className={`space-y-1 ${row}`}>
-              <p className="font-medium text-sm">Show on the landing page</p>
-              <p className="flex items-center gap-1.5 text-muted-foreground text-sm">
-                <Lock aria-hidden="true" className="size-3.5 shrink-0" />
-                {onLandingPage ? "Listed." : "Not listed."} Changing this here is not available yet.
+          <div className={`flex items-center justify-between gap-3 ${row}`}>
+            <div>
+              <p id="landing-label" className="font-medium text-sm">
+                Show on the landing page
+              </p>
+              <p id="landing-help" className={HELP}>
+                Add a tile for this app to the Nebari landing page. A private app's tile is shown
+                only to members of its allowed groups. The app is reachable at its URL and listed
+                here either way.
               </p>
             </div>
-          ) : (
-            <div className={`flex items-center justify-between gap-3 ${row}`}>
-              <div>
-                <p id="landing-label" className="font-medium text-sm">
-                  Show on the landing page
-                </p>
-                <p id="landing-help" className={HELP}>
-                  Add a tile for this app to the Nebari landing page. Off by default - the app is
-                  reachable at its URL and listed here either way.
-                </p>
-              </div>
-              <Switch
-                checked={onLandingPage}
-                onCheckedChange={(v) => set("onLandingPage", v)}
-                aria-labelledby="landing-label"
-                aria-describedby="landing-help"
-              />
-            </div>
-          )}
+            <Switch
+              checked={onLandingPage}
+              onCheckedChange={(v) => set("onLandingPage", v)}
+              aria-labelledby="landing-label"
+              aria-describedby="landing-help"
+            />
+          </div>
         </div>
       </CardContent>
     </Card>

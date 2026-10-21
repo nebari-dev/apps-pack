@@ -177,9 +177,8 @@ export function initialState(initial: App | undefined, isEdit: boolean): FormSta
     managerUsers: (initial?.access?.managers?.users ?? []).join(", "),
     managerGroups: (initial?.access?.managers?.groups ?? []).join(", "),
     subdomain: initial?.access?.subdomain ?? "",
-    // The landing-page switch is read-only for now (LANDING_PAGE_LOCKED): it
-    // shows the App's current value, a new app is registered off, and an
-    // edit leaves whatever the App has.
+    // Unset shows as off; the tile is opt-in unless the cluster default says
+    // otherwise (see buildPayload).
     onLandingPage: initial?.landingPage?.enabled ?? false,
     touched: {},
     submitted: false,
@@ -383,12 +382,6 @@ function buildSource(s: FormState): AppSource | undefined {
 }
 
 /**
- * The form does not offer the landing-page switch yet: new apps are not
- * listed and edits keep the App's current value.
- */
-export const LANDING_PAGE_LOCKED = true;
-
-/**
  * Whether the caller may change who manages the App: anyone launching one,
  * and on an edit its owner or an admin (managers may not).
  */
@@ -450,9 +443,10 @@ export function buildPayload(
     const managers = buildManagers(s);
     if (body.access && canEditManagers(isEdit, initial) && (managers || initial?.access?.managers))
       body.access.managers = managers ?? null;
-    // An omitted landingPage keeps the stored value; while the switch is
-    // locked the form never changes it.
-    if (!LANDING_PAGE_LOCKED) body.landingPage = { enabled: s.onLandingPage };
+    // An omitted landingPage keeps the stored value, so an App that relies on
+    // the cluster default keeps doing so until the switch is flipped.
+    if (s.onLandingPage !== (initial?.landingPage?.enabled ?? false))
+      body.landingPage = { enabled: s.onLandingPage };
     const source = buildSource(s);
     if (source) body.source = source;
     const secrets = buildSecrets(s, true);
@@ -473,14 +467,9 @@ export function buildPayload(
       subdomain: s.subdomain,
       ...(buildManagers(s) ? { managers: buildManagers(s) } : {}),
     },
-    // Locked: registered off explicitly, so a cluster default of "on" does
-    // not list it either. Unlocked, the tile is opt-in (unset = cluster
-    // default).
-    ...(LANDING_PAGE_LOCKED
-      ? { landingPage: { enabled: false } }
-      : s.onLandingPage
-        ? { landingPage: { enabled: true } }
-        : {}),
+    // Sent either way, so the App gets what the switch shows even when the
+    // cluster default is "on".
+    landingPage: { enabled: s.onLandingPage },
     // A launch never sends null (buildSecrets only adds those on an edit).
     ...(buildSecrets(s, false)
       ? { secrets: buildSecrets(s, false) as Record<string, string> }
