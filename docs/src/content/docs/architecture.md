@@ -138,7 +138,11 @@ credentials go in the App's own `Secret` instead:
   variables are read only at container start).
 - **Only that App's pod reads it.** The Secret's name is derived from the App's name, never
   chosen by a caller (and the API ignores a `secretKeys` list sent without values), so an
-  App's pods reference only their own Secret. App pods still get no ServiceAccount token, so
+  App's pods reference only their own Secret. `runtime.env` may not use
+  `valueFrom.secretKeyRef` at all, nor a `configMapKeyRef` to another App's generated
+  ConfigMap: the kubelet resolves those with its own rights, so they would read other Apps'
+  data. The CRD (a CEL rule), apps-api (`422`) and the operator (`Validated=False`, reason
+  `ForbiddenEnvReference`, no workload) each refuse them. App pods still get no ServiceAccount token, so
   app code cannot read any Secret through the Kubernetes API.
 - **Who may set them.** The owner, managers (`access.managers`) and admins, through
   `authorized_app` like every other per-App route. Managers may set, rotate and remove
@@ -175,6 +179,10 @@ The zone is configurable via the `appsDomain` value (default `apps.<clusterDomai
   gets cpu/memory requests and limits (the App's own, or the chart defaults). The chart can
   add a `LimitRange` and a `NetworkPolicy` that keeps app pods off cluster-internal
   addresses.
+- An App cannot read data that is not its own through `runtime.env`: `valueFrom.secretKeyRef`
+  is refused everywhere (credentials go through [secrets](#secrets)), and so is a
+  `configMapKeyRef` to another App's generated ConfigMap. Writing an App therefore never
+  grants reading a Secret, from the API or with `kubectl`.
 - Git init containers receive user input via environment variables — never interpolated
   into shell — and subdirectories are validated against path traversal.
 - Uploads are size-capped, text-only, and rejected on unsafe archive paths.

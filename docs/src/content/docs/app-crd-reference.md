@@ -106,7 +106,7 @@ current state of the ref.
 
 | Field | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `env` | [][EnvVar](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#environment-variables) | No | — | Plain environment variables. Their values are stored in the App and shown to everyone who can read it (`kubectl get app`, `GET /apps`, MCP tools): never put credentials here, use `secretKeys`. |
+| `env` | [][EnvVar](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#environment-variables) | No | — | Plain environment variables, at most 256. Their values are stored in the App and shown to everyone who can read it (`kubectl get app`, `GET /apps`, MCP tools): never put credentials here, use `secretKeys`. The kubelet resolves `valueFrom` with its own rights, so references that would read other Apps' data are refused: **no `valueFrom.secretKeyRef`** (the CRD rejects it; use `secretKeys`), and no `configMapKeyRef` to another App's generated ConfigMap (`app-<other>-content`, `app-<other>-server`). The operator also checks both, so an App stored before these rules goes `Failed` with `Validated=False`, reason `ForbiddenEnvReference` (plus a Warning event), and its workload is not created or updated. `fieldRef`, `resourceFieldRef`, `fileKeyRef` and other `configMapKeyRef`s are allowed. |
 | `secretKeys` | []string | No | — | Names of keys in the App's Secret, `app-<name>-secrets` in its namespace, each injected into the `app` container as an environment variable of the same name (`valueFrom.secretKeyRef`). Names must be environment variable names (`^[A-Za-z_][A-Za-z0-9_]*$`, max 128 chars), unique, at most 64. The App holds only the names: apps-api writes the values and keeps this list in step (it ignores a list sent without values); GitOps can create the Secret itself. Until the Secret and each listed key exist the container does not start (`CreateContainerConfigError`). A changed `apps.nebari.dev/secrets-version` annotation on the App rolls the pods. See [Secrets](#secrets). |
 | `resources` | [ResourceRequirements](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) | No | chart `apps.defaultResources` | CPU/memory requests and limits. Any cpu/memory request or limit left unset is filled from the cluster default for the app kind (static or Python); a filled limit never drops below the App's own request. Init containers get the same bounds. |
 | `replicas` | int | No | `1` | Desired replicas, `0`–`10`. `0` stops the app (phase `Stopped`). |
@@ -192,7 +192,9 @@ Secret `app-<name>-secrets` in the App's namespace:
   (or change the annotation).
 
 The name is fixed by the App's name, so an App's pods only ever reference their own Secret,
-and app pods have no ServiceAccount token to read others.
+and app pods have no ServiceAccount token to read others. `runtime.env` cannot name a Secret
+(`valueFrom.secretKeyRef` is refused by the CRD, apps-api and the operator), which would
+otherwise let anyone who can write an App read any Secret in its namespace through the kubelet.
 
 ## Scale to zero
 

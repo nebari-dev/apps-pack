@@ -65,10 +65,18 @@ type AppSource struct {
 }
 
 // AppRuntime configures how the app process runs.
+// The rule sits on runtime, not the root, so validation ratcheting lets an
+// App stored before it existed still take status updates and edits that
+// leave runtime alone (the operator refuses its workload instead).
+// +kubebuilder:validation:XValidation:rule="!has(self.env) || self.env.all(e, !has(e.valueFrom) || !has(e.valueFrom.secretKeyRef))",message="runtime.env may not use valueFrom.secretKeyRef: list the key in runtime.secretKeys, which reads the app's own Secret (app-<name>-secrets)"
 type AppRuntime struct {
 	// Env holds plain environment variables. Their values are stored in the
 	// App and shown to everyone who can read it: put credentials in
-	// secretKeys instead.
+	// secretKeys instead. No valueFrom.secretKeyRef (use secretKeys), and a
+	// configMapKeyRef may not name another App's generated ConfigMap: the
+	// kubelet resolves references with its own rights, so they would
+	// otherwise read other Apps' data.
+	// +kubebuilder:validation:MaxItems=256
 	// +optional
 	Env []corev1.EnvVar `json:"env,omitempty"`
 

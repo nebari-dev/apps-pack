@@ -348,6 +348,10 @@ def create_app(store: AppStore | None = None) -> FastAPI:
                 annotations[crmod.SECRETS_VERSION_ANNOTATION] = written[0]
             elif patch.runtime is not None:
                 _check_secret_names(set(crmod.secret_keys(cr)), crmod.env_names(cr))
+            if patch.runtime is not None:
+                env = ((cr.get("spec") or {}).get("runtime") or {}).get("env") or []
+                if problem := crmod.forbidden_env_ref(name, env):
+                    raise HTTPException(422, problem)
             return cr
 
         cr = update_app(store, user, namespace, name, change)
@@ -577,6 +581,8 @@ def _validate_request(req: AppCreate) -> None:
     _check_source(req.source)
     _check_secret_values(dict(req.secrets))
     _check_secret_names(set(req.secrets), {e.name for e in req.runtime.env})
+    if problem := crmod.forbidden_env_ref(req.name, [e.model_dump() for e in req.runtime.env]):
+        raise HTTPException(422, problem)
     if getattr(req.source, req.source.type, None) is None:
         raise HTTPException(422, f"source.{req.source.type} is required for source type {req.source.type!r}")
     if req.runtime.pixiTask and req.source.type == "inline":

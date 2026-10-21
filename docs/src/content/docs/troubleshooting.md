@@ -32,6 +32,13 @@ The UI's app page and the MCP `get_app_status` tool show the same conditions.
 | `source.pvc: PersistentVolumeClaim "x" is not labeled apps.nebari.dev/mountable=true …` | The claim's owner opts in with `kubectl -n <ns> label pvc x apps.nebari.dev/mountable=true`. |
 | `source.inline.files: path "…" must be relative …` | Inline file names are relative paths without `..`. |
 
+- **`ForbiddenEnvReference`.** `runtime.env` uses `valueFrom.secretKeyRef`, or a
+  `configMapKeyRef` to another App's `app-<name>-content`/`app-<name>-server`. Those would
+  read data that is not the App's own, so the operator refuses the workload (it is not
+  created or updated; `kubectl describe app <name>` shows the Warning event). Move credentials
+  to `runtime.secretKeys` (values in `app-<name>-secrets`, or set them in the UI's
+  **Secrets**) and remove the reference.
+
 ## Pods never become ready
 
 ```bash

@@ -42,6 +42,28 @@ def set_secret_keys(cr: dict[str, Any], keys: list[str]) -> None:
         runtime.pop("secretKeys", None)
 
 
+def forbidden_env_ref(app_name: str, env: list[dict[str, Any]]) -> str | None:
+    """Why runtime.env may not be stored, or None. Mirrors the operator's
+    checkEnvRefs: the kubelet resolves valueFrom with its own rights, so a
+    reference could read another App's data. No secretKeyRef at all (secrets
+    go through `secrets`, into the App's own Secret), and no configMapKeyRef to
+    a ConfigMap the operator generates for another App.
+    """
+    own = {f"app-{app_name}-content", f"app-{app_name}-server"}
+    for entry in env:
+        ref = entry.get("valueFrom") or {}
+        name = entry.get("name", "")
+        if "secretKeyRef" in ref:
+            return (
+                f"runtime.env {name}: valueFrom.secretKeyRef is not allowed; set the value in `secrets` "
+                "instead (it is stored in the app's own Secret and never returned)"
+            )
+        cm = str((ref.get("configMapKeyRef") or {}).get("name", ""))
+        if cm.startswith("app-") and cm.endswith(("-content", "-server")) and cm not in own:
+            return f"runtime.env {name}: configMapKeyRef may not name {cm!r}, a ConfigMap of another app"
+    return None
+
+
 def env_names(cr: dict[str, Any]) -> set[str]:
     return {e.get("name", "") for e in ((cr.get("spec") or {}).get("runtime") or {}).get("env") or []}
 

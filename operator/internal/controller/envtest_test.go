@@ -19,6 +19,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -251,6 +252,12 @@ func TestEnvtestCRDRejectsInvalidApps(t *testing.T) {
 		"duplicate secret key": func(a *appsv1alpha1.App) {
 			a.Spec.Runtime.SecretKeys = []string{"API_KEY", "API_KEY"}
 		},
+		"env reads another app's secret": func(a *appsv1alpha1.App) {
+			a.Spec.Runtime.Env = []corev1.EnvVar{secretRefEnv("app-victim-secrets")}
+		},
+		"env reads an arbitrary secret": func(a *appsv1alpha1.App) {
+			a.Spec.Runtime.Env = []corev1.EnvVar{{Name: "A", Value: "b"}, secretRefEnv("db-credentials")}
+		},
 	} {
 		app := inlineApp("team-a")
 		app.Generation = 0
@@ -258,6 +265,29 @@ func TestEnvtestCRDRejectsInvalidApps(t *testing.T) {
 		if err := c.Create(ctx, app); !apierrors.IsInvalid(err) {
 			t.Errorf("%s: want an Invalid error from the CRD schema, got %v", name, err)
 		}
+	}
+}
+
+// The CRD admits other valueFrom kinds and edits elsewhere in the spec, and
+// refuses a secretKeyRef added by an update, even to the App's own Secret.
+func TestEnvtestCRDEnvReferences(t *testing.T) {
+	c := startEnv(t)
+	ctx := context.Background()
+	if err := c.Create(ctx, managedNamespace("team-a")); err != nil {
+		t.Fatal(err)
+	}
+	app := inlineApp("team-a")
+	app.Generation = 0
+	app.Spec.Runtime.Env = []corev1.EnvVar{
+		{Name: "POD_IP", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "status.podIP"}}},
+		configMapRefEnv("team-settings"),
+	}
+	if err := c.Create(ctx, app); err != nil {
+		t.Fatalf("fieldRef/configMapKeyRef refused: %v", err)
+	}
+	app.Spec.Runtime.Env = append(app.Spec.Runtime.Env, secretRefEnv("app-docs-site-secrets"))
+	if err := c.Update(ctx, app); !apierrors.IsInvalid(err) {
+		t.Errorf("update adding a secretKeyRef: want Invalid, got %v", err)
 	}
 }
 
@@ -312,4 +342,100 @@ func TestEnvtestRestrictedAppGetsAuthzSidecar(t *testing.T) {
 		t.Fatal(err)
 	}
 	eventually(t, "no sidecar once unrestricted", state(false))
+}
+
+// setRuntimeRules swaps the CEL rules on spec.runtime in the installed App
+// CRD (nil removes them) and returns the previous ones.
+func setRuntimeRules(t *testing.T, c client.Client, rules []any) []any {
+	t.Helper()
+	crd := &unstructured.Unstructured{}
+	crd.SetAPIVersion("apiextensions.k8s.io/v1")
+	crd.SetKind("CustomResourceDefinition")
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "apps.apps.nebari.dev"}, crd); err != nil {
+		t.Fatal(err)
+	}
+	versions, _, _ := unstructured.NestedSlice(crd.Object, "spec", "versions")
+	v := versions[0].(map[string]any)
+	path := []string{"schema", "openAPIV3Schema", "properties", "spec", "properties", "runtime"}
+	runtimeSchema, _, _ := unstructured.NestedMap(v, path...)
+	old, _ := runtimeSchema["x-kubernetes-validations"].([]any)
+	if rules == nil {
+		delete(runtimeSchema, "x-kubernetes-validations")
+	} else {
+		runtimeSchema["x-kubernetes-validations"] = rules
+	}
+	if err := unstructured.SetNestedMap(v, runtimeSchema, path...); err != nil {
+		t.Fatal(err)
+	}
+	versions[0] = v
+	if err := unstructured.SetNestedSlice(crd.Object, versions, "spec", "versions"); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Update(context.Background(), crd); err != nil {
+		t.Fatal(err)
+	}
+	return old
+}
+
+// An App stored with a secretKeyRef before the CRD refused it (an upgrade)
+// is not served: the operator marks it Failed with ForbiddenEnvReference and
+// creates no workload. Ratcheting keeps its status updates and unrelated
+// edits working under the new rule.
+func TestEnvtestStoredCrossAppSecretRef(t *testing.T) {
+	c := startEnv(t)
+	ctx := context.Background()
+	if err := c.Create(ctx, managedNamespace("team-a")); err != nil {
+		t.Fatal(err)
+	}
+	rules := setRuntimeRules(t, c, nil)
+	if len(rules) == 0 {
+		t.Fatal("the CRD has no runtime rule to remove")
+	}
+	app := inlineApp("team-a")
+	app.Generation = 0
+	app.Spec.Runtime.Env = []corev1.EnvVar{secretRefEnv("app-victim-secrets")}
+	eventually(t, "the CRD without the rule", func() string {
+		if err := c.Create(ctx, app.DeepCopy()); err != nil {
+			return err.Error()
+		}
+		return ""
+	})
+	setRuntimeRules(t, c, rules)
+	probe := inlineApp("team-a")
+	probe.Name, probe.Generation = "probe", 0
+	probe.Spec.Access.Subdomain = "probe"
+	probe.Spec.Runtime.Env = app.Spec.Runtime.Env
+	eventually(t, "the CRD with the rule again", func() string {
+		if err := c.Create(ctx, probe.DeepCopy()); !apierrors.IsInvalid(err) {
+			_ = c.Delete(ctx, probe.DeepCopy())
+			return fmt.Sprintf("create still allowed: %v", err)
+		}
+		return ""
+	})
+
+	key := types.NamespacedName{Name: app.Name, Namespace: app.Namespace}
+	eventually(t, "the App to be refused", func() string {
+		got := &appsv1alpha1.App{}
+		if err := c.Get(ctx, key, got); err != nil {
+			return err.Error()
+		}
+		cond := meta.FindStatusCondition(got.Status.Conditions, appsv1alpha1.ConditionValidated)
+		if got.Status.Phase != appsv1alpha1.AppPhaseFailed || cond == nil || cond.Reason != ForbiddenEnvReference {
+			return fmt.Sprintf("phase %s, condition %+v", got.Status.Phase, cond)
+		}
+		return ""
+	})
+	err := c.Get(ctx, types.NamespacedName{Name: "app-docs-site", Namespace: "team-a"}, &appsv1.Deployment{})
+	if !apierrors.IsNotFound(err) {
+		t.Errorf("Deployment lookup = %v, want NotFound", err)
+	}
+
+	got := &appsv1alpha1.App{}
+	if err := c.Get(ctx, key, got); err != nil {
+		t.Fatal(err)
+	}
+	got.Spec.DisplayName = "Renamed"
+	if err := c.Update(ctx, got); err != nil {
+		t.Errorf("an edit that leaves runtime alone was refused: %v", err)
+	}
 }

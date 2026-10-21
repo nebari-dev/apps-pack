@@ -166,3 +166,41 @@ def test_upload_launch_with_secrets(client, store):
     assert resp.status_code == 201, resp.text
     assert resp.json()["runtime"]["secretKeys"] == ["API_KEY"]
     assert store.secrets[SECRET]["data"] == {"API_KEY": "sk"}
+
+
+def secret_ref(secret: str) -> dict:
+    return {"name": "STOLEN", "valueFrom": {"secretKeyRef": {"name": secret, "key": "API_KEY"}}}
+
+
+def test_env_cannot_read_another_apps_secret(client, store):
+    """runtime.env valueFrom is resolved by the kubelet, so naming another
+    App's Secret would read it: refused on launch and on edit.
+    """
+    for ref in (secret_ref("app-victim-secrets"), secret_ref("db-credentials"), secret_ref("app-docs-site-secrets")):
+        resp = launch(client, env=[ref])
+        assert resp.status_code == 422, ref
+        assert "secretKeyRef" in resp.json()["detail"]
+    assert store.apps == {}
+
+    assert launch(client).status_code == 201
+    resp = client.patch(f"{URL}/apps/docs-site", json={"runtime": {"env": [secret_ref("app-victim-secrets")]}})
+    assert resp.status_code == 422
+    assert "env" not in store.apps[("apps", "docs-site")]["spec"].get("runtime", {})
+
+
+def test_env_cannot_read_another_apps_configmaps(client, store):
+    for cm in ("app-victim-content", "app-victim-server"):
+        env = [{"name": "X", "valueFrom": {"configMapKeyRef": {"name": cm, "key": "f0000"}}}]
+        resp = launch(client, env=env)
+        assert resp.status_code == 422, cm
+        assert cm in resp.json()["detail"]
+
+
+def test_harmless_value_from_still_allowed(client, store):
+    env = [
+        {"name": "POD_IP", "valueFrom": {"fieldRef": {"fieldPath": "status.podIP"}}},
+        {"name": "MEM", "valueFrom": {"resourceFieldRef": {"resource": "limits.memory"}}},
+        {"name": "TEAM", "valueFrom": {"configMapKeyRef": {"name": "team-settings", "key": "k"}}},
+        {"name": "OWN", "valueFrom": {"configMapKeyRef": {"name": "app-docs-site-content", "key": "k"}}},
+    ]
+    assert launch(client, env=env).status_code == 201

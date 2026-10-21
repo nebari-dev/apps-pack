@@ -65,7 +65,7 @@ create.
 | `POST /apps` | Create + launch. Body mirrors `App.spec` plus `name`/`namespace` (see below). `409` if the name exists in the namespace or the subdomain is used by any other app. |
 | `POST /apps/upload` | Create + launch an app from an upload. Multipart: `manifest` (JSON, source omitted) + `file` (`.zip` or `.html`). A manifest with `runtime.pixiTask` launches the zip as a Python/pixi app. |
 | `GET /apps/{ns}/{name}` | Full spec + status. |
-| `PATCH /apps/{ns}/{name}` | Update any of `displayName`, `description`, `thumbnail`, `source`, `runtime`, `access`, `secrets` (see [Secrets](#secrets)). `runtime` and `access` merge field by field: a field you send replaces the stored one (`null` or empty removes it), and fields you leave out keep their value, including ones set with `kubectl` such as `env[].valueFrom` or extra resource names. `source` is replaced whole. `access.subdomain` cannot change (`422`). `access.managers` (`{users, groups}`) can be changed only by the owner or an admin (`403` otherwise); `null` clears it. |
+| `PATCH /apps/{ns}/{name}` | Update any of `displayName`, `description`, `thumbnail`, `source`, `runtime`, `access`, `secrets` (see [Secrets](#secrets)). `runtime` and `access` merge field by field: a field you send replaces the stored one (`null` or empty removes it), and fields you leave out keep their value, including ones set with `kubectl` such as `env[].valueFrom` or extra resource names. A `runtime` sent with an `env[].valueFrom.secretKeyRef`, or a `configMapKeyRef` to another app's generated ConfigMap, is refused (`422`); see [Secrets](#secrets). `source` is replaced whole. `access.subdomain` cannot change (`422`). `access.managers` (`{users, groups}`) can be changed only by the owner or an admin (`403` otherwise); `null` clears it. |
 | `PATCH /apps/{ns}/{name}/secrets` | Set or rotate (`{"NAME": "value"}`) or remove (`{"NAME": null}`) the app's secret values; names not sent are kept. Returns the app, whose `runtime.secretKeys` lists the names. Rolls the pods. See [Secrets](#secrets). |
 | `DELETE /apps/{ns}/{name}` | Delete (cascades to all children, the app's Secret included). |
 | `POST /apps/{ns}/{name}/stop` | Scale to zero. |
@@ -135,7 +135,10 @@ ignored, since the API keeps it in step with the values it wrote.
 - If storing the Secret fails, the request fails with `502`; a launch is rolled back.
 
 Never put credentials in `runtime.env`: those values are part of the App and come back from
-`GET /apps`.
+`GET /apps`. And `runtime.env` cannot reference a Secret: `valueFrom.secretKeyRef` is refused
+with `422` (the kubelet would resolve it for any Secret in the namespace, including other
+apps'), as is a `configMapKeyRef` to another app's `app-<name>-content` or
+`app-<name>-server`. `fieldRef`, `resourceFieldRef` and other ConfigMaps are fine.
 
 ## Upload request
 
@@ -168,7 +171,7 @@ curl -X POST https://apps.example.ai/api/v1/apps/upload \
 | `404` | App (or its pods, for logs) not found. |
 | `409` | An app with that name already exists in the namespace, or the subdomain is already used by another app. |
 | `413` | Request body over 2 MiB, secret values over 256 KiB, or inline files over the ~900 KB inline cap (`MAX_UPLOAD_BYTES`), whether they come from an upload (or its extracted contents) or from `source.inline.files` in a JSON `POST`/`PATCH`. Zip members are checked against the cap before they are decompressed. |
-| `422` | Invalid request: unsupported source type, missing required fields, an `access.groups`/`access.users` entry that is blank or contains a comma, or an invalid, duplicated or env-clashing secret name. |
+| `422` | Invalid request: unsupported source type, missing required fields, an `access.groups`/`access.users` entry that is blank or contains a comma, an invalid, duplicated or env-clashing secret name, or a `runtime.env` reference to a Secret or to another app's ConfigMap. |
 | `502` | The app's Secret could not be written (the reason is in the API's log, never a value). |
 
 Error bodies are `{"detail": "..."}` with an actionable message.
