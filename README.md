@@ -7,7 +7,7 @@ It is for platform teams who want their users to publish apps without learning K
 The web UI, the REST API, the MCP server for coding agents, and `kubectl`/GitOps all write
 the same `App` custom resource, and one operator turns it into workloads, routing and SSO.
 
-![The Apps page of the Nebari Apps Pack: a table of launched apps with their namespace, type, source, status, replicas and owner](docs/src/assets/screenshots/apps-list.png)
+![The Apps page of the Nebari Apps Pack: a banner saying two apps need attention above status filter chips and a table of launched apps with their type, source, status, replicas and owner, the failed app first](docs/src/assets/screenshots/apps-list.png)
 
 > **Status: alpha** ([`pack-metadata.yaml`](pack-metadata.yaml)). APIs, chart values and the
 > `App` CRD may still change between releases.
