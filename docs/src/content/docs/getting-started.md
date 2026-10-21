@@ -186,6 +186,15 @@ or pilot.
   each, but nothing caps how many Apps one user launches. Add a `ResourceQuota` to app
   namespaces if that matters (the chart can render a `LimitRange` and a `NetworkPolicy`:
   `apps.limitRange` / `apps.networkPolicy`).
+- **Scale to zero is off by default and has cold starts.** Idle Apps are scaled to zero only
+  when `apps.idle.timeoutMinutes` (or an App's `runtime.idleTimeoutMinutes`) is set. The first
+  request after idling gets a "starting" page until a pod is ready: seconds for a static app,
+  up to minutes for a Python app, which reinstalls its pixi environment. Any request to an idle
+  App's URL wakes it, including bots on public apps and signed-in users outside a restricted
+  App's groups. Apps that can idle carry the authz sidecar, and Python apps there listen on
+  8081. Idle detection counts HTTP requests through the sidecar only, so an app that works
+  in the background with no visitors needs `runtime.keepAlive: true`. See
+  [Scale to zero](/app-crd-reference/#scale-to-zero).
 - **One API version (`v1alpha1`) and no conversion webhook yet.** `helm upgrade` does not
   update CRDs; re-apply `charts/nebari-apps/crds/` on upgrades (see [Upgrading](/upgrading/)).
 - **The MCP server must run as a single replica**: device-flow sessions are held in process

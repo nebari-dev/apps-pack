@@ -49,7 +49,10 @@ function app(name: string, over: Partial<App> & { phase?: string } = {}): App {
     status: {
       phase,
       url: `https://${name}.apps.example.ai`,
-      replicas: { desired: phase === "Stopped" ? 0 : 1, ready: phase === "Running" ? 1 : 0 },
+      replicas: {
+        desired: phase === "Stopped" || phase === "Idle" ? 0 : 1,
+        ready: phase === "Running" ? 1 : 0,
+      },
       conditions: [],
       message: "",
     },
@@ -389,6 +392,21 @@ describe("apps page", () => {
     expect(within(rowOf("queued")).queryByRole("link", { name: /^Open/ })).not.toBeInTheDocument();
   });
 
+  it("lists an idle app with its URL (a visit wakes it) and Stop, not Start", async () => {
+    await renderApps([
+      app("alpha", { displayName: "Alpha Docs" }),
+      app("sleepy", { phase: "Idle" }),
+    ]);
+    const row = rowOf("sleepy");
+    expect(within(row).getByText("Idle")).toBeInTheDocument();
+    expect(within(row).getByRole("link", { name: "Open sleepy" })).toHaveAttribute(
+      "href",
+      "https://sleepy.apps.example.ai",
+    );
+    expect(within(row).getByRole("button", { name: "Stop app" })).toBeEnabled();
+    expect(within(row).queryByRole("button", { name: "Start app" })).not.toBeInTheDocument();
+  });
+
   it("shows onboarding, without the filters, when there are no apps", async () => {
     mocked.listApps.mockResolvedValue([]);
     renderAt("/", <Route path="/" element={<AppsPage />} />);
@@ -496,6 +514,25 @@ describe("app detail page", () => {
     const restart = screen.getByRole("menuitem", { name: /Restart/ });
     expect(restart).toHaveAttribute("aria-disabled", "true");
     expect(restart).toHaveTextContent("Start the app to restart it");
+  });
+
+  it("explains an idle app and wakes it", async () => {
+    const user = userEvent.setup();
+    const idle = app("docs", { phase: "Idle" });
+    idle.status.message = "scaled to zero after 30 minutes without requests";
+    idle.status.lastActivityTime = new Date(Date.now() - 2 * 3_600_000).toISOString();
+    await renderDetail(idle);
+    expect(screen.getByText(/Scaled to zero after going/)).toHaveTextContent(
+      "Last request 2 h ago.",
+    );
+    expect(screen.getByRole("link", { name: /Open/ })).toHaveAttribute("href", idle.status.url);
+    mocked.startApp.mockResolvedValue(app("docs", { phase: "Deploying" }));
+    await user.click(screen.getByRole("button", { name: /Wake/ }));
+    expect(mocked.startApp).toHaveBeenCalledWith("apps", "docs");
+    await openMoreMenu(user);
+    expect(screen.getByRole("menuitem", { name: /Restart/ })).toHaveTextContent(
+      "Wake the app to restart it",
+    );
   });
 
   it("hides Open while an app is still deploying, without alerting", async () => {

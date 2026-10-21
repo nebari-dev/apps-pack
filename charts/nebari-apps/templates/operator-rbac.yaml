@@ -38,6 +38,11 @@ rules:
   - apiGroups: [""]
     resources: ["persistentvolumeclaims"]
     verbs: ["get", "list", "watch"]
+  # Read-only, uncached: the idle check lists an App's ready pods to ask
+  # their sidecar when they last served a request.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
   - apiGroups: [""]
     resources: ["events"]
     verbs: ["create", "patch"]
@@ -82,6 +87,11 @@ rules:
   - apiGroups: [""]
     resources: ["events"]
     verbs: ["create", "patch"]
+  # The ReferenceGrant that lets idle Apps' HTTPRoutes reach the activator
+  # Service (this namespace only).
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["referencegrants"]
+    verbs: ["get", "create", "update"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

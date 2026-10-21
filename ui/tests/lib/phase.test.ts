@@ -2,17 +2,25 @@ import { describe, expect, it } from "vitest";
 import { comparePhase, failureReason, PHASE_SEVERITY } from "@/lib/phase";
 
 describe("phase severity", () => {
-  it("orders Failed, Deploying, Pending, Running, Stopped", () => {
-    expect(PHASE_SEVERITY).toEqual(["Failed", "Deploying", "Pending", "Running", "Stopped"]);
+  it("orders Failed, Deploying, Pending, Running, Idle, Stopped", () => {
+    expect(PHASE_SEVERITY).toEqual([
+      "Failed",
+      "Deploying",
+      "Pending",
+      "Running",
+      "Idle",
+      "Stopped",
+    ]);
   });
 
   it("sorts phases by severity with unknown and empty phases last", () => {
-    const phases = ["Stopped", "", "Running", "Weird", "Pending", "Failed", "Deploying"];
+    const phases = ["Stopped", "", "Running", "Weird", "Idle", "Pending", "Failed", "Deploying"];
     expect([...phases].sort(comparePhase)).toEqual([
       "Failed",
       "Deploying",
       "Pending",
       "Running",
+      "Idle",
       "Stopped",
       "",
       "Weird",

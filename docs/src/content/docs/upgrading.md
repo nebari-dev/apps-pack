@@ -77,6 +77,19 @@ Status fields in the backup are ignored; the operator recomputes them.
 
 ## Version notes
 
+### Upgrading to scale to zero
+
+- **Re-apply the CRD first.** It adds `runtime.idleTimeoutMinutes`, `status.lastActivityTime`
+  and the `Idle` phase; an operator running against the old CRD cannot report `Idle`.
+- **Off unless you turn it on.** `apps.idle.timeoutMinutes` defaults to `0`, so nothing idles
+  until you set it or an App sets `runtime.idleTimeoutMinutes`. Turning it on rolls the pods of
+  every App that can idle once: they gain the authz sidecar, and Python tasks there move to
+  port 8081 (`$PORT`). Set `runtime.keepAlive: true` first on Apps that must stay up.
+- **Gateway API `ReferenceGrant`.** Idle Apps route to the activator Service in the release
+  namespace through a `ReferenceGrant` the operator creates there; the operator gains
+  read-only access to pods and write access to `referencegrants` in its own namespace
+  ([details](/configuration/#apps-operator)).
+
 ### 0.1.0 → 0.2.0
 
 - **Namespaces first.** The API gets a RoleBinding in each namespace in

@@ -186,6 +186,24 @@ async def test_launch_landing_page_opt_in(store):
     assert store.apps[("apps", "docs-site")]["spec"]["landingPage"] == {"enabled": True}
 
 
+async def test_launch_idle_settings(store):
+    await call("launch_app", LAUNCH_ARGS)
+    runtime = store.apps[("apps", "docs-site")]["spec"]["runtime"]
+    assert "keepAlive" not in runtime and "idleTimeoutMinutes" not in runtime  # cluster default
+
+    await call("launch_app", {**LAUNCH_ARGS, "keep_alive": True, "idle_timeout_minutes": 45})
+    runtime = store.apps[("apps", "docs-site")]["spec"]["runtime"]
+    assert runtime["keepAlive"] is True
+    assert runtime["idleTimeoutMinutes"] == 45
+
+
+async def test_start_wakes_idle_app(store):
+    await call("launch_app", LAUNCH_ARGS)
+    store.apps[("apps", "docs-site")]["status"] = {"phase": "Idle"}
+    await call("start_app", {"namespace": "apps", "name": "docs-site"})
+    assert "apps.nebari.dev/wake-requested-at" in store.apps[("apps", "docs-site")]["metadata"]["annotations"]
+
+
 async def test_launch_refuses_to_overwrite_another_users_app(store, monkeypatch):
     """With API authorization on, the 409 -> PATCH upsert must not take over
     an app someone else owns.

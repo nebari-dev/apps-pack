@@ -12,7 +12,7 @@ kubectl get apps -n apps -w
 
 | File | What it shows |
 |---|---|
-| `static-inline-app.yaml` | Public static site with files carried inline in the CR (ConfigMap-backed). |
+| `static-inline-app.yaml` | Public static site with files carried inline in the CR (ConfigMap-backed); scales to zero after an hour without a request (`runtime.idleTimeoutMinutes`). |
 | `static-git-app.yaml` | Group-restricted static site cloned from git by an init container; Keycloak SSO at the gateway. |
 | `python-inline-app.yaml` | Minimal Python app carried inline (stdlib http.server) launched by a pixi task (`runtime.pixiTask`). |
 | `python-git-app.yaml` | Real Streamlit app cloned from git and launched by `pixi run start`. |

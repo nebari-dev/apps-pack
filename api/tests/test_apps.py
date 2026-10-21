@@ -93,6 +93,43 @@ def test_stop_start(client, store):
     assert store.apps[("apps", "docs-site")]["spec"]["runtime"]["replicas"] == 1
 
 
+def test_start_wakes_an_idle_app(client, store):
+    body = make_app_body()
+    body["runtime"] = {"replicas": 3, "idleTimeoutMinutes": 15}
+    client.post("/api/v1/apps", json=body)
+    cr = store.apps[("apps", "docs-site")]
+    cr["status"] = {"phase": "Idle", "lastActivityTime": "2026-10-20T10:00:00Z"}
+    assert client.get("/api/v1/apps/apps/docs-site").json()["status"]["lastActivityTime"] == "2026-10-20T10:00:00Z"
+
+    resp = client.post("/api/v1/apps/apps/docs-site/start")
+    assert resp.status_code == 200
+    cr = store.apps[("apps", "docs-site")]
+    assert cr["spec"]["runtime"]["replicas"] == 3, "waking keeps the desired replicas"
+    stamp = cr["metadata"]["annotations"]["apps.nebari.dev/wake-requested-at"]
+    assert stamp.endswith("Z") and "T" in stamp
+
+
+def test_idle_settings_round_trip(client, store):
+    body = make_app_body()
+    body["runtime"] = {"keepAlive": True, "idleTimeoutMinutes": 60}
+    assert client.post("/api/v1/apps", json=body).status_code == 201
+    runtime = store.apps[("apps", "docs-site")]["spec"]["runtime"]
+    assert runtime["keepAlive"] is True and runtime["idleTimeoutMinutes"] == 60
+    resp = client.patch(
+        "/api/v1/apps/apps/docs-site", json={"runtime": {"keepAlive": False, "idleTimeoutMinutes": None}}
+    )
+    assert resp.status_code == 200
+    runtime = store.apps[("apps", "docs-site")]["spec"]["runtime"]
+    assert "idleTimeoutMinutes" not in runtime
+
+
+@pytest.mark.parametrize("minutes", [0, 4, 43201])
+def test_idle_timeout_bounds(client, minutes):
+    body = make_app_body()
+    body["runtime"] = {"idleTimeoutMinutes": minutes}
+    assert client.post("/api/v1/apps", json=body).status_code == 422
+
+
 def test_patch_and_delete(client, store):
     client.post("/api/v1/apps", json=make_app_body())
     resp = client.patch("/api/v1/apps/apps/docs-site", json={"displayName": "Renamed"})
@@ -170,6 +207,7 @@ def test_catalogs(client):
     caps = client.get("/api/v1/capabilities").json()
     assert caps["sourceTypes"] == ["git", "inline", "pvc"]
     assert "apps" in caps["namespaces"]
+    assert caps["idleTimeoutMinutes"] == 0
     config = client.get("/api/v1/config").json()
     assert config["authEnabled"] is False
 

@@ -33,6 +33,8 @@ func newTestScheme(t *testing.T) *runtime.Scheme {
 	}
 	s.AddKnownTypeWithName(NebariAppGVK, &unstructured.Unstructured{})
 	s.AddKnownTypeWithName(NebariAppGVK.GroupVersion().WithKind("NebariAppList"), &unstructured.UnstructuredList{})
+	s.AddKnownTypeWithName(ReferenceGrantGVK, &unstructured.Unstructured{})
+	s.AddKnownTypeWithName(ReferenceGrantGVK.GroupVersion().WithKind("ReferenceGrantList"), &unstructured.UnstructuredList{})
 	return s
 }
 

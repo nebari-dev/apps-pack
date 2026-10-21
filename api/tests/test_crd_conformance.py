@@ -84,3 +84,14 @@ def test_request_bounds_match_the_crd(spec):
     assert constraint(models.AppAccess, "subdomain", "max_length") == subdomain["maxLength"]
     assert constraint(models.AppAccess, "subdomain", "pattern") == subdomain["pattern"]
     assert constraint(models.AppRuntime, "pixiTask", "max_length") == at(spec, "runtime.pixiTask")["maxLength"]
+    idle = at(spec, "runtime.idleTimeoutMinutes")
+    assert constraint(models.AppRuntime, "idleTimeoutMinutes", "ge") == idle["minimum"]
+    assert constraint(models.AppRuntime, "idleTimeoutMinutes", "le") == idle["maximum"]
+
+
+def test_status_phases_match_the_crd_enum():
+    crd = yaml.safe_load(CRD.read_text())
+    version = next(v for v in crd["spec"]["versions"] if v.get("storage"))
+    phases = version["schema"]["openAPIV3Schema"]["properties"]["status"]["properties"]["phase"]["enum"]
+    assert "Idle" in phases
+    assert set(models.AppStatus.model_fields) >= {"phase", "lastActivityTime"}

@@ -24,7 +24,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { appKey, appLabel, isStopped, type useAppActions } from "@/hooks/use-app-actions";
+import { appKey, appLabel, isIdle, isStopped, type useAppActions } from "@/hooks/use-app-actions";
 import { failureReason } from "@/lib/phase";
 import type { App } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -36,8 +36,8 @@ export type Sort = { col: SortCol; dir: SortDir };
 /** App kind shown in the Type column: pixi-launched apps are python, the rest static. */
 export const appType = (app: App) => (app.runtime?.pixiTask ? "python" : "static");
 
-/** Start applies to an App scaled to zero. */
-export const canStart = (app: App) => isStopped(app);
+/** Start applies to an App scaled to zero: stopped, or idle (Start wakes it). */
+export const canStart = (app: App) => isStopped(app) || isIdle(app);
 
 /** Stop applies to an App that is up or coming up, not one stopped or not yet scheduled. */
 export const canStop = (app: App) =>
@@ -61,9 +61,11 @@ export interface AppsTableProps {
   restarts?: Map<string, number>;
 }
 
-/** The App's live URL, while it is Running and has one. */
+/** The App's live URL, while it is Running (or Idle: opening it wakes it) and has one. */
 export const openUrl = (app: App) =>
-  app.status.phase === "Running" && app.status.url ? app.status.url : "";
+  (app.status.phase === "Running" || app.status.phase === "Idle") && app.status.url
+    ? app.status.url
+    : "";
 
 /** The apps list: sortable columns, row selection and per-row actions. */
 export function AppsTable({

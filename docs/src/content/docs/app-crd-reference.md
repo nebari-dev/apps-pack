@@ -107,8 +107,9 @@ current state of the ref.
 | `env` | [][EnvVar](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#environment-variables) | No | — | Environment variables. |
 | `resources` | [ResourceRequirements](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) | No | chart `apps.defaultResources` | CPU/memory requests and limits. Any cpu/memory request or limit left unset is filled from the cluster default for the app kind (static or Python); a filled limit never drops below the App's own request. Init containers get the same bounds. |
 | `replicas` | int | No | `1` | Desired replicas, `0`–`10`. `0` stops the app (phase `Stopped`). |
-| `keepAlive` | bool | No | `false` | Reserved for scale-to-zero idle reaping (not yet implemented). |
-| `pixiTask` | string | No | — | When set, the app runs as a **Python/pixi service**: the operator copies the source into a writable workspace, runs `pixi install` (`--locked` when a `pixi.lock` is present), then `pixi run <pixiTask>`. The task must start a server on `0.0.0.0:$PORT` (`PORT` and `HOME=/app` are injected; `PORT` is 8080, or 8081 when `access.groups` or `access.users` puts the authz sidecar on 8080). Max 64 chars. |
+| `keepAlive` | bool | No | `false` | `true` exempts the app from [scale to zero](#scale-to-zero): it keeps running however long it goes without a request, whatever `idleTimeoutMinutes` or the cluster default say. |
+| `idleTimeoutMinutes` | int | No | chart `apps.idle.timeoutMinutes` | Minutes without a request before the operator scales the app to zero (phase `Idle`), `5`–`43200`. Unset follows the cluster default (`0` there keeps apps running), so an App can opt in on a cluster that does not idle by default. Ignored when `keepAlive` is `true` or `replicas` is `0`. See [Scale to zero](#scale-to-zero). |
+| `pixiTask` | string | No | — | When set, the app runs as a **Python/pixi service**: the operator copies the source into a writable workspace, runs `pixi install` (`--locked` when a `pixi.lock` is present), then `pixi run <pixiTask>`. The task must start a server on `0.0.0.0:$PORT` (`PORT` and `HOME=/app` are injected; `PORT` is 8080, or 8081 when the sidecar takes 8080: `access.groups` or `access.users` is set, or the app can idle). Max 64 chars. |
 
 ## spec.access
 
@@ -129,12 +130,13 @@ current state of the ref.
 
 | Field | Type | Description |
 |---|---|---|
-| `phase` | string | `Pending` \| `Deploying` \| `Running` \| `Failed` \| `Stopped`. |
+| `phase` | string | `Pending` \| `Deploying` \| `Running` \| `Failed` \| `Stopped` \| `Idle`. `Stopped` means `replicas: 0` in the spec; `Idle` means the operator scaled the app to zero after its idle timeout, and the next request to its URL starts it again (it goes `Deploying`, then `Running`). |
 | `url` | string | Where the app is (or will be) reachable. |
 | `replicas` | object | `{desired, ready}` counts from the Deployment. |
 | `conditions` | []Condition | See below. |
 | `observedGeneration` | int64 | Last `metadata.generation` the operator processed. |
 | `message` | string | Human-readable summary. |
+| `lastActivityTime` | time | When the app last served a request, as far as the operator knows (it asks the app pod's sidecar every few minutes). Set only for apps that can idle; shown by `kubectl get apps -o wide` as **Last Active**. |
 
 ### Conditions
 
@@ -154,11 +156,41 @@ For each `App` the operator creates (and owns, via `ownerReferences`):
 |---|---|---|
 | ConfigMap | `app-<name>-content` | Inline source files (inline apps only). |
 | ConfigMap | `app-<name>-server` | The nginx server config with security headers (static apps only). |
-| Deployment | `app-<name>` | The app workload (hardened: non-root, no privilege escalation, seccomp `RuntimeDefault`). The `app` container comes first; an App that lists `access.groups` or `access.users` also gets the `authz` sidecar on 8080, with the app on 8081. |
+| Deployment | `app-<name>` | The app workload (hardened: non-root, no privilege escalation, seccomp `RuntimeDefault`). The `app` container comes first; an App that lists `access.groups` or `access.users`, or that can idle, also gets the `authz` sidecar on 8080, with the app on 8081 (for an unrestricted App the sidecar runs in passthrough mode and only records activity). Scaled to zero while the App is `Idle`. |
 | Service | `app-<name>` | ClusterIP on port 8080 (the app, or the authz sidecar in front of it). |
-| NebariApp | `app-<name>` | Routing + TLS + auth + (opt-in) landing-page tile, reconciled by the nebari-operator (contract pinned to `%NEBARI_OPERATOR_VERSION%`). |
+| NebariApp | `app-<name>` | Routing + TLS + auth + (opt-in) landing-page tile, reconciled by the nebari-operator (contract pinned to `%NEBARI_OPERATOR_VERSION%`). While the App is `Idle` or waking, `spec.service` points at the activator Service in the pack's namespace. |
 
 Deleting the `App` cascades through all of them.
+
+## Scale to zero
+
+An App **can idle** when its idle timeout (`runtime.idleTimeoutMinutes`, else the chart's
+`apps.idle.timeoutMinutes`) is above zero, `runtime.keepAlive` is not `true` and
+`runtime.replicas` is not `0`. Such an App runs the `authz` sidecar, which records when the app
+last served a request; a request still open (a WebSocket, a stream) counts until it ends, and
+requests the sidecar refuses (`401`/`403`) do not count. The operator asks every ready pod's
+sidecar every few minutes (a sixth of the timeout, between 30 seconds and 5 minutes) and keeps
+the answer in `status.lastActivityTime`.
+
+1. Once the App has gone a whole timeout without a request, the operator scales the Deployment
+   to zero and the phase becomes `Idle`. The App's spec, including `replicas`, is unchanged.
+2. Its `NebariApp` now routes to the **activator**: a page served by the operator itself (behind
+   the `<release>-activator` Service) that says the app is starting, reloads itself every few
+   seconds, and answers `503` with `Retry-After` for non-browser clients. Sign-in at the gateway
+   still applies to private apps.
+3. The request stamps the `apps.nebari.dev/wake-requested-at` annotation on the App, which counts
+   as a request: the operator scales the Deployment back to `replicas` (phase `Deploying`,
+   message "waking up"). Starting the App from the UI, the API or the `start_app` tool sets the
+   same annotation.
+4. When a pod is ready, routing moves back to the App's Service and the next reload reaches the
+   app. A cold start takes a few seconds for a static app; a Python app reinstalls its pixi
+   environment, which can take minutes.
+
+If the operator cannot read a pod's activity (a NetworkPolicy blocking it, an old pod without
+the sidecar), it counts the App as active: an App is never idled because the operator could not
+see it working. A newly idling App (just launched, or idling just turned on) starts its clock
+then. Turning `keepAlive` on, or idling on or off, rolls the App's pods, because the sidecar is
+added or removed.
 
 ## Versioning and deprecation
 

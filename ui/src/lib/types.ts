@@ -19,9 +19,11 @@ export type AppCondition = Crd.AppCondition;
 /** Resource name (cpu, memory, ephemeral-storage, nvidia.com/gpu, ...) -> quantity, as the API returns it. */
 export type ResourceAmounts = Record<string, string | undefined>;
 
-export type AppRuntime = Omit<Crd.AppRuntime, "resources"> & {
+export type AppRuntime = Omit<Crd.AppRuntime, "resources" | "idleTimeoutMinutes"> & {
   /** Requests and limits only. null in a PATCH clears them; an omitted field keeps the stored value. */
   resources?: { requests?: ResourceAmounts; limits?: ResourceAmounts } | null;
+  /** Minutes without a request before the app scales to zero. null in a PATCH returns to the cluster default. */
+  idleTimeoutMinutes?: number | null;
 };
 
 /** The API always returns these status fields; the CRD leaves them optional. */
@@ -29,6 +31,8 @@ export type AppStatus = Required<Pick<Crd.AppStatus, "conditions" | "message" | 
   /** Empty until the operator first reconciles the App. */
   phase: NonNullable<Crd.AppStatus["phase"]> | "";
   replicas?: Crd.AppReplicas | null;
+  /** When the app last served a request; empty unless it can idle. */
+  lastActivityTime?: string;
 };
 
 export interface App {
@@ -82,6 +86,8 @@ export interface Capabilities {
   appsDomain: string;
   sourceTypes: SourceType[];
   namespaces: string[];
+  /** Cluster default idle timeout in minutes; 0 = apps stay up unless they set one. */
+  idleTimeoutMinutes?: number;
 }
 
 export interface AppUsage {

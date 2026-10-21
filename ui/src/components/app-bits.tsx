@@ -1,4 +1,4 @@
-import { CheckCircle2, CircleDashed, Loader2, PauseCircle, XCircle } from "lucide-react";
+import { CheckCircle2, CircleDashed, Loader2, Moon, PauseCircle, XCircle } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,7 @@ export function PhaseBadge({ phase }: { phase: string }) {
     },
     Failed: { variant: "destructive", icon: <XCircle className="size-3.5" /> },
     Stopped: { variant: "secondary", icon: <PauseCircle className="size-3.5" /> },
+    Idle: { variant: "secondary", icon: <Moon className="size-3.5" /> },
     Deploying: {
       variant: "outline",
       icon: <Loader2 className="size-3.5 motion-safe:animate-spin" />,

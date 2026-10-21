@@ -7,8 +7,9 @@
  */
 
 /** Phases the operator has stopped working on. Failed is included: it can
- * recover on its own, but not on a timescale that needs fast polling. */
-const SETTLED = new Set(["Running", "Stopped", "Failed"]);
+ * recover on its own, but not on a timescale that needs fast polling. Idle
+ * apps wake on a visit, which turns them Deploying on the next slow poll. */
+const SETTLED = new Set(["Running", "Stopped", "Failed", "Idle"]);
 
 export const isSettled = (phase: string | undefined) => phase !== undefined && SETTLED.has(phase);
 

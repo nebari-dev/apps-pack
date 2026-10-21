@@ -700,3 +700,137 @@ func freeAddr(t *testing.T) string {
 	_ = ln.Close()
 	return addr
 }
+
+func TestFromEnvPassthrough(t *testing.T) {
+	cfg, err := FromEnv(env(map[string]string{
+		"AUTHZ_UPSTREAM":    "http://127.0.0.1:8081",
+		"AUTHZ_PASSTHROUGH": "true",
+	}))
+	if err != nil || !cfg.Passthrough {
+		t.Fatalf("passthrough needs only an upstream: %+v %v", cfg, err)
+	}
+	for _, v := range []string{"AUTHZ_GROUPS", "AUTHZ_USERS"} {
+		_, err := FromEnv(env(map[string]string{
+			"AUTHZ_UPSTREAM":    "http://127.0.0.1:8081",
+			"AUTHZ_PASSTHROUGH": "true",
+			v:                   "analysts",
+		}))
+		if err == nil || !strings.Contains(err.Error(), "cannot be combined") {
+			t.Errorf("passthrough with %s: %v", v, err)
+		}
+	}
+	if _, err := FromEnv(env(map[string]string{"AUTHZ_PASSTHROUGH": "true"})); err == nil {
+		t.Error("passthrough without an upstream should fail")
+	}
+}
+
+func TestActivity(t *testing.T) {
+	now := time.Unix(1_000, 0)
+	a := NewActivity(func() time.Time { return now })
+	if got := a.LastRequest().Unix(); got != 1_000 {
+		t.Fatalf("starts at start time: %d", got)
+	}
+	now = now.Add(time.Minute)
+	a.begin()
+	now = now.Add(time.Hour)
+	if got := a.LastRequest(); !got.Equal(now) {
+		t.Errorf("a request in flight is activity now: %v", got)
+	}
+	a.end()
+	now = now.Add(time.Hour)
+	if got := a.LastRequest().Unix(); got != 1_000+60+3600 {
+		t.Errorf("after the request ended: %d", got)
+	}
+
+	rec := httptest.NewRecorder()
+	(&Health{Activity: a}).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/activity", nil))
+	var body activityReport
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil || rec.Code != 200 || body.LastRequest != 1_000+60+3600 {
+		t.Errorf("/activity %d %s %v", rec.Code, rec.Body, err)
+	}
+	rec = httptest.NewRecorder()
+	(&Health{}).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/activity", nil))
+	if rec.Code != 404 {
+		t.Errorf("/activity without a tracker %d", rec.Code)
+	}
+}
+
+func TestHandlerRecordsOnlyAllowedRequests(t *testing.T) {
+	r := newRealm(t)
+	app := newApp(t)
+	cfg := testConfig(r)
+	cfg.Upstream, _ = url.Parse(app.URL)
+	now := time.Unix(1_000, 0)
+	act := NewActivity(func() time.Time { return now })
+	h := NewHandler(cfg, NewVerifier(cfg, oidc.NewRemoteKeySet(context.Background(), r.jwksURL())), http.DefaultTransport, quietLog())
+	h.Activity = act
+	srv := httptest.NewServer(h)
+	t.Cleanup(srv.Close)
+
+	now = time.Unix(2_000, 0)
+	resp, err := http.Get(srv.URL + "/denied")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if got := act.LastRequest().Unix(); got != 1_000 {
+		t.Errorf("a refused request counted as activity: %d", got)
+	}
+	req, _ := http.NewRequest(http.MethodGet, srv.URL+"/ok", nil)
+	req.Header.Set("Authorization", "Bearer "+r.mint(t, keycloakClaims(time.Now())))
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != 200 || act.LastRequest().Unix() != 2_000 {
+		t.Errorf("allowed request: status %d, last %d", resp.StatusCode, act.LastRequest().Unix())
+	}
+}
+
+func TestRunPassthrough(t *testing.T) {
+	app := newApp(t)
+	u, _ := url.Parse(app.URL)
+	cfg := Config{Upstream: u, Passthrough: true, Listen: freeAddr(t), HealthListen: freeAddr(t)}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	errc := make(chan error, 1)
+	go func() { errc <- Run(ctx, cfg, quietLog()) }()
+
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		resp, err := http.Get("http://" + cfg.HealthListen + "/readyz")
+		if err == nil {
+			_ = resp.Body.Close()
+			if resp.StatusCode == 200 {
+				break
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("never ready")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	resp, err := http.Get("http://" + cfg.Listen + "/x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("passthrough without a token: status %d", resp.StatusCode)
+	}
+	resp, err = http.Get("http://" + cfg.HealthListen + "/activity")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body activityReport
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+	_ = resp.Body.Close()
+	if body.LastRequest < time.Now().Add(-time.Minute).Unix() {
+		t.Errorf("/activity %+v", body)
+	}
+	cancel()
+	if err := <-errc; err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+}

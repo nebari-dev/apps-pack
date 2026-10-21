@@ -47,6 +47,11 @@ type Config struct {
 	// UsersClaim is the top-level claim holding the username
 	// (AUTHZ_USERS_CLAIM, default "preferred_username").
 	UsersClaim string
+	// Passthrough proxies every request without checking a token
+	// (AUTHZ_PASSTHROUGH=true). The operator sets it on Apps that restrict
+	// nobody but may be scaled to zero when idle, where the sidecar only
+	// records activity. It cannot be combined with groups or users.
+	Passthrough bool
 }
 
 // FromEnv builds a Config from getenv (os.Getenv in main), reporting every
@@ -62,6 +67,7 @@ func FromEnv(getenv func(string) string) (Config, error) {
 		GroupsClaim:  orDefault(getenv("AUTHZ_GROUPS_CLAIM"), "groups"),
 		Users:        splitList(getenv("AUTHZ_USERS")),
 		UsersClaim:   orDefault(getenv("AUTHZ_USERS_CLAIM"), "preferred_username"),
+		Passthrough:  strings.TrimSpace(getenv("AUTHZ_PASSTHROUGH")) == "true",
 	}
 
 	var errs []error
@@ -71,6 +77,16 @@ func FromEnv(getenv func(string) string) (Config, error) {
 		errs = append(errs, fmt.Errorf("AUTHZ_UPSTREAM %q must be an http(s) URL with a host", raw))
 	} else {
 		cfg.Upstream = u
+	}
+	if cfg.Listen == cfg.HealthListen {
+		errs = append(errs, errors.New("AUTHZ_LISTEN and AUTHZ_HEALTH_LISTEN must differ"))
+	}
+	if cfg.Passthrough {
+		// Refuse rather than silently open an App that meant to restrict.
+		if len(cfg.Groups) > 0 || len(cfg.Users) > 0 {
+			errs = append(errs, errors.New("AUTHZ_PASSTHROUGH cannot be combined with AUTHZ_GROUPS or AUTHZ_USERS"))
+		}
+		return cfg, errors.Join(errs...)
 	}
 	if len(cfg.Issuers) == 0 {
 		errs = append(errs, errors.New("AUTHZ_ISSUERS is required (comma-separated realm URLs)"))
@@ -87,9 +103,6 @@ func FromEnv(getenv func(string) string) (Config, error) {
 		// The sidecar exists only to restrict; with nothing to allow it
 		// would deny everyone, which is a misconfiguration, not a policy.
 		errs = append(errs, errors.New("AUTHZ_GROUPS or AUTHZ_USERS is required (comma-separated)"))
-	}
-	if cfg.Listen == cfg.HealthListen {
-		errs = append(errs, errors.New("AUTHZ_LISTEN and AUTHZ_HEALTH_LISTEN must differ"))
 	}
 	return cfg, errors.Join(errs...)
 }

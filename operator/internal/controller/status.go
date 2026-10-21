@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -28,7 +29,7 @@ func setCondition(app *appsv1alpha1.App, condType string, status metav1.Conditio
 
 // aggregateStatus reads the children back and folds their state into the
 // App's phase, conditions, replica counts, and URL.
-func (r *AppReconciler) aggregateStatus(ctx context.Context, app *appsv1alpha1.App) error {
+func (r *AppReconciler) aggregateStatus(ctx context.Context, app *appsv1alpha1.App, idle idleState) error {
 	// Workload readiness.
 	deploy := &appsv1.Deployment{}
 	err := r.Get(ctx, types.NamespacedName{Name: childName(app), Namespace: app.Namespace}, deploy)
@@ -63,10 +64,17 @@ func (r *AppReconciler) aggregateStatus(ctx context.Context, app *appsv1alpha1.A
 	app.Status.URL = r.Config.Scheme() + "://" + r.Config.Hostname(app)
 
 	switch {
+	case idle.idle:
+		app.Status.Phase = appsv1alpha1.AppPhaseIdle
+		app.Status.Message = fmt.Sprintf("scaled to zero after %s without requests; the next request to its URL starts it",
+			formatMinutes(idle.timeout))
 	case desired == 0:
 		app.Status.Phase = appsv1alpha1.AppPhaseStopped
 		app.Status.Message = "app is scaled to zero"
-	case workloadReady && routingReady:
+	case idle.waking:
+		app.Status.Phase = appsv1alpha1.AppPhaseDeploying
+		app.Status.Message = "waking up: a request arrived while the app was idle"
+	case workloadReady && routingReady && !idle.viaActivator:
 		app.Status.Phase = appsv1alpha1.AppPhaseRunning
 		app.Status.Message = "all replicas ready"
 	default:
@@ -130,4 +138,13 @@ func (r *AppReconciler) updateStatus(ctx context.Context, orig, app *appsv1alpha
 		return nil
 	}
 	return r.Status().Update(ctx, app)
+}
+
+// formatMinutes renders an idle timeout as "30 minutes".
+func formatMinutes(d time.Duration) string {
+	m := int(d / time.Minute)
+	if m == 1 {
+		return "1 minute"
+	}
+	return fmt.Sprintf("%d minutes", m)
 }

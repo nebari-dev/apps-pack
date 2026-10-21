@@ -38,6 +38,10 @@ export interface FormState {
   pvcSubPath: string;
   envVars: EnvVar[];
   replicas: number;
+  /** runtime.keepAlive: never scale to zero when idle. */
+  keepAlive: boolean;
+  /** runtime.idleTimeoutMinutes as typed; empty = the cluster default. */
+  idleTimeout: string;
   cpuReq: string;
   memReq: string;
   cpuLim: string;
@@ -62,6 +66,7 @@ export type Field =
   | "file"
   | "gitUrl"
   | "pvcClaim"
+  | "idleTimeout"
   | "subdomain";
 
 export interface Problem {
@@ -110,6 +115,11 @@ export function initialState(initial: App | undefined, isEdit: boolean): FormSta
     pvcSubPath: initial?.source?.pvc?.subPath ?? "",
     envVars: initial?.runtime?.env ?? [],
     replicas: initial?.runtime?.replicas ?? 1,
+    keepAlive: initial?.runtime?.keepAlive ?? false,
+    idleTimeout:
+      initial?.runtime?.idleTimeoutMinutes != null
+        ? String(initial.runtime.idleTimeoutMinutes)
+        : "",
     cpuReq: res?.requests?.cpu ?? "",
     memReq: res?.requests?.memory ?? "",
     cpuLim: res?.limits?.cpu ?? "",
@@ -180,12 +190,29 @@ export function validate(s: FormState, isEdit: boolean): Problem[] {
   }
   if (s.sourceTab === "git" && !s.gitUrl) add("gitUrl", "Enter the git repository URL.");
   if (s.sourceTab === "pvc" && !s.pvcClaim) add("pvcClaim", "Enter the PVC claim name.");
+  if (!s.keepAlive && s.idleTimeout.trim() && parseIdleTimeout(s.idleTimeout) === null)
+    add(
+      "idleTimeout",
+      `Idle timeout must be a whole number of minutes from ${IDLE_MIN} to ${IDLE_MAX}, or empty.`,
+    );
   if (!isEdit) {
     if (!s.subdomain) add("subdomain", "Pick a subdomain.");
     else if (!SUBDOMAIN_RE.test(s.subdomain))
       add("subdomain", "Subdomain must be lowercase letters, digits, and hyphens.");
   }
   return problems;
+}
+
+/** runtime.idleTimeoutMinutes bounds (the CRD's). */
+export const IDLE_MIN = 5;
+export const IDLE_MAX = 43200;
+
+/** "30" -> 30; null for anything that is not a whole number within the CRD's bounds. */
+export function parseIdleTimeout(raw: string): number | null {
+  const t = raw.trim();
+  if (!/^\d+$/.test(t)) return null;
+  const n = Number(t);
+  return n >= IDLE_MIN && n <= IDLE_MAX ? n : null;
 }
 
 // The form edits cpu and memory; any other resource the App already has
@@ -237,11 +264,21 @@ export function buildPayload(
   isEdit: boolean,
   initial: App | undefined,
 ): SubmitPayload | null {
+  // An idle timeout typed while keepAlive is on is kept but has no effect.
+  const idleTimeoutMinutes = parseIdleTimeout(s.idleTimeout);
   const runtime = {
     replicas: s.replicas,
     env: s.envVars.filter((e) => e.name),
     resources: buildResources(s, initial),
     pixiTask: s.kind === "pixi" ? s.pixiTask : "",
+    // An edit sends both so turning them off reaches the App (null returns
+    // the timeout to the cluster default); a launch sends only what is set.
+    ...(isEdit
+      ? { keepAlive: s.keepAlive, idleTimeoutMinutes }
+      : {
+          ...(s.keepAlive ? { keepAlive: true } : {}),
+          ...(idleTimeoutMinutes !== null ? { idleTimeoutMinutes } : {}),
+        }),
   };
 
   if (isEdit) {

@@ -64,7 +64,7 @@ func (r *AppReconciler) buildDeployment(app *appsv1alpha1.App) (*appsv1.Deployme
 	if err != nil {
 		return nil, err
 	}
-	if restricted(app) {
+	if r.Config.hasSidecar(app) {
 		r.addAuthzSidecar(app, &podSpec)
 		// kubectl logs/exec pick the app, not the sidecar.
 		annotations["kubectl.kubernetes.io/default-container"] = "app"
@@ -145,7 +145,7 @@ func (r *AppReconciler) buildStaticPodSpec(app *appsv1alpha1.App, annotations ma
 			},
 		}},
 	}
-	annotations["apps.nebari.dev/server-config-checksum"] = serverConfChecksum(app)
+	annotations["apps.nebari.dev/server-config-checksum"] = r.Config.serverConfChecksum(app)
 
 	switch app.Spec.Source.Type {
 	case appsv1alpha1.SourceTypeInline:
@@ -214,7 +214,7 @@ func (r *AppReconciler) buildPixiPodSpec(app *appsv1alpha1.App, annotations map[
 	// user-controlled strings (same convention as the git-clone init).
 	env := []corev1.EnvVar{
 		{Name: "PIXI_TASK", Value: app.Spec.Runtime.PixiTask},
-		{Name: "PORT", Value: fmt.Sprintf("%d", appContainerPort(app))},
+		{Name: "PORT", Value: fmt.Sprintf("%d", r.Config.appContainerPort(app))},
 		{Name: "HOME", Value: appWorkdir},
 	}
 	env = append(env, app.Spec.Runtime.Env...)

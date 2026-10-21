@@ -60,7 +60,7 @@ func TestStaticAppsServeWithSecurityHeaders(t *testing.T) {
 	if vol == nil || vol.ConfigMap == nil || vol.ConfigMap.Name != "app-docs-site-server" {
 		t.Errorf("server config volume missing or wrong: %+v", vol)
 	}
-	if deploy.Spec.Template.Annotations["apps.nebari.dev/server-config-checksum"] != serverConfChecksum(app) {
+	if deploy.Spec.Template.Annotations["apps.nebari.dev/server-config-checksum"] != r.Config.serverConfChecksum(app) {
 		t.Error("pod template should carry the server config checksum so config changes roll pods")
 	}
 }

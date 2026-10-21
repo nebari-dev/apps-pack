@@ -39,8 +39,14 @@ runtime:                       # optional
   # Python/pixi apps only: the pixi task that launches the app. When set, the
   # platform runs `pixi install` + `pixi run <task>` instead of serving the
   # source with nginx. The task must serve on 0.0.0.0:$PORT (PORT is injected:
-  # 8080, or 8081 when groups or users are set).
+  # 8080, or 8081 when groups or users are set or the app can idle).
   pixiTask: start
+  # Scale to zero after this many minutes without a request (5-43200); the next
+  # visit wakes it. Omit for the cluster default (often off).
+  idleTimeoutMinutes: 60
+  # true = never scale to zero (apps that must answer at once or work in the
+  # background without visitors). Omit otherwise.
+  keepAlive: false
 
 access:
   public: false                # true = anonymous; false = Keycloak SSO at the gateway
@@ -66,13 +72,15 @@ landingPage:                   # optional
 | `runtime.replicas` | `replicas` (0–10) |
 | `runtime.resources` | `resources` (same `{requests, limits}` shape; omitted values get the cluster default) |
 | `runtime.pixiTask` | `pixi_task` |
+| `runtime.keepAlive` | `keep_alive` |
+| `runtime.idleTimeoutMinutes` | `idle_timeout_minutes` (omit when the manifest omits it) |
 | `access.public` / `access.groups` / `access.users` | `public` / `groups` / `users` |
 | `access.subdomain` | `subdomain` |
 | `landingPage.enabled` | `landing_page` (omit when the manifest omits it) |
 
 The manifest covers everything `launch_app` accepts. The `App` resource has a few extra
-fields with no manifest/tool equivalent (`spec.owner`, `spec.thumbnail`,
-`runtime.keepAlive`) — set those via the API (`PATCH`) or `kubectl` after launch if needed.
+fields with no manifest/tool equivalent (`spec.owner`, `spec.thumbnail`) — set those via the
+API (`PATCH`) or `kubectl` after launch if needed.
 
 `files` constraints (they mirror the API's upload rules): static apps must include
 `index.html` at the root; pixi apps (`runtime.pixiTask` set) must include `pixi.toml` or
@@ -91,6 +99,13 @@ content files and the manifest.
 copied into a writable workspace, `pixi install` resolves the environment (use a
 committed `pixi.lock` for reproducible, faster starts), and `pixi run <task>` launches
 the app. The task must start a server on **0.0.0.0:$PORT** — `PORT` is injected (8080, or
-8081 when `access.groups`/`access.users` puts the authz sidecar on 8080), so use
+8081 when `access.groups`/`access.users` or idling puts the authz sidecar on 8080), so use
 `--port $PORT` and run `PORT=8080 pixi run start` locally (pixi tasks do not support
 `${PORT:-8080}`). No Dockerfile needed.
+
+**Idle apps.** When the cluster (or the manifest's `runtime.idleTimeoutMinutes`) sets an
+idle timeout, an app with no requests for that long is scaled to zero (phase `Idle`). Its
+URL keeps working: the first visit shows a "starting" page until the app is back, which
+takes seconds for a static app and longer for a Python app. `get_app_status` reporting
+`Idle` is normal, not a failure; `start_app` wakes it. Set `runtime.keepAlive: true` for
+apps that must always be up.

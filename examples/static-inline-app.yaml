@@ -8,6 +8,11 @@ metadata:
 spec:
   displayName: "Docs Site"
   description: "A tiny inline static site"
+  # Scale to zero after an hour without a request; the next visit wakes it.
+  # Omit to follow the cluster default (apps.idle.timeoutMinutes), or set
+  # keepAlive: true to keep the app always up.
+  runtime:
+    idleTimeoutMinutes: 60
   source:
     type: inline
     inline:

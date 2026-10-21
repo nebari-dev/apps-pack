@@ -46,6 +46,18 @@ spec:
       ports:
         - port: 8080
           protocol: TCP
+    # The operator's idle check asks the sidecar's health port for activity.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $root.Release.Namespace }}
+          podSelector:
+            matchLabels:
+              {{- include "nebari-apps.selectorLabels" $root | nindent 14 }}
+              app.kubernetes.io/component: operator
+      ports:
+        - port: 8082
+          protocol: TCP
   egress:
     - ports:
         - { port: 53, protocol: UDP }

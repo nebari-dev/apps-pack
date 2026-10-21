@@ -33,7 +33,9 @@ For each `App`, the operator runs an ordered, idempotent pipeline:
    `RuntimeDefault`): nginx serving the app's content, with git sources cloned by a
    non-root init container. Static apps run an operator-written nginx config (a
    `<app>-server` ConfigMap mounted over `/etc/nginx/conf.d`) that adds security headers.
-   An App restricted to groups or users also gets the `authz` sidecar (next section).
+   An App restricted to groups or users also gets the `authz` sidecar (next section), and so
+   does an App that can idle, where the sidecar records activity. Before the Deployment is
+   applied the operator runs the **idle check** (below) and scales an idle App to zero.
 4. **Service** — ClusterIP on port 8080.
 5. **Routing** — a `NebariApp` (contract pinned to nebari-operator `%NEBARI_OPERATOR_VERSION%`,
    guarded by a contract test) carrying the hostname, auth policy, TLS setting, and
@@ -43,6 +45,30 @@ For each `App`, the operator runs an ordered, idempotent pipeline:
 
 All children carry `ownerReferences`, so deletion cascades and the reconcile loop converges
 drift (edit or delete a child and it is restored).
+
+## Scale to zero
+
+An App that goes its idle timeout without a request is scaled to zero and wakes on the next
+request ([details](/app-crd-reference/#scale-to-zero)). The pieces:
+
+- **Activity.** The `authz` sidecar counts requests that reach the app and serves the time of
+  the last one on its health port (`GET :8082/activity`). Apps that restrict nobody run it in
+  passthrough mode, so public and restricted Apps are measured the same way. The operator polls
+  every ready pod (requeueing the App on a timer) and keeps the result in
+  `status.lastActivityTime`. A pod it cannot read counts as active.
+- **Idle.** Past the timeout the Deployment goes to zero replicas and the phase to `Idle`.
+  `spec.runtime.replicas` is untouched, so `Stopped` stays the owner's decision.
+- **Wake.** An idle App's `NebariApp` routes to the activator, an HTTP server inside every
+  operator replica behind the `<release>-activator` Service (a cross-namespace backend allowed by
+  a `ReferenceGrant` the operator maintains). It answers with a self-reloading "starting" page
+  and stamps the `apps.nebari.dev/wake-requested-at` annotation on the App. The annotation is
+  activity, so the reconcile it triggers scales the Deployment back up; routing returns to the
+  App's Service when a pod is ready. Visitors see the starting page, never a gateway error.
+
+```text
+request ─▶ gateway ─▶ NebariApp ─┬─ running: app-<name> Service ─▶ authz sidecar ─▶ app
+                                 └─ idle:    <release>-activator ─▶ operator: page + wake annotation
+```
 
 ## Authentication
 
@@ -133,7 +159,15 @@ The zone is configurable via the `appsDomain` value (default `apps.<clusterDomai
   Only when `api.allowedNamespaces` is empty (namespaces discovered by label) is the
   namespaced grant bound cluster-wide. On top of that, the API's owner-or-admin check is
   the boundary between users. The operator's RBAC covers only the resources it reconciles,
-  plus read-only access to PersistentVolumeClaims.
+  plus read-only access to PersistentVolumeClaims and pods (the idle check), and the
+  activator's `ReferenceGrant` in its own namespace.
+- The operator reads each idling App's activity from the pod, which runs untrusted code: the
+  answer is size- and time-bounded, a time in the future is clamped to now, and any failure
+  counts as activity, so a pod can at worst keep its own App awake (what `keepAlive` allows
+  anyway). The activator reveals only the host the caller asked for, and waking costs the
+  App's resources, nothing more: any request that reaches an idle App's URL wakes it,
+  including a signed-in user outside a restricted App's groups (the sidecar still refuses them
+  once the App is up).
 - A `pvc` source mounts a claim only if the claim is labeled `apps.nebari.dev/mountable=true`,
   so a shared or team volume cannot be published by anyone who can create an App.
 - Treat every app as untrusted user code: tenancy is per-namespace, and only opted-in

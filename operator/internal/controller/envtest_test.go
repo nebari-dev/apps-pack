@@ -239,6 +239,12 @@ func TestEnvtestCRDRejectsInvalidApps(t *testing.T) {
 		"bad subdomain":       func(a *appsv1alpha1.App) { a.Spec.Access.Subdomain = "Not_A_Label" },
 		"unknown source type": func(a *appsv1alpha1.App) { a.Spec.Source.Type = "ftp" },
 		"negative replicas":   func(a *appsv1alpha1.App) { a.Spec.Runtime.Replicas = ptr.To(int32(-1)) },
+		"idle timeout too short": func(a *appsv1alpha1.App) {
+			a.Spec.Runtime.IdleTimeoutMinutes = ptr.To(int32(4))
+		},
+		"idle timeout too long": func(a *appsv1alpha1.App) {
+			a.Spec.Runtime.IdleTimeoutMinutes = ptr.To(int32(43201))
+		},
 	} {
 		app := inlineApp("team-a")
 		app.Generation = 0

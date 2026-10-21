@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel
@@ -11,6 +12,15 @@ from .k8s import GROUP, VERSION
 from .models import AppCreate, AppOut, AppPatch, AppStatus
 
 API_VERSION = f"{GROUP}/{VERSION}"
+
+# Set on an App to wake it from Idle (operator/api/v1alpha1 WakeAnnotation):
+# an RFC 3339 time the operator counts as a request.
+WAKE_ANNOTATION = "apps.nebari.dev/wake-requested-at"
+
+
+def wake_timestamp() -> str:
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
 
 # A Kubernetes label value. Usernames that are not one (an email-style
 # preferred_username) get no owner label: spec.owner is the owner either way,
@@ -126,6 +136,7 @@ def from_cr(cr: dict[str, Any]) -> AppOut:
                 "replicas": status.get("replicas"),
                 "conditions": status.get("conditions", []),
                 "message": status.get("message", ""),
+                "lastActivityTime": status.get("lastActivityTime", ""),
             }
         ),
     )

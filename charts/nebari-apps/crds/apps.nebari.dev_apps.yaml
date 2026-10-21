@@ -24,6 +24,10 @@ spec:
     - jsonPath: .status.url
       name: URL
       type: string
+    - jsonPath: .status.lastActivityTime
+      name: Last Active
+      priority: 1
+      type: date
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
@@ -278,9 +282,22 @@ spec:
                       - name
                       type: object
                     type: array
+                  idleTimeoutMinutes:
+                    description: |-
+                      IdleTimeoutMinutes scales the app to zero after this many minutes
+                      without a request (phase Idle); the next request to its URL wakes it.
+                      Unset means the cluster default (the operator's --idle-timeout-minutes,
+                      chart apps.idle.timeoutMinutes; 0 there leaves apps running). Ignored
+                      when keepAlive is true or replicas is 0.
+                    format: int32
+                    maximum: 43200
+                    minimum: 5
+                    type: integer
                   keepAlive:
-                    description: KeepAlive prevents idle scale-down when scale-to-zero
-                      is enabled.
+                    description: |-
+                      KeepAlive exempts the app from scale-to-zero: it keeps running however
+                      long it goes without requests, whatever idleTimeoutMinutes or the
+                      cluster default (the operator's --idle-timeout-minutes) say.
                     type: boolean
                   pixiTask:
                     description: |-
@@ -490,6 +507,14 @@ spec:
                   - type
                   type: object
                 type: array
+              lastActivityTime:
+                description: |-
+                  LastActivityTime is when the app last served a request, as far as the
+                  operator knows (it polls the app pod's sidecar every few minutes).
+                  Set only for apps that idle; the app goes Idle once it is older than
+                  the idle timeout.
+                format: date-time
+                type: string
               message:
                 description: Message is a human-readable summary of the current state.
                 type: string
@@ -497,13 +522,17 @@ spec:
                 format: int64
                 type: integer
               phase:
-                description: AppPhase is a coarse summary of app state.
+                description: |-
+                  AppPhase is a coarse summary of app state. Idle means the operator scaled
+                  the app to zero after its idle timeout; unlike Stopped (replicas: 0 in the
+                  spec), the next request to its URL starts it again.
                 enum:
                 - Pending
                 - Deploying
                 - Running
                 - Failed
                 - Stopped
+                - Idle
                 type: string
               replicas:
                 description: AppReplicas reports desired vs ready replica counts.

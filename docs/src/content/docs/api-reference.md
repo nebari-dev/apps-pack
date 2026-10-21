@@ -46,7 +46,7 @@ create.
 | `GET /readyz` | Readiness (public): `200 {"status": "ok", "checks": {...}}` when the Kubernetes API answers a namespace list and, with auth on, the realm JWKS loads (each within 3s; a good JWKS fetch is reused for 60s). Otherwise `503`, with the failing check marked `"failed"` and the reason in the API's log. |
 | `GET /version` | Release and image build (public): `{"version": "0.2.0", "build": "sha-abc1234"}`. `build` is the chart's `api.image.tag` (`unknown` outside the chart). |
 | `GET /config` | UI bootstrap config (public): `authEnabled`, Keycloak url/realm/SPA client id, `appsDomain`, `appsScheme`, and the `version`/`build` above. |
-| `GET /capabilities` | `{appsDomain, sourceTypes, namespaces}` — what this cluster supports and where the caller may launch. `sourceTypes` is `["git", "inline", "pvc"]`. |
+| `GET /capabilities` | `{appsDomain, sourceTypes, namespaces, idleTimeoutMinutes}` — what this cluster supports and where the caller may launch. `sourceTypes` is `["git", "inline", "pvc"]`; `idleTimeoutMinutes` is the cluster default for [scale to zero](/app-crd-reference/#scale-to-zero) (`0`: apps stay up unless they set one). |
 | `GET /auth/me` | The caller's username, email, groups, and `admin` (member of an admin group). |
 
 ### Apps
@@ -57,10 +57,10 @@ create.
 | `POST /apps` | Create + launch. Body mirrors `App.spec` plus `name`/`namespace` (see below). `409` if the name exists in the namespace or the subdomain is used by any other app. |
 | `POST /apps/upload` | Create + launch an app from an upload. Multipart: `manifest` (JSON, source omitted) + `file` (`.zip` or `.html`). A manifest with `runtime.pixiTask` launches the zip as a Python/pixi app. |
 | `GET /apps/{ns}/{name}` | Full spec + status. |
-| `PATCH /apps/{ns}/{name}` | Update any of `displayName`, `description`, `thumbnail`, `source`, `runtime`, `access`. `runtime` and `access` merge field by field: a field you send replaces the stored one (`null` or empty removes it), and fields you leave out keep their value, including ones set with `kubectl` such as `env[].valueFrom`, `keepAlive` or extra resource names. `source` is replaced whole. `access.subdomain` cannot change (`422`). |
+| `PATCH /apps/{ns}/{name}` | Update any of `displayName`, `description`, `thumbnail`, `source`, `runtime`, `access`. `runtime` and `access` merge field by field: a field you send replaces the stored one (`null` or empty removes it), and fields you leave out keep their value, including ones set with `kubectl` such as `env[].valueFrom` or extra resource names. `source` is replaced whole. `access.subdomain` cannot change (`422`). |
 | `DELETE /apps/{ns}/{name}` | Delete (cascades to all children). |
 | `POST /apps/{ns}/{name}/stop` | Scale to zero. |
-| `POST /apps/{ns}/{name}/start` | Scale back to one. |
+| `POST /apps/{ns}/{name}/start` | Scale a stopped app back to one replica, or wake an `Idle` one (it keeps its replicas; the operator starts it as if a request had arrived). |
 | `POST /apps/{ns}/{name}/restart` | Roll the app's pods (like `kubectl rollout restart`) without changing the spec. `409` if the app is stopped. |
 
 ### Observability
@@ -98,7 +98,7 @@ create.
 To launch a **Python/pixi app**, add `"pixiTask": "<task>"` to `runtime` — the source
 (any type) must then contain a `pixi.toml` or `pyproject.toml` at its root, and the task
 must start a server on `0.0.0.0:$PORT` (8080, or 8081 when `access.groups` or
-`access.users` is set). See [Launching apps](/launching-apps/#python-apps-pixi).
+`access.users` is set or the app can idle). See [Launching apps](/launching-apps/#python-apps-pixi).
 
 `name` must be a valid Kubernetes name — lowercase letters, digits, and hyphens
 (`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`), at most 53 characters.

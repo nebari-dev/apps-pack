@@ -3,6 +3,8 @@ package main
 import (
 	"flag"
 	"os"
+	"strconv"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -65,6 +67,17 @@ func main() {
 	flag.BoolVar(&cfg.LandingPage, "landing-page", envOr("LANDING_PAGE", "") == "true",
 		"Cluster default for showing apps as tiles on the Nebari landing page (spec.landingPage.enabled overrides per app).")
 
+	var idleMinutes int
+	var activatorAddr string
+	flag.IntVar(&idleMinutes, "idle-timeout-minutes", envInt("IDLE_TIMEOUT_MINUTES", 0),
+		"Cluster default for scaling an App to zero after this many minutes without a request (0: only Apps that set runtime.idleTimeoutMinutes idle).")
+	flag.StringVar(&cfg.ActivatorService, "activator-service", envOr("ACTIVATOR_SERVICE", ""),
+		"Service in front of the activator, which idle Apps route to; empty disables scale-to-zero.")
+	flag.StringVar(&cfg.ActivatorNamespace, "activator-namespace", envOr("POD_NAMESPACE", ""),
+		"Namespace of --activator-service (default: $POD_NAMESPACE).")
+	flag.StringVar(&activatorAddr, "activator-bind-address", ":8090",
+		"The address the activator (the page idle Apps serve while they start) binds to; 0 disables it.")
+
 	opts := zap.Options{Development: false}
 	var staticResources, pythonResources, authzResources string
 	flag.StringVar(&staticResources, "default-static-resources", envOr("DEFAULT_STATIC_RESOURCES", ""),
@@ -100,6 +113,20 @@ func main() {
 		os.Exit(1)
 	}
 
+	if idleMinutes < 0 {
+		setupLog.Error(nil, "--idle-timeout-minutes must not be negative")
+		os.Exit(1)
+	}
+	if idleMinutes > 0 && idleMinutes < 5 {
+		setupLog.Error(nil, "--idle-timeout-minutes must be 0 or at least 5")
+		os.Exit(1)
+	}
+	cfg.IdleTimeout = time.Duration(idleMinutes) * time.Minute
+	if cfg.IdleTimeout > 0 && (cfg.ActivatorService == "" || cfg.ActivatorNamespace == "" || cfg.AuthzImage == "") {
+		setupLog.Error(nil, "--idle-timeout-minutes needs --activator-service, --activator-namespace and --authz-image")
+		os.Exit(1)
+	}
+
 	if cfg.AppsDomain == "" {
 		setupLog.Error(nil, "--apps-domain (or APPS_DOMAIN) is required")
 		os.Exit(1)
@@ -118,12 +145,25 @@ func main() {
 	}
 
 	if err := (&controller.AppReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		Config: cfg,
+		Client:     mgr.GetClient(),
+		Scheme:     mgr.GetScheme(),
+		Config:     cfg,
+		APIReader:  mgr.GetAPIReader(),
+		HTTPClient: controller.NewActivityClient(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "App")
 		os.Exit(1)
+	}
+	if activatorAddr != "0" {
+		if err := mgr.Add(&controller.Activator{
+			Client:     mgr.GetClient(),
+			AppsDomain: cfg.AppsDomain,
+			Addr:       activatorAddr,
+			Log:        ctrl.Log.WithName("activator"),
+		}); err != nil {
+			setupLog.Error(err, "unable to add the activator")
+			os.Exit(1)
+		}
 	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
@@ -137,7 +177,8 @@ func main() {
 
 	setupLog.Info("starting manager",
 		"appsDomain", cfg.AppsDomain, "gateway", cfg.Gateway,
-		"authzImage", cfg.AuthzImage, "keycloakIssuers", len(cfg.KeycloakURL+cfg.KeycloakInternalURL) > 0)
+		"authzImage", cfg.AuthzImage, "keycloakIssuers", len(cfg.KeycloakURL+cfg.KeycloakInternalURL) > 0,
+		"idleTimeout", cfg.IdleTimeout.String(), "activatorService", cfg.ActivatorNamespace+"/"+cfg.ActivatorService)
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
@@ -160,4 +201,16 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func envInt(key string, fallback int) int {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return fallback
+	}
+	return n
 }

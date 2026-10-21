@@ -33,6 +33,17 @@ apps:
     # "Apps" tile is separate (`ui.landingPage`).
     enabled: false
 
+  # Scale to zero: an App that goes this long without a request is scaled to
+  # zero replicas (phase `Idle`) and its URL serves a "starting" page from the
+  # operator's activator until the next request has started it again. An App
+  # sets `runtime.idleTimeoutMinutes` to override the default (and can opt in
+  # while it is 0) or `runtime.keepAlive: true` to opt out. Apps that can idle
+  # run the apps-authz sidecar, which records their activity.
+  idle:
+    # -- Cluster default idle timeout in minutes; `0` keeps apps running
+    # unless they set `runtime.idleTimeoutMinutes`. Otherwise at least 5.
+    timeoutMinutes: 0
+
   # -- Requests/limits the operator fills in for any cpu/memory value an App's
   # `runtime.resources` leaves unset, so no launched container runs unbounded.
   # A filled limit never drops below the App's own request. `static` is nginx
@@ -62,10 +73,11 @@ apps:
     max: { cpu: "4", memory: 4Gi }
   networkPolicy:
     # -- Render a NetworkPolicy for launched app pods: ingress only from the
-    # gateway namespace on the app port, egress only to DNS and to the internet
-    # minus `blockedCIDRs`, so user code cannot reach cluster-internal
-    # services. git/pixi sources still clone and install from the internet.
-    # Needs a CNI that enforces NetworkPolicy.
+    # gateway namespace on the app port (and from the operator on the
+    # sidecar's health port, for the idle check), egress only to DNS and to
+    # the internet minus `blockedCIDRs`, so user code cannot reach
+    # cluster-internal services. git/pixi sources still clone and install
+    # from the internet. Needs a CNI that enforces NetworkPolicy.
     enabled: false
     # -- Namespace of the Envoy gateway pods allowed to reach app pods.
     gatewayNamespace: envoy-gateway-system
