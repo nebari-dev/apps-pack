@@ -273,14 +273,46 @@ class AppOut(BaseModel):
     role: Role = ""
 
 
+class PodResources(BaseModel):
+    """The `app` container's CPU and memory, as requests or limits ("" when unset)."""
+
+    cpu: str = ""  # e.g. "500m" (millicores)
+    memory: str = ""  # e.g. "512Mi"
+
+
+class PodTermination(BaseModel):
+    """How the `app` container's previous run ended (its lastState.terminated)."""
+
+    # The kubelet's or runtime's CamelCase reason, e.g. OOMKilled, Error,
+    # Completed; "" when absent or not a plain identifier (it never carries
+    # the container's own termination message).
+    reason: str = ""
+    exitCode: int = 0
+    finishedAt: str = ""  # RFC 3339, UTC
+
+
 class PodMetric(BaseModel):
+    """One app pod: usage from metrics.k8s.io, health and resources from the pod."""
+
     name: str
-    cpu: str = ""  # e.g. "12m" (millicores)
-    memory: str = ""  # e.g. "34Mi"
+    cpu: str = ""  # e.g. "12m" (millicores); "" without a metrics server
+    memory: str = ""  # e.g. "34Mi"; "" without a metrics server
+    # Restarts of the `app` container (the authz sidecar's are not counted).
+    restarts: int = 0
+    lastTermination: PodTermination | None = None
+    # When the `app` container last started running; None while it is not running.
+    startedAt: str | None = None
+    limits: PodResources = Field(default_factory=PodResources)
+    requests: PodResources = Field(default_factory=PodResources)
 
 
 class AppMetrics(BaseModel):
-    """Instantaneous resource usage, summed per pod, from metrics.k8s.io."""
+    """Per-pod usage and health of an App.
+
+    available is true when metrics.k8s.io answered, so cpu/memory usage is
+    present. The pod-status fields (restarts, lastTermination, startedAt,
+    limits, requests) come from the pods themselves and are filled either way.
+    """
 
     available: bool = False
     pods: list[PodMetric] = Field(default_factory=list)

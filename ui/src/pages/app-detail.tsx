@@ -17,22 +17,20 @@ import {
   Trash2,
   XCircle,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   AppThumbnail,
   ConfirmDeleteDialog,
   KindBadge,
-  metricValue,
   PhaseBadge,
   SourceBadge,
-  Sparkline,
 } from "@/components/app-bits";
+import { ResourcesCard, RestartsCard } from "@/components/app-health-cards";
 import {
   ListSkeleton,
   LoadingStatus,
   LogSkeleton,
-  MetricSkeleton,
   PillSkeleton,
   TextLine,
 } from "@/components/loading-skeletons";
@@ -62,6 +60,7 @@ import { api } from "@/lib/api";
 import { copyText } from "@/lib/clipboard";
 import { ENTER, FADE_IN } from "@/lib/motion";
 import { appPath, DEFAULT_NAMESPACE } from "@/lib/paths";
+import { podHealth } from "@/lib/pod-health";
 import { pollFor } from "@/lib/polling";
 import { relativeTime } from "@/lib/time";
 import type { App } from "@/lib/types";
@@ -124,15 +123,16 @@ export function AppDetailPage() {
     retry: false,
   });
 
-  // Roll instantaneous metrics into a short client-side history for the sparkline.
+  // Pod health (restarts, limits) comes with every answer; usage only when
+  // the cluster has a metrics server. Roll usage into a short client-side
+  // history for the sparklines.
   const sample = metrics.data;
+  const health = useMemo(() => (sample ? podHealth(sample) : undefined), [sample]);
   useEffect(() => {
-    if (!sample?.available) return;
-    const cpu = sample.pods.reduce((sum, p) => sum + metricValue(p.cpu), 0);
-    const mem = sample.pods.reduce((sum, p) => sum + metricValue(p.memory), 0);
-    setCpuHistory((h) => [...h, cpu].slice(-MAX_SAMPLES));
-    setMemHistory((h) => [...h, mem].slice(-MAX_SAMPLES));
-  }, [sample]);
+    if (!sample?.available || !health) return;
+    setCpuHistory((h) => [...h, health.cpu].slice(-MAX_SAMPLES));
+    setMemHistory((h) => [...h, health.memory].slice(-MAX_SAMPLES));
+  }, [sample, health]);
 
   const { start, stop, restart, remove } = useAppActions({
     onDeleted: () => void navigate("/"),
@@ -166,9 +166,10 @@ export function AppDetailPage() {
   // wakes it and shows a starting page meanwhile.
   const ready = a?.status.phase === "Running" || idle;
   const failure = a ? failureOf(a) : null;
-  // A stopped or failed app has no pods to measure: say so instead of
-  // drawing empty CPU and memory cards. While loading, assume it has some.
-  const showUsage = a?.status.phase !== "Stopped" && a?.status.phase !== "Failed" && !idle;
+  // A stopped or idle app has no pods: say so instead of drawing empty
+  // Restarts and Resources cards. A failed app keeps them, since its
+  // crash-looping pods are what they explain. While loading, assume pods.
+  const showUsage = a?.status.phase !== "Stopped" && !idle;
   const url = a?.status.url;
   const copyUrl = async () => {
     if (!url) return;
@@ -451,52 +452,25 @@ export function AppDetailPage() {
         </Card>
         {showUsage ? (
           <>
-            <Card>
-              <CardHeader>
-                <CardTitle>CPU</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {metrics.isLoading || !a ? (
-                  <MetricSkeleton />
-                ) : metrics.data?.available ? (
-                  <div className={cn(metricsArrived && FADE_IN)}>
-                    <p className="font-semibold text-2xl tabular-nums">
-                      {cpuHistory.at(-1) ?? 0}
-                      <span className="ml-1 font-normal text-muted-foreground text-sm">m</span>
-                    </p>
-                    <Sparkline data={cpuHistory} className="mt-2 w-full" />
-                  </div>
-                ) : (
-                  <p className="text-muted-foreground text-sm">Metrics unavailable</p>
-                )}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Memory</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {metrics.isLoading || !a ? (
-                  <MetricSkeleton />
-                ) : metrics.data?.available ? (
-                  <div className={cn(metricsArrived && FADE_IN)}>
-                    <p className="font-semibold text-2xl tabular-nums">
-                      {memHistory.at(-1) ?? 0}
-                      <span className="ml-1 font-normal text-muted-foreground text-sm">Mi</span>
-                    </p>
-                    <Sparkline data={memHistory} className="mt-2 w-full" />
-                  </div>
-                ) : (
-                  <p className="text-muted-foreground text-sm">Metrics unavailable</p>
-                )}
-              </CardContent>
-            </Card>
+            <RestartsCard
+              health={health}
+              loading={metrics.isLoading || !a}
+              reveal={metricsArrived ? FADE_IN : undefined}
+            />
+            <ResourcesCard
+              health={health}
+              loading={metrics.isLoading || !a}
+              reveal={metricsArrived ? FADE_IN : undefined}
+              usageAvailable={sample?.available ?? false}
+              cpuHistory={cpuHistory}
+              memHistory={memHistory}
+            />
           </>
         ) : null}
       </div>
       {showUsage ? null : (
         <p className="text-muted-foreground text-sm">
-          CPU and memory are shown once the app is running.
+          Restarts and resources are shown once the app is running.
         </p>
       )}
 

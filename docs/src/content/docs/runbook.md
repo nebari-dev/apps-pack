@@ -170,9 +170,11 @@ kubectl -n nebari-apps exec deploy/nebari-apps-api -- python -c \
 
 ## metrics-server is missing
 
-The per-app CPU and memory on an app's detail page read `metrics.k8s.io`. Without
-metrics-server those cards say "Metrics unavailable", and restart counts (the Apps page's
-Needs attention banner) still work; nothing else depends on it.
+The live CPU and memory usage on an app's detail page (its Resources card) read
+`metrics.k8s.io`. Without metrics-server that card says "Live usage needs metrics-server"
+and still shows the limits; restarts, the last termination reason and uptime (the Restarts
+card, and the Apps page's Needs attention banner) come from pod status and still work.
+Nothing else depends on it.
 
 ```bash
 kubectl get apiservice v1beta1.metrics.k8s.io

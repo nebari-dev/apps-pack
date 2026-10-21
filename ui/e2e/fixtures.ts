@@ -12,6 +12,7 @@ import { test as base, expect, type Page, type Request } from "@playwright/test"
 import type { ApiVersion, App, AppCreate } from "../src/lib/types";
 import {
   API_VERSION,
+  appMetricsFor,
   BRANDING,
   CAPABILITIES,
   clusterMetricsFor,
@@ -40,8 +41,10 @@ export interface MockApi {
   version: ApiVersion;
   /** When set, GET /analytics/metrics fails with this status and detail. */
   failMetrics: { status: number; detail: string } | null;
-  /** Container restarts per App ("namespace/name") for GET /analytics/metrics. */
+  /** Container restarts per App ("namespace/name") for GET /analytics/metrics and an App's metrics. */
   restarts: Record<string, number>;
+  /** False: the cluster has no metrics server (an App's metrics carry no usage). */
+  metricsServer: boolean;
   /** Mutating requests, in the order they arrived. */
   requests: RecordedRequest[];
   /**
@@ -135,12 +138,7 @@ async function installApiRoutes(page: Page, api: MockApi, held: Held[]) {
       if (sub === "logs") return route.fulfill(json(200, { logs: api.logs }));
       if (sub === "events") return route.fulfill(json(200, EVENTS));
       if (sub === "metrics") {
-        return route.fulfill(
-          json(200, {
-            available: true,
-            pods: [{ name: `${name}-abc`, cpu: "12m", memory: "34Mi" }],
-          }),
-        );
+        return route.fulfill(json(200, appMetricsFor(app, api.restarts, api.metricsServer)));
       }
       if (["start", "stop", "restart"].includes(sub ?? "") && method === "POST") {
         return route.fulfill(json(200, app));
@@ -233,6 +231,7 @@ export const test = base.extend<{
         logs: LOGS,
         version: { ...API_VERSION },
         restarts: { ...RESTARTS },
+        metricsServer: true,
         requests: [],
         hold: (path) => {
           let release = () => {};

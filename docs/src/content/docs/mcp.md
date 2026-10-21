@@ -72,7 +72,7 @@ anonymously.
 | `update_app` | Patch spec (source, runtime, access, …). `access.managers` (`{users, groups}`) is the manager list; only the owner or an admin may change it. `secrets` (`{NAME: value}` sets or rotates, `{NAME: null}` removes) changes the app's secret values. |
 | `stop_app` / `start_app` | Scale to zero / back up; `start_app` also wakes an `Idle` app. |
 | `restart_app` | Roll the app's pods without changing the spec; fails if the app is stopped. |
-| `get_app_metrics` | Instantaneous CPU/memory per pod (`available:false` when the cluster has no metrics server). |
+| `get_app_metrics` | Per pod: instantaneous CPU/memory usage (`available:false`, and no usage, when the cluster has no metrics server), plus the app container's restarts, last termination (`reason` such as `OOMKilled`, `exitCode`, `finishedAt`), `startedAt`, and CPU/memory `limits` and `requests`, which come from the pod either way. |
 | `remove_app` | Delete permanently (cascades). Refused unless called with `confirm: true`, which the agent sets only after the user agrees. |
 
 Every tool carries MCP annotations, so clients that auto-approve tools can tell them

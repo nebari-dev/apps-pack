@@ -251,9 +251,3 @@ export function ConfirmDeleteDialog({
     </Dialog>
   );
 }
-
-/** Parse "12m" → 12 (millicores) or "34Mi" → 34 (Mi) for charting. */
-export function metricValue(raw: string): number {
-  const match = raw.match(/^([\d.]+)/);
-  return match ? Number(match[1]) : 0;
-}

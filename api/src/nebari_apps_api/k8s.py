@@ -7,8 +7,9 @@ an in-memory fake.
 from __future__ import annotations
 
 import base64
+import re
 from collections.abc import Callable
-from datetime import UTC
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Protocol, cast
 
 if TYPE_CHECKING:
@@ -29,6 +30,10 @@ READY_TIMEOUT = 3
 REQUEST_TIMEOUT = (5, 30)
 # Page size for list calls; results are followed through `continue` tokens.
 PAGE_SIZE = 500
+# A termination reason is the kubelet's or runtime's CamelCase identifier
+# (OOMKilled, Error, Completed); anything else is dropped, so no free text
+# from the container reaches API (and agent) callers through it.
+_REASON = re.compile(r"[A-Za-z][A-Za-z0-9]{0,63}")
 
 
 class NotFoundError(Exception):
@@ -67,6 +72,8 @@ class AppStore(Protocol):
     ) -> str: ...
 
     def pod_metrics(self, namespace: str, app_name: str) -> list[dict[str, Any]]: ...
+
+    def pod_health(self, namespace: str, app_name: str) -> list[dict[str, Any]]: ...
 
     def cluster_pod_metrics(self) -> list[dict[str, Any]]: ...
 
@@ -229,8 +236,6 @@ class KubernetesAppStore:
 
     def restart_app(self, namespace: str, app_name: str) -> None:
         """Roll the app's pods, like `kubectl rollout restart`."""
-        from datetime import datetime
-
         stamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
         patch = {"spec": {"template": {"metadata": {"annotations": {"kubectl.kubernetes.io/restartedAt": stamp}}}}}
         try:
@@ -308,6 +313,24 @@ class KubernetesAppStore:
             )
         return out
 
+    def pod_health(self, namespace: str, app_name: str) -> list[dict[str, Any]]:
+        """Health and resources of the App's live pods, from pod status and spec.
+
+        Needs no metrics server: one pod list call, by the App's label. Each
+        entry carries the `app` container's restart count (the authz
+        sidecar's are left out), how its previous run ended
+        (`lastTermination`: reason, exit code and finish time; never the
+        termination message, which the container writes), when it started
+        running, and its CPU (millicores) and memory (Mi) requests and limits.
+        Pods that have finished (phase Succeeded or Failed, e.g. evicted) are
+        skipped.
+        """
+        try:
+            pods = _list_typed(self._core.list_namespaced_pod, namespace, label_selector=f"{APP_LABEL}={app_name}")
+        except Exception as exc:
+            raise self._wrap(exc) from exc
+        return [_pod_health(pod) for pod in pods if pod.metadata and pod.metadata.name and _live(pod)]
+
     def cluster_pod_metrics(self) -> list[dict[str, Any]]:
         """Per-pod usage for every app pod in the cluster, keyed by app + namespace.
 
@@ -352,6 +375,57 @@ class KubernetesAppStore:
             restarts = sum(cs.restart_count or 0 for cs in statuses)
             out.append({"namespace": meta.namespace or "", "app": app, "restarts": restarts})
         return out
+
+
+def _live(pod: V1Pod) -> bool:
+    return (pod.status.phase if pod.status else None) not in ("Succeeded", "Failed")
+
+
+def _pod_health(pod: V1Pod) -> dict[str, Any]:
+    containers = pod.spec.containers if pod.spec else []
+    spec = next((c for c in containers if c.name == APP_CONTAINER), None)
+    statuses = (pod.status.container_statuses if pod.status else None) or []
+    status = next((cs for cs in statuses if cs.name == APP_CONTAINER), None)
+    resources = spec.resources if spec else None
+    terminated = status.last_state.terminated if status and status.last_state else None
+    running = status.state.running if status and status.state else None
+    last = None
+    if terminated:
+        reason = terminated.reason or ""
+        last = {
+            "reason": reason if _REASON.fullmatch(reason) else "",
+            "exitCode": terminated.exit_code or 0,
+            "finishedAt": _iso(terminated.finished_at),
+        }
+    return {
+        "name": pod.metadata.name if pod.metadata else "",
+        "restarts": (status.restart_count or 0) if status else 0,
+        "lastTermination": last,
+        "startedAt": (_iso(running.started_at) or None) if running else None,
+        "limits": _resources(resources.limits if resources else None),
+        "requests": _resources(resources.requests if resources else None),
+    }
+
+
+def _resources(values: dict[str, str] | None) -> dict[str, str]:
+    """CPU and memory quantities normalized the way usage is ("500m", "512Mi")."""
+    values = values or {}
+    cpu, memory = values.get("cpu"), values.get("memory")
+    return {
+        "cpu": f"{_cpu_to_milli(str(cpu))}m" if cpu else "",
+        "memory": f"{round(_mem_to_mi(str(memory)))}Mi" if memory else "",
+    }
+
+
+def _iso(value: datetime | str | None) -> str:
+    """A timestamp as RFC 3339 in UTC ("" when unset)."""
+    if not value:
+        return ""
+    if isinstance(value, str):
+        return value
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=UTC)
+    return value.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _b64(value: str) -> str:

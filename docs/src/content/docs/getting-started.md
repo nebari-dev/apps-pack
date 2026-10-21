@@ -20,8 +20,8 @@ title: Getting started
   defaults (`apps.defaultResources`: 50m / 64Mi requested, up to 500m / 256Mi, for a static
   site; 250m / 512Mi requested, up to 2 CPU / 2Gi, for a Python app, whose cold
   `pixi install` needs the memory).
-- Optional: metrics-server for per-app CPU/memory in the UI (the UI degrades gracefully
-  without it) and the LGTM observability pack for logs.
+- Optional: metrics-server for per-app live CPU/memory usage in the UI (without it the UI
+  still shows limits and restarts) and the LGTM observability pack for logs.
 
 Read the [Known limitations](#known-limitations) before a demo: group and user restrictions
 are enforced in the app pod (by a sidecar), not at the gateway, and users manage only their

@@ -98,6 +98,18 @@ class FakeStore:
             raise NotFoundError("metrics.k8s.io not available")
         return [{"name": f"app-{app_name}-abc123", "cpu": "12m", "memory": "34Mi"}]
 
+    def pod_health(self, namespace: str, app_name: str) -> list[dict[str, Any]]:
+        return [
+            {
+                "name": f"app-{app_name}-abc123",
+                "restarts": 3,
+                "lastTermination": {"reason": "OOMKilled", "exitCode": 137, "finishedAt": "2026-07-15T00:00:00Z"},
+                "startedAt": "2026-07-15T00:01:00Z",
+                "limits": {"cpu": "500m", "memory": "512Mi"},
+                "requests": {"cpu": "100m", "memory": "128Mi"},
+            }
+        ]
+
     def cluster_pod_metrics(self) -> list[dict[str, Any]]:
         if not self.metrics_available:
             raise NotFoundError("metrics.k8s.io not available")

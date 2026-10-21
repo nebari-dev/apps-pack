@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { relativeTime } from "@/lib/time";
+import { relativeTime, shortDuration } from "@/lib/time";
 
 const NOW = Date.parse("2026-10-20T12:00:00Z");
 const ago = (ms: number) => new Date(NOW - ms).toISOString();
@@ -33,5 +33,26 @@ describe("relativeTime", () => {
 
   it("defaults to the current time", () => {
     expect(relativeTime(new Date().toISOString())).toBe("just now");
+  });
+});
+
+describe("shortDuration", () => {
+  it.each([
+    [0, "<1m"],
+    [-5 * MIN, "<1m"],
+    [59_000, "<1m"],
+    [MIN, "1m"],
+    [59 * MIN, "59m"],
+    [HOUR, "1h"],
+    [23 * HOUR + 59 * MIN, "23h"],
+    [DAY, "1d"],
+    [30 * DAY + HOUR, "30d"],
+  ])("%d ms ago reads %s", (elapsed, expected) => {
+    expect(shortDuration(ago(elapsed), NOW)).toBe(expected);
+  });
+
+  it("is empty for an unparseable value, and defaults to the current time", () => {
+    expect(shortDuration("not a date", NOW)).toBe("");
+    expect(shortDuration(new Date().toISOString())).toBe("<1m");
   });
 });

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
@@ -490,7 +490,18 @@ describe("app detail page", () => {
     mocked.events.mockResolvedValue([]);
     mocked.metrics.mockResolvedValue({
       available: true,
-      pods: [{ name: "p", cpu: "3m", memory: "10Mi" }],
+      pods: [
+        {
+          name: "p",
+          cpu: "3m",
+          memory: "10Mi",
+          restarts: 0,
+          lastTermination: null,
+          startedAt: new Date(Date.now() - 3 * 24 * 3_600_000).toISOString(),
+          limits: { cpu: "500m", memory: "512Mi" },
+          requests: { cpu: "100m", memory: "128Mi" },
+        },
+      ],
     });
     before?.();
     renderAt(
@@ -722,24 +733,101 @@ describe("app detail page", () => {
     expect(alert).toHaveTextContent("Route is not ready");
   });
 
-  it("shows CPU and memory and no alert for a healthy app", async () => {
+  it("shows restarts, uptime, limits and usage and no alert for a healthy app", async () => {
     await renderDetail(app("docs"));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(screen.getByText("CPU")).toBeInTheDocument();
-    expect(screen.getByText("Memory")).toBeInTheDocument();
     expect(screen.getByText("of 1 ready")).toBeInTheDocument();
+    expect(await screen.findByText("Up 3d")).toBeInTheDocument();
+    expect(screen.getByText("Restarts", { exact: true })).toBeInTheDocument();
+    expect(screen.queryByText(/^Last:/)).toBeNull();
+    expect(screen.getByText("CPU 500m · Memory 512 Mi")).toBeInTheDocument();
+    expect(screen.getByText("3 / 500m")).toBeInTheDocument();
+    expect(screen.getByText("10 / 512 Mi")).toBeInTheDocument();
+    expect(screen.queryByText("Live usage needs metrics-server")).toBeNull();
+  });
+
+  it("shows an OOMKilled restart with a hint about the memory limit", async () => {
+    const finishedAt = new Date(Date.now() - 12 * 60_000).toISOString();
+    await renderDetail(app("docs"), "/apps/docs", () =>
+      mocked.metrics.mockResolvedValue({
+        available: false,
+        pods: [
+          {
+            name: "p",
+            cpu: "",
+            memory: "",
+            restarts: 4,
+            lastTermination: { reason: "OOMKilled", exitCode: 137, finishedAt },
+            startedAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+            limits: { cpu: "500m", memory: "256Mi" },
+            requests: { cpu: "", memory: "" },
+          },
+        ],
+      }),
+    );
+    expect(await screen.findByText("4")).toBeInTheDocument();
+    expect(screen.getByText("Up 5m")).toBeInTheDocument();
+    expect(screen.getByText(/^Last:/)).toHaveTextContent("Last: OOMKilled · 12 min ago");
+    expect(screen.getByText("12 min ago")).toHaveAttribute("datetime", finishedAt);
+    expect(screen.getByText(/memory limit may be too low/)).toBeInTheDocument();
+    // Without a metrics server the limits still show; usage says what it needs.
+    expect(screen.getByText("CPU 500m · Memory 256 Mi")).toBeInTheDocument();
+    expect(screen.getByText("Live usage needs metrics-server")).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "usage trend" })).toBeNull();
+  });
+
+  it("explains a restart that is not an OOM kill by its exit code, without the memory hint", async () => {
+    await renderDetail(app("docs"), "/apps/docs", () =>
+      mocked.metrics.mockResolvedValue({
+        available: true,
+        pods: [
+          {
+            name: "p",
+            cpu: "1m",
+            memory: "5Mi",
+            restarts: 1,
+            lastTermination: { reason: "", exitCode: 2, finishedAt: "" },
+            startedAt: null,
+            limits: { cpu: "", memory: "" },
+          },
+        ],
+      }),
+    );
+    expect(await screen.findByText(/^Last:/)).toHaveTextContent("Last: exit code 2");
+    expect(screen.getByText("Not running")).toBeInTheDocument();
+    expect(screen.queryByText(/memory limit may be too low/)).toBeNull();
+    expect(screen.getByText("CPU no limit · Memory no limit")).toBeInTheDocument();
+    expect(screen.getByText("5 Mi")).toBeInTheDocument();
+  });
+
+  it("says when the app has no pods, or pod status could not be read", async () => {
+    await renderDetail(failed(), "/apps/docs", () =>
+      mocked.metrics.mockResolvedValue({ available: false, pods: [] }),
+    );
+    expect(await screen.findAllByText("No pods running")).toHaveLength(2);
+    cleanup();
+    await renderDetail(app("docs"), "/apps/docs", () =>
+      mocked.metrics.mockRejectedValue(new Error("503")),
+    );
+    expect(await screen.findAllByText("Pod status unavailable")).toHaveLength(2);
+  });
+
+  it("keeps the restarts card for a failed app, whose pods are crash-looping", async () => {
+    await renderDetail(failed());
+    expect(screen.getByText("Restarts", { exact: true })).toBeInTheDocument();
+    expect(screen.queryByText(/shown once the app is running/)).toBeNull();
   });
 
   it.each([
     ["Stopped", () => app("docs", { phase: "Stopped" })],
-    ["Failed", () => failed()],
-  ])("explains the missing CPU and memory cards for a %s app", async (_phase, make) => {
+    ["Idle", () => app("docs", { phase: "Idle" })],
+  ])("explains the missing restarts and resources cards for a %s app", async (_phase, make) => {
     await renderDetail(make());
     expect(
-      screen.getByText("CPU and memory are shown once the app is running."),
+      screen.getByText("Restarts and resources are shown once the app is running."),
     ).toBeInTheDocument();
-    expect(screen.queryByText("CPU")).not.toBeInTheDocument();
-    expect(screen.queryByText("Memory")).not.toBeInTheDocument();
+    expect(screen.queryByText("Restarts", { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByText("Resources", { exact: true })).not.toBeInTheDocument();
   });
 
   it("filters logs in a focusable log region", async () => {
@@ -817,7 +905,7 @@ describe("app detail page", () => {
     expect(screen.getByRole("link", { name: "Apps" })).toHaveAttribute("href", "/");
     expect(screen.getByRole("link", { name: "Edit" })).toHaveAttribute("href", "/apps/docs/edit");
     expect(screen.getByRole("button", { name: "More actions" })).toBeDisabled();
-    for (const title of ["URL", "Replicas", "CPU", "Memory"]) {
+    for (const title of ["URL", "Replicas", "Restarts", "Resources"]) {
       expect(screen.getByText(title, { exact: true })).toBeInTheDocument();
     }
     for (const tab of ["Health", "Logs", "Events", "Manifest"]) {
@@ -855,8 +943,10 @@ describe("app detail page", () => {
       mocked.events.mockReturnValue(new Promise(() => {}));
       mocked.metrics.mockReturnValue(new Promise(() => {}));
     });
-    // CPU and memory do not claim "unavailable" before the metrics answer.
-    expect(screen.queryByText("Metrics unavailable")).toBeNull();
+    // Restarts and resources do not claim anything before the metrics answer.
+    expect(screen.queryByText("Pod status unavailable")).toBeNull();
+    expect(screen.queryByText("No pods running")).toBeNull();
+    expect(screen.queryByText("Live usage needs metrics-server")).toBeNull();
     await user.click(screen.getByRole("tab", { name: "Logs" }));
     const logsPanel = screen.getByRole("tabpanel", { name: "Logs" });
     expect(within(logsPanel).getByRole("status")).toHaveTextContent("Loading logs");

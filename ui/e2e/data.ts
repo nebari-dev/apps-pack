@@ -9,6 +9,7 @@ import type {
   ApiVersion,
   App,
   AppEvent,
+  AppMetrics,
   Capabilities,
   ClusterMetrics,
   Me,
@@ -187,6 +188,37 @@ export const RESTARTS: Record<string, number> = {
   "apps/docs-site": 1,
   "apps/broken-app": 4,
 };
+
+/**
+ * GET /apps/{namespace}/{name}/metrics: one pod with a 500m / 512Mi limit, up
+ * three days. Broken App's container was last OOMKilled and is crash-looping
+ * (not running). `usage` false is a cluster without a metrics server.
+ */
+export function appMetricsFor(app: App, restarts = RESTARTS, usage = true): AppMetrics {
+  const now = Date.now();
+  const broken = app.status.phase === "Failed";
+  return {
+    available: usage,
+    pods: [
+      {
+        name: `${app.name}-abc`,
+        cpu: usage ? "12m" : "",
+        memory: usage ? "34Mi" : "",
+        restarts: restarts[`${app.namespace}/${app.name}`] ?? 0,
+        lastTermination: broken
+          ? {
+              reason: "OOMKilled",
+              exitCode: 137,
+              finishedAt: new Date(now - 12 * 60_000).toISOString(),
+            }
+          : null,
+        startedAt: broken ? null : new Date(now - 3 * 24 * 3_600_000).toISOString(),
+        limits: { cpu: "500m", memory: "512Mi" },
+        requests: { cpu: "100m", memory: "128Mi" },
+      },
+    ],
+  };
+}
 
 /** GET /analytics/metrics: every App with pods (anything not Stopped). */
 export function clusterMetricsFor(apps: App[], restarts = RESTARTS): ClusterMetrics {
