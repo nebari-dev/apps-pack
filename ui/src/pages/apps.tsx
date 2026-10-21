@@ -11,7 +11,6 @@ import {
   type Sort,
   type SortCol,
 } from "@/components/apps-table";
-import { AppsTableSkeleton } from "@/components/loading-skeletons";
 import { Onboarding } from "@/components/onboarding";
 import { errorMessage, QueryError } from "@/components/query-error";
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -40,6 +39,7 @@ import { isMine } from "@/lib/access";
 import { api } from "@/lib/api";
 import { needsAttention } from "@/lib/attention";
 import { getUser } from "@/lib/auth";
+import { FADE_IN } from "@/lib/motion";
 import { comparePhase } from "@/lib/phase";
 import { listInterval } from "@/lib/polling";
 import type { App } from "@/lib/types";
@@ -282,7 +282,7 @@ export function AppsPage() {
               <>
                 <FilterChip
                   label="Mine"
-                  count={mineCount}
+                  count={apps.isSuccess ? mineCount : undefined}
                   active={mine}
                   onClick={() => setMineChoice(!mine)}
                 />
@@ -291,7 +291,7 @@ export function AppsPage() {
             ) : null}
             <FilterChip
               label="All"
-              count={scoped.length}
+              count={apps.isSuccess ? scoped.length : undefined}
               active={phaseFilter === null}
               onClick={() => setPhaseFilter(null)}
             />
@@ -351,7 +351,19 @@ export function AppsPage() {
       ) : null}
 
       {apps.isLoading ? (
-        <AppsTableSkeleton />
+        <AppsTable
+          loading
+          rows={[]}
+          sort={sort}
+          onToggleSort={toggleSort}
+          selected={selected}
+          allSelected={false}
+          someSelected={false}
+          onToggleAll={toggleAll}
+          onToggleOne={toggleOne}
+          actions={actions}
+          onDelete={setDeleteTarget}
+        />
       ) : apps.isError ? (
         <QueryError
           title="Could not load apps"
@@ -493,7 +505,8 @@ function FilterChip({
   onClick,
 }: {
   label: string;
-  count: number;
+  /** Left out while the list loads, so a chip never claims "All 0". */
+  count?: number;
   active: boolean;
   onClick: () => void;
 }) {
@@ -510,7 +523,11 @@ function FilterChip({
       )}
     >
       {label}
-      <span className={cn("tabular-nums", !active && "text-muted-foreground")}>{count}</span>
+      {count === undefined ? null : (
+        <span className={cn("tabular-nums", FADE_IN, !active && "text-muted-foreground")}>
+          {count}
+        </span>
+      )}
     </button>
   );
 }

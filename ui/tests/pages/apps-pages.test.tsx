@@ -418,23 +418,39 @@ describe("apps page", () => {
     expect(within(row).queryByRole("button", { name: "Start app" })).not.toBeInTheDocument();
   });
 
-  it("shows a table-shaped skeleton while the list loads, then the rows", async () => {
+  it("renders the page chrome at once and only skeletons the rows while the list loads", async () => {
     let resolve: (list: App[]) => void = () => {};
     mocked.listApps.mockReturnValue(new Promise((r) => (resolve = r)));
     const { container } = renderAt("/", <Route path="/" element={<AppsPage />} />);
-    // The heading is real from the start; only the table area is a placeholder.
+    // Static chrome is real from the start: heading, Launch, search, chips, headers.
     expect(screen.getByRole("heading", { level: 1, name: "Apps" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Launch app" })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Search by name/)).toBeInTheDocument();
+    expect(screen.getByRole("table")).toHaveAttribute("aria-busy", "true");
+    for (const name of ["App", "Status"]) {
+      expect(screen.getByRole("columnheader", { name: new RegExp(name) })).toBeInTheDocument();
+    }
+    expect(screen.getByRole("checkbox", { name: "Select all" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    // The All chip does not claim "All 0" before the list answers.
+    expect(screen.getByRole("button", { name: "All" })).toHaveTextContent(/^All$/);
     expect(screen.getByRole("status")).toHaveTextContent("Loading apps");
-    const busy = container.querySelector('[aria-busy="true"]');
-    expect(busy).toHaveAttribute("aria-hidden", "true");
-    expect(busy?.querySelectorAll("tbody tr").length).toBeGreaterThan(0);
-    // No rows are exposed to assistive tech while loading.
-    expect(screen.queryAllByRole("row")).toHaveLength(0);
+    // Only the body rows are placeholders, hidden from assistive tech.
+    const body = container.querySelector("tbody");
+    expect(body).toHaveAttribute("aria-hidden", "true");
+    expect(body?.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("row")).toHaveLength(1);
 
     resolve(LIST);
     expect(await screen.findByRole("link", { name: "Alpha Docs" })).toBeInTheDocument();
     expect(screen.queryByText("Loading apps")).toBeNull();
-    expect(container.querySelector('[aria-busy="true"]')).toBeNull();
+    expect(screen.getByRole("table")).not.toHaveAttribute("aria-busy");
+    expect(container.querySelector('[data-slot="skeleton"]')).toBeNull();
+    expect(screen.getByRole("button", { name: /^All/ })).toHaveTextContent(/^All\s*\d+$/);
+    // The rows that replaced the placeholder fade in, gated on motion-safe.
+    expect(container.querySelector("tbody")?.className).toContain("motion-safe:animate-fade-in");
   });
 
   it("shows onboarding, without the filters, when there are no apps", async () => {
@@ -781,7 +797,7 @@ describe("app detail page", () => {
     expect(panel).toHaveTextContent("apply with kubectl apply -f");
   });
 
-  it("shows a page-shaped skeleton while the app loads", async () => {
+  it("renders the page chrome while the app loads and skeletons only its values", async () => {
     mocked.getApp.mockReturnValue(new Promise(() => {}));
     mocked.logs.mockReturnValue(new Promise(() => {}));
     mocked.events.mockReturnValue(new Promise(() => {}));
@@ -791,8 +807,45 @@ describe("app detail page", () => {
       <Route path="/apps/:namespace/:name" element={<AppDetailPage />} />,
     );
     expect(await screen.findByRole("status")).toHaveTextContent("Loading app");
-    expect(container.querySelector('[aria-busy="true"]')).toHaveAttribute("aria-hidden", "true");
-    expect(screen.queryByRole("heading")).toBeNull();
+    // Static chrome: back link, Edit, card titles and the tabs.
+    expect(screen.getByRole("link", { name: "Apps" })).toHaveAttribute("href", "/apps");
+    expect(screen.getByRole("link", { name: "Edit" })).toHaveAttribute(
+      "href",
+      "/apps/apps/docs/edit",
+    );
+    expect(screen.getByRole("button", { name: "More actions" })).toBeDisabled();
+    for (const title of ["URL", "Replicas", "CPU", "Memory"]) {
+      expect(screen.getByText(title, { exact: true })).toBeInTheDocument();
+    }
+    for (const tab of ["Health", "Logs", "Events", "Manifest"]) {
+      expect(screen.getByRole("tab", { name: tab })).toBeInTheDocument();
+    }
+    // The App's own values are placeholders: no name heading, status or URL yet.
+    expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Stop|Start|Wake/ })).toBeNull();
+    expect(screen.queryByText("Not routed yet")).toBeNull();
+    expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0);
+    for (const block of container.querySelectorAll('[data-slot="skeleton"]')) {
+      expect(block.closest('[aria-hidden="true"]')).not.toBeNull();
+    }
+  });
+
+  it("fades the app's values in when they replace the skeleton", async () => {
+    let resolve: (a: App) => void = () => {};
+    mocked.getApp.mockReturnValue(new Promise((r) => (resolve = r)));
+    mocked.logs.mockResolvedValue({ logs: "" });
+    mocked.events.mockResolvedValue([]);
+    mocked.metrics.mockResolvedValue({ available: false, pods: [] });
+    renderAt(
+      "/apps/apps/docs",
+      <Route path="/apps/:namespace/:name" element={<AppDetailPage />} />,
+    );
+    await screen.findByRole("status");
+    resolve(app("docs"));
+    const heading = await screen.findByRole("heading", { level: 1, name: "docs" });
+    expect(heading.parentElement?.parentElement?.className).toContain(
+      "motion-safe:animate-fade-in",
+    );
   });
 
   it("shows skeletons, not empty-state text, while logs, events and metrics load", async () => {

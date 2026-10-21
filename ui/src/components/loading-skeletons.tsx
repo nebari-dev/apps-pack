@@ -1,44 +1,46 @@
 import type { ReactNode } from "react";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { TableCell, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
 /*
- * Loading placeholders that mirror the layout they stand in for, so the page
- * keeps its shape while data arrives instead of jumping from a spinner. Each
- * region is announced once: a visually hidden status names what is loading,
- * and the placeholder itself is aria-busy and hidden from assistive tech (the
- * registry Skeleton is aria-hidden, and its pulse is gated on motion-safe).
+ * Placeholders for data that is still on its way. Pages render their static
+ * chrome (headings, buttons, labels, table headers, tabs) for real at once;
+ * only the parts that wait on a request use these. Each loading page
+ * announces itself once with a visually hidden status, and the placeholders
+ * are hidden from assistive tech (the registry Skeleton is aria-hidden, and
+ * its pulse is gated on motion-safe).
  */
 
+/** A visually hidden status naming what is loading, e.g. "Loading apps". */
+export function LoadingStatus({ label }: { label: string }) {
+  return (
+    <p role="status" className="sr-only">
+      {label}
+    </p>
+  );
+}
+
 /**
- * Wraps a placeholder: a status line for screen readers ("Loading apps") and
- * the aria-busy placeholder. The status sits outside the busy element so
- * screen readers do not hold its announcement back.
+ * Wraps a self-contained placeholder: the status line and the aria-busy
+ * placeholder. The status sits outside the busy element so screen readers do
+ * not hold its announcement back.
  */
 export function LoadingRegion({
   label,
   className,
   children,
 }: {
-  /** What is loading, announced once, e.g. "Loading apps". */
+  /** What is loading, announced once, e.g. "Loading logs". */
   label: string;
   className?: string;
   children: ReactNode;
 }) {
   return (
     <>
-      <p role="status" className="sr-only">
-        {label}
-      </p>
+      <LoadingStatus label={label} />
       <div aria-busy="true" aria-hidden="true" data-slot="loading-region" className={className}>
         {children}
       </div>
@@ -47,226 +49,121 @@ export function LoadingRegion({
 }
 
 /** A Skeleton line centred in a box with the height of the text it replaces. */
-function TextLine({ box = "h-5", className }: { box?: string; className?: string }) {
+export function TextLine({ box = "h-5", className }: { box?: string; className?: string }) {
   return (
-    <div className={cn("flex items-center", box)}>
+    <div aria-hidden="true" className={cn("flex items-center", box)}>
       <Skeleton className={className} />
     </div>
   );
 }
 
 /** Badge-sized pill (Badge is 22px tall: py-0.5 + leading-4 + border). */
-function PillSkeleton({ className }: { className?: string }) {
+export function PillSkeleton({ className }: { className?: string }) {
   return <Skeleton className={cn("h-5.5 w-16 rounded-full", className)} />;
 }
 
-/** Page heading plus its one-line subtitle, sized like the pages' own. */
-function HeadingSkeleton({
-  back = false,
-  subtitle = true,
-}: {
-  back?: boolean;
-  subtitle?: boolean;
-}) {
+/**
+ * Placeholder rows for the apps table body, cell for cell like
+ * {@link AppsTable}'s rows (Type, Source, Replicas and Owner from md up).
+ * Rendered inside the real table, under its real column headers.
+ */
+export function AppsTableRowsSkeleton({ rows = 5 }: { rows?: number }) {
+  return Array.from({ length: rows }, (_, i) => (
+    // biome-ignore lint/suspicious/noArrayIndexKey: placeholder rows have no identity
+    <TableRow key={i} data-slot="skeleton-row">
+      <TableCell>
+        <Skeleton className="size-4 rounded-[2px]" />
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center gap-3">
+          <Skeleton className="size-9 rounded-md max-sm:hidden" />
+          <div className="min-w-0 max-sm:max-w-32">
+            <TextLine className={i % 2 ? "w-24" : "w-32"} />
+            <TextLine box="h-4" className="h-3 w-40 max-sm:w-28" />
+          </div>
+        </div>
+      </TableCell>
+      <TableCell className="hidden md:table-cell">
+        <PillSkeleton className="w-14" />
+      </TableCell>
+      <TableCell className="hidden md:table-cell">
+        <PillSkeleton className="w-12" />
+      </TableCell>
+      <TableCell>
+        <PillSkeleton className="w-20" />
+      </TableCell>
+      <TableCell className="hidden md:table-cell">
+        <TextLine className="w-8" />
+      </TableCell>
+      <TableCell className="hidden md:table-cell">
+        <TextLine className="w-20" />
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center justify-end gap-1">
+          <Skeleton className="size-7 rounded-md max-sm:hidden" />
+          <Skeleton className="size-7 rounded-md max-sm:hidden" />
+          <Skeleton className="size-7 rounded-md" />
+        </div>
+      </TableCell>
+    </TableRow>
+  ));
+}
+
+/** A labelled field whose control is still loading: the real label over an input-sized block. */
+function FieldSkeleton({ label, wide = false }: { label: string; wide?: boolean }) {
   return (
-    <div>
-      {back ? <TextLine className="mb-1 w-20" /> : null}
-      <TextLine box="h-8" className="h-6 w-48" />
-      {subtitle ? <TextLine className="w-72 max-w-full" /> : null}
+    <div className={cn("space-y-1.5", wide && "sm:col-span-2")}>
+      <Label>{label}</Label>
+      <Skeleton className="h-8.5 rounded-md" />
     </div>
   );
 }
 
-/** Route fallback while a page's code loads: a heading over a content block. */
-export function PageSkeleton() {
+/** A form card whose title is known but whose fields depend on the App's source. */
+function SectionSkeleton({ title }: { title: string }) {
   return (
-    <LoadingRegion label="Loading page" className="space-y-6">
-      <HeadingSkeleton />
-      <Skeleton shape="block" className="h-64" />
-    </LoadingRegion>
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <TextLine className="w-96 max-w-full" />
+        <Skeleton className="h-8.5 rounded-md" />
+      </CardContent>
+    </Card>
   );
 }
-
-const HEADS = [
-  { label: "App" },
-  { label: "Type", wide: true },
-  { label: "Source", wide: true },
-  { label: "Status" },
-  { label: "Replicas", wide: true },
-  { label: "Owner", wide: true },
-] as const;
 
 /**
- * The apps table while the list loads: the real table frame and column
- * headings with placeholder rows, showing the same columns at each width as
- * {@link AppsTable} (Type, Source, Replicas and Owner from md up).
+ * The edit form while the App loads: the real section titles and, for Basics
+ * (the same fields for every App), the real labels; values are placeholders.
+ * The sections below Basics depend on the App's source, so they show a title
+ * over a placeholder body. `actions` holds the form's real buttons.
  */
-export function AppsTableSkeleton({ rows = 5 }: { rows?: number }) {
+export function AppFormSkeleton({ actions }: { actions: ReactNode }) {
   return (
-    <LoadingRegion label="Loading apps">
-      <Table
-        className="max-sm:[&_td]:px-2 max-sm:[&_th]:px-2"
-        scrollContainerProps={{ tabIndex: -1 }}
-      >
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-10">
-              <Skeleton className="size-4 rounded-[2px]" />
-            </TableHead>
-            {HEADS.map((h) => (
-              <TableHead key={h.label} className={cn("wide" in h && "hidden md:table-cell")}>
-                {h.label}
-              </TableHead>
-            ))}
-            <TableHead className="text-right">
-              <span className="max-sm:sr-only">Actions</span>
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {Array.from({ length: rows }, (_, i) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: placeholder rows have no identity
-            <TableRow key={i}>
-              <TableCell>
-                <Skeleton className="size-4 rounded-[2px]" />
-              </TableCell>
-              <TableCell>
-                <div className="flex items-center gap-3">
-                  <Skeleton className="size-9 rounded-md max-sm:hidden" />
-                  <div className="min-w-0 max-sm:max-w-32">
-                    <TextLine className={i % 2 ? "w-24" : "w-32"} />
-                    <TextLine box="h-4" className="h-3 w-40 max-sm:w-28" />
-                  </div>
-                </div>
-              </TableCell>
-              <TableCell className="hidden md:table-cell">
-                <PillSkeleton className="w-14" />
-              </TableCell>
-              <TableCell className="hidden md:table-cell">
-                <PillSkeleton className="w-12" />
-              </TableCell>
-              <TableCell>
-                <PillSkeleton className="w-20" />
-              </TableCell>
-              <TableCell className="hidden md:table-cell">
-                <TextLine className="w-8" />
-              </TableCell>
-              <TableCell className="hidden md:table-cell">
-                <TextLine className="w-20" />
-              </TableCell>
-              <TableCell>
-                <div className="flex items-center justify-end gap-1">
-                  <Skeleton className="size-7 rounded-md max-sm:hidden" />
-                  <Skeleton className="size-7 rounded-md max-sm:hidden" />
-                  <Skeleton className="size-7 rounded-md" />
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </LoadingRegion>
-  );
-}
-
-/** A card with a title line and body lines, standing in for a stat card. */
-function CardSkeleton({ lines = 2 }: { lines?: number }) {
-  return (
-    <Card>
-      <CardHeader>
-        <TextLine box="h-6" className="w-20" />
-      </CardHeader>
-      <CardContent className="space-y-2">
-        <TextLine box="h-8" className="h-6 w-24" />
-        {Array.from({ length: lines - 1 }, (_, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: placeholder lines have no identity
-          <TextLine key={i} box="h-4" className="h-3 w-3/4" />
-        ))}
-      </CardContent>
-    </Card>
-  );
-}
-
-/** An app's page while it loads: header, the four summary cards, tabs and a panel. */
-export function AppDetailSkeleton() {
-  return (
-    <LoadingRegion label="Loading app" className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex min-w-0 flex-1 gap-4">
-          <Skeleton className="mt-6 size-12 rounded-md" />
-          <div className="min-w-0 flex-1">
-            <TextLine className="mb-1 w-14" />
-            <div className="flex flex-wrap items-center gap-3">
-              <TextLine box="h-8" className="h-6 w-48" />
-              <PillSkeleton className="w-12" />
-              <PillSkeleton className="w-20" />
-            </div>
-            <TextLine className="mt-1 w-80 max-w-full" />
-            <TextLine className="mt-1 w-56 max-w-full" />
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-          <Skeleton className="h-8 w-20 rounded-md" />
-          <Skeleton className="h-8 w-20 rounded-md" />
-          <Skeleton className="h-8 w-18 rounded-md" />
-          <Skeleton className="size-8 rounded-md" />
-        </div>
+    <div className="max-w-3xl space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Basics</CardTitle>
+        </CardHeader>
+        <CardContent aria-hidden="true" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <FieldSkeleton label="Name" />
+          <FieldSkeleton label="Display name" />
+          <FieldSkeleton label="Description" wide />
+          <FieldSkeleton label="Thumbnail URL" />
+          <FieldSkeleton label="Namespace" />
+          <FieldSkeleton label="App type" />
+        </CardContent>
+      </Card>
+      <SectionSkeleton title="Source" />
+      <SectionSkeleton title="Runtime" />
+      <SectionSkeleton title="Access" />
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+        <TextLine className="w-64 max-w-full" />
+        <div className="flex flex-col gap-2 sm:ml-auto sm:flex-row">{actions}</div>
       </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <CardSkeleton lines={4} />
-        <CardSkeleton lines={3} />
-        <CardSkeleton lines={3} />
-        <CardSkeleton lines={3} />
-      </div>
-      <div className="space-y-8">
-        <Skeleton className="h-9 w-64 max-w-full rounded-md" />
-        <Skeleton shape="block" className="h-40" />
-      </div>
-    </LoadingRegion>
-  );
-}
-
-/** One form section: a card with a title and a two-column grid of fields. */
-function FormSectionSkeleton({
-  fields,
-  wide = [],
-  subtitle = true,
-}: {
-  fields: number;
-  /** Indexes of fields that span both columns. */
-  wide?: number[];
-  subtitle?: boolean;
-}) {
-  return (
-    <Card>
-      <CardHeader>
-        <TextLine box="h-6" className="w-24" />
-        {subtitle ? <TextLine className="w-96 max-w-full" /> : null}
-      </CardHeader>
-      <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {Array.from({ length: fields }, (_, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: placeholder fields have no identity
-          <div key={i} className={cn("space-y-1.5", wide.includes(i) && "sm:col-span-2")}>
-            <TextLine className="w-24" />
-            <Skeleton className="h-8.5 rounded-md" />
-          </div>
-        ))}
-      </CardContent>
-    </Card>
-  );
-}
-
-/** The edit page while the app loads: back link, heading and the form's sections. */
-export function AppFormSkeleton() {
-  return (
-    <LoadingRegion label="Loading app" className="space-y-6">
-      <HeadingSkeleton back subtitle={false} />
-      <div className="max-w-3xl space-y-6">
-        <FormSectionSkeleton fields={6} wide={[2]} subtitle={false} />
-        <FormSectionSkeleton fields={2} />
-        <FormSectionSkeleton fields={2} wide={[0, 1]} />
-      </div>
-    </LoadingRegion>
+    </div>
   );
 }
 
@@ -282,17 +179,26 @@ export function LogSkeleton() {
   );
 }
 
-/** Placeholder rows for a short list in a card (events). */
-export function ListSkeleton({ label, rows = 3 }: { label: string; rows?: number }) {
+/** Placeholder rows for a short list in a card (events, conditions). */
+export function ListSkeleton({ label, rows = 3 }: { label?: string; rows?: number }) {
+  const lines = Array.from({ length: rows }, (_, i) => (
+    // biome-ignore lint/suspicious/noArrayIndexKey: placeholder rows have no identity
+    <div key={i} className="space-y-1.5">
+      <TextLine className="w-1/3" />
+      <TextLine className="w-2/3" />
+    </div>
+  ));
+  // Without a label the page already announces what is loading.
+  if (!label) {
+    return (
+      <div aria-hidden="true" className="space-y-3">
+        {lines}
+      </div>
+    );
+  }
   return (
     <LoadingRegion label={label} className="space-y-3">
-      {Array.from({ length: rows }, (_, i) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: placeholder rows have no identity
-        <div key={i} className="space-y-1.5">
-          <TextLine className="w-1/3" />
-          <TextLine className="w-2/3" />
-        </div>
-      ))}
+      {lines}
     </LoadingRegion>
   );
 }

@@ -112,6 +112,11 @@ helm lint charts/nebari-apps --set clusterDomain=nebari.example.com
   and put app-specific variations in `ui/src/components/`. The vendored design-system skill at
   `ui/.claude/skills/nebari-ui/SKILL.md` is a registry copy too
   (`npx shadcn add @nebari/claude-skill --overwrite` from `ui/`).
+- Don't put a page behind a whole-page skeleton. UI pages render their static chrome
+  (headings, buttons, labels, table headers, tabs) at once and use the placeholders in
+  `ui/src/components/loading-skeletons.tsx` only where data is pending. Motion comes from the
+  theme's `animate-*` utilities via `ui/src/lib/motion.ts`, always behind `motion-safe:`, and
+  plays on change (`ui/src/hooks/use-changed.ts`), never on the first paint.
 - Don't edit `uv.lock` or `package-lock.json` by hand; change `pyproject.toml` or
   `package.json` and relock (`uv lock`, `npm install`).
 - Don't add a version, image tag or `latest` default to the chart's `values.yaml`; released

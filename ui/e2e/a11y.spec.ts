@@ -28,21 +28,30 @@ const PAGES: { name: string; path: string; heading: string; ready?: string }[] =
   { name: "not found", path: "/no-such-page", heading: "Page not found" },
 ];
 
-// Pages whose content loads behind a skeleton: `hold` is the API request held
-// open, `label` the status announced while it is, `loaded` a role that shows
-// the real content replaced the placeholder.
+// Pages whose data loads behind skeletons: `hold` is the API request held
+// open, `label` the status announced while it is, `chrome` the static parts
+// that render for real before any data, and `loaded` a role that shows the
+// real content replaced the placeholders.
+type Role = Parameters<Page["getByRole"]>;
 const LOADING: {
   name: string;
   path: string;
   hold: RegExp;
   label: string;
-  loaded: Parameters<Page["getByRole"]>;
+  chrome: Role[];
+  loaded: Role;
 }[] = [
   {
     name: "apps list",
     path: "/apps",
     hold: /^\/apps$/,
     label: "Loading apps",
+    chrome: [
+      ["heading", { level: 1, name: "Apps" }],
+      ["link", { name: "Launch app" }],
+      ["textbox"],
+      ["columnheader", { name: "Status" }],
+    ],
     loaded: ["link", { name: "Docs Site" }],
   },
   {
@@ -50,6 +59,12 @@ const LOADING: {
     path: "/apps/apps/docs-site",
     hold: /^\/apps\/apps\/docs-site$/,
     label: "Loading app",
+    chrome: [
+      ["link", { name: "Apps", exact: true }],
+      ["link", { name: "Edit" }],
+      ["tab", { name: "Health" }],
+      ["tab", { name: "Logs" }],
+    ],
     loaded: ["heading", { level: 1, name: "Docs Site" }],
   },
   {
@@ -57,7 +72,11 @@ const LOADING: {
     path: "/apps/apps/docs-site/edit",
     hold: /^\/apps\/apps\/docs-site$/,
     label: "Loading app",
-    loaded: ["heading", { level: 1, name: "Edit app" }],
+    chrome: [
+      ["heading", { level: 1, name: "Edit app" }],
+      ["button", { name: "Cancel" }],
+    ],
+    loaded: ["textbox", { name: "Display name" }],
   },
 ];
 
@@ -75,7 +94,7 @@ for (const theme of ["light", "dark"] satisfies Theme[]) {
       });
     }
 
-    for (const { name, path, hold, label, loaded } of LOADING) {
+    for (const { name, path, hold, label, chrome, loaded } of LOADING) {
       test(`${name} loading skeleton has no critical or serious violations @a11y`, async ({
         page,
         api,
@@ -83,15 +102,21 @@ for (const theme of ["light", "dark"] satisfies Theme[]) {
         const release = api.hold(hold);
         await page.goto(path);
         await expect(page.getByRole("status").filter({ hasText: label })).toBeAttached();
-        const busy = page.locator('[aria-busy="true"]');
-        await expect(busy).toHaveAttribute("aria-hidden", "true");
-        await expect(busy.locator('[data-slot="skeleton"]').first()).toBeVisible();
+        for (const role of chrome) await expect(page.getByRole(...role).first()).toBeVisible();
+        // Only the data regions are placeholders, each hidden from assistive tech.
+        const skeletons = page.locator('[data-slot="skeleton"]');
+        await expect(skeletons.first()).toBeVisible();
+        expect(
+          await skeletons.evaluateAll((els) =>
+            els.every((el) => el.closest('[aria-hidden="true"]')),
+          ),
+        ).toBe(true);
         await expectResolvedTheme(page, theme);
         await expectNoCriticalOrSeriousA11yViolations(page);
 
         release();
         await expect(page.getByRole(...loaded).first()).toBeVisible();
-        await expect(busy).toHaveCount(0);
+        await expect(skeletons).toHaveCount(0);
       });
     }
 

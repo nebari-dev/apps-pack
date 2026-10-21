@@ -67,16 +67,21 @@ by digest. When you change a runtime version, change the pin file and the matchi
 The UI has a bundle budget: `npm run size` gzips what the browser loads before first paint
 (the entry script and everything `dist/index.html` preloads) and all JS, and fails when either
 is over `bundleBudget` in `ui/package.json` (kB, gzip; 195 initial and 240 total today, about
-5% above the current build). Pages load on first visit (`React.lazy` in `src/main.tsx`) and
-keycloak-js only when auth is on, so new page code rarely touches the initial number. If it
+5% above the current build). Pages load on first visit (`React.lazy` in `src/main.tsx`, which
+also prefetches the other pages once the browser is idle) and keycloak-js only when auth is on, so new page code rarely touches the initial number. If it
 goes over, move the code out of the initial load before raising the budget.
 
 The UI's end-to-end suite (`ui/e2e/`, Playwright on Chromium) loads the production build
 under `vite preview`, so run `npm run build` first. It mocks the apps-api with `page.route`
 fixtures (`ui/e2e/fixtures.ts`, App data in `ui/e2e/data.ts`), so no cluster is needed. It
-covers the apps list (the home page) with its Needs attention banner, Open links, and loading (skeleton), empty and error states,
-launching an app (validation included), an app's detail and logs, and keyboard-only use of the
-launch form, the app actions and the account menu. Tests tagged `@a11y` run axe over every page in light and dark and fail on a
+covers the apps list (the home page) with its Needs attention banner, Open links, and loading,
+empty and error states (while a request is held open, the page's static chrome, such as the
+heading, buttons, search, table headers and tabs, must already be real, with skeletons only where
+the data goes), launching an app (validation included), an app's detail and logs, and
+keyboard-only use of the launch form, the app actions and the account menu. `ui/e2e/motion.spec.ts`
+checks the motion: a page eases in after a navigation but not on the first paint, rows that
+replace a skeleton fade in, dialogs use the theme's duration token, and none of it runs under
+`prefers-reduced-motion: reduce`. Tests tagged `@a11y` run axe over every page in light and dark and fail on a
 `critical` or `serious` WCAG 2.0/2.1 A or AA violation; a second `mobile` project reruns them
 at 390px wide alongside `ui/e2e/responsive.spec.ts`, which fails when a page or table scrolls
 sideways or the header's nav runs under the account menu; unlike the jsdom check in
