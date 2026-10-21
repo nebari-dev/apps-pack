@@ -89,7 +89,7 @@ sideways or the header's nav runs under the account menu; unlike the jsdom check
 `npx playwright install chromium`; after a run, `npx playwright show-report` opens the HTML
 report (CI uploads it as the `playwright-report` artifact).
 
-The README and docs screenshot (`docs/src/assets/screenshots/apps-list.png`) comes from the same
+The README screenshot (`docs/src/assets/screenshots/apps-list.png`) comes from the same
 mocked API: after a UI change that alters the apps list, run `npm run build && npm run screenshot`
 in `ui/` and commit the new image.
 
