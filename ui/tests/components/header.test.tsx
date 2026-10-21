@@ -16,10 +16,10 @@ describe("Header", () => {
     expect(screen.getByRole("link", { name: /go to homepage/i })).toHaveAttribute("href", "/");
   });
 
-  it("links to Apps, the home page, without a Dashboard or Metrics page", () => {
+  it("has no page links: the logo is the only way home", () => {
     renderWithRouter(<Header />);
 
-    expect(screen.getByRole("link", { name: /^apps$/i })).toHaveAttribute("href", "/apps");
+    expect(screen.getAllByRole("link")).toHaveLength(1);
     expect(screen.queryByRole("link", { name: /dashboard/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /metrics/i })).not.toBeInTheDocument();
   });

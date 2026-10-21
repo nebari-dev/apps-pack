@@ -191,7 +191,7 @@ it("moves focus to the new page's heading after navigating", async () => {
     </>,
   );
   await screen.findByRole("heading", { level: 1, name: "Launch an app" });
-  await user.click(screen.getByRole("link", { name: /^apps$/i }));
+  await user.click(screen.getByRole("button", { name: "Cancel" }));
   const heading = await screen.findByRole("heading", { level: 1, name: "Apps" });
   expect(heading).toHaveFocus();
 });

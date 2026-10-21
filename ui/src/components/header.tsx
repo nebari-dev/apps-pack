@@ -1,7 +1,6 @@
 import { Menu as MenuPrimitive } from "@base-ui/react/menu";
-import { ChevronDown, LogOut, Monitor, Moon, Rocket, Sun } from "lucide-react";
+import { ChevronDown, LogOut, Monitor, Moon, Sun } from "lucide-react";
 import type { ReactNode } from "react";
-import { Link, useLocation } from "react-router-dom";
 import nebariLogo from "@/assets/nebari-logo.svg";
 import nebariLogoDark from "@/assets/nebari-logo_dark.svg";
 import { Avatar, AvatarFallback } from "@/components/avatar";
@@ -13,19 +12,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  MenuBarActions,
-  MenuBarBrand,
-  MenuBarNav,
-  NavigationMenu,
-  NavLink,
-} from "@/components/ui/navigation-menu";
+import { MenuBarActions, MenuBarBrand, NavigationMenu } from "@/components/ui/navigation-menu";
 import { isThemeMode, type ThemeMode } from "@/hooks/use-theme-preference";
 import { getConfig } from "@/lib/auth";
 import { getBranding } from "@/lib/branding";
 import { cn } from "@/lib/utils";
-
-const NAV = [{ to: "/apps", label: "Apps", icon: Rocket, end: false }];
 
 type User = {
   name?: string;
@@ -57,8 +48,6 @@ export function Header({
   onThemeChange,
   onSignOut,
 }: HeaderProps) {
-  const { pathname } = useLocation();
-
   // Branded logo from /config.json (ui.branding.logoUrl / logoUrlDark), falling
   // back to the bundled Nebari logos. Dark mode prefers the dark override, then
   // the light one, then the built-in dark logo - mirroring nebari-landing.
@@ -76,23 +65,6 @@ export function Header({
           <img src={isDarkMode ? nebariLogoDark : nebariLogo} alt="Nebari" className="h-8 w-auto" />
         )}
       </MenuBarBrand>
-
-      <MenuBarNav className="ml-1 sm:ml-4">
-        {NAV.map(({ to, label, icon: Icon, end }) => (
-          <NavLink
-            key={to}
-            active={end ? pathname === to : pathname === to || pathname.startsWith(`${to}/`)}
-            icon={<Icon />}
-            title={label}
-            // Below md the label stays in the DOM (the link's accessible name)
-            // but only the icon shows, so the nav fits beside the account menu.
-            className="max-md:[&>span]:sr-only"
-            render={<Link to={to} />}
-          >
-            {label}
-          </NavLink>
-        ))}
-      </MenuBarNav>
 
       <MenuBarActions className="gap-2">
         <DropdownMenu modal={false}>
