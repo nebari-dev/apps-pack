@@ -21,6 +21,18 @@ export type SubmitPayload =
   | { kind: "upload"; manifest: Omit<AppCreate, "source">; file: File }
   | { kind: "patch"; body: AppPatch };
 
+/** One row of the Secrets editor. */
+export interface SecretRow {
+  name: string;
+  /** What the user typed; empty on a saved key means "keep the stored value". */
+  value: string;
+  /** Already stored on the App (an edit): its name is fixed and its value is never shown. */
+  stored: boolean;
+}
+
+/** A secret name becomes an environment variable name (the CRD's runtime.secretKeys rule). */
+export const SECRET_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
 export interface FormState {
   nameInput: string;
   displayName: string;
@@ -37,6 +49,10 @@ export interface FormState {
   pvcClaim: string;
   pvcSubPath: string;
   envVars: EnvVar[];
+  /** Secret keys: saved ones (names only) and new ones with their values. */
+  secrets: SecretRow[];
+  /** Saved secret keys the user removed; an edit sends them as null. */
+  removedSecrets: string[];
   replicas: number;
   /** runtime.keepAlive: never scale to zero when idle. */
   keepAlive: boolean;
@@ -71,6 +87,7 @@ export type Field =
   | "gitUrl"
   | "pvcClaim"
   | "idleTimeout"
+  | "secrets"
   | "subdomain";
 
 export interface Problem {
@@ -118,6 +135,12 @@ export function initialState(initial: App | undefined, isEdit: boolean): FormSta
     pvcClaim: initial?.source?.pvc?.claimName ?? "",
     pvcSubPath: initial?.source?.pvc?.subPath ?? "",
     envVars: initial?.runtime?.env ?? [],
+    secrets: (initial?.runtime?.secretKeys ?? []).map((name) => ({
+      name,
+      value: "",
+      stored: true,
+    })),
+    removedSecrets: [],
     replicas: initial?.runtime?.replicas ?? 1,
     keepAlive: initial?.runtime?.keepAlive ?? false,
     idleTimeout:
@@ -201,12 +224,46 @@ export function validate(s: FormState, isEdit: boolean): Problem[] {
       "idleTimeout",
       `Idle timeout must be a whole number of minutes from ${IDLE_MIN} to ${IDLE_MAX}, or empty.`,
     );
+  const secretProblem = validateSecrets(s);
+  if (secretProblem) add("secrets", secretProblem);
   if (!isEdit) {
     if (!s.subdomain) add("subdomain", "Pick a subdomain.");
     else if (!SUBDOMAIN_RE.test(s.subdomain))
       add("subdomain", "Subdomain must be lowercase letters, digits, and hyphens.");
   }
   return problems;
+}
+
+/** The first problem with the Secrets rows, if any. */
+function validateSecrets(s: FormState): string | undefined {
+  const envNames = new Set(s.envVars.map((e) => e.name).filter(Boolean));
+  const seen = new Set<string>();
+  for (const row of s.secrets) {
+    if (!row.name && !row.value) continue; // an untouched new row is ignored
+    if (!row.name) return "Give every secret a name.";
+    if (!SECRET_NAME_RE.test(row.name))
+      return `Secret name ${row.name} must be letters, digits and underscores, not starting with a digit.`;
+    if (seen.has(row.name)) return `Secret ${row.name} is listed twice.`;
+    seen.add(row.name);
+    if (envNames.has(row.name))
+      return `${row.name} is both a secret and an environment variable; keep one.`;
+    if (!row.stored && !row.value) return `Enter a value for secret ${row.name}.`;
+  }
+  return undefined;
+}
+
+/**
+ * The secret values a submit sends: new keys and saved keys given a new value,
+ * plus (on an edit) removed saved keys as null. Undefined when there is nothing.
+ */
+export function buildSecrets(
+  s: FormState,
+  isEdit: boolean,
+): Record<string, string | null> | undefined {
+  const out: Record<string, string | null> = {};
+  for (const row of s.secrets) if (row.name && row.value) out[row.name] = row.value;
+  if (isEdit) for (const name of s.removedSecrets) if (!(name in out)) out[name] = null;
+  return Object.keys(out).length ? out : undefined;
 }
 
 /** runtime.idleTimeoutMinutes bounds (the CRD's). */
@@ -324,6 +381,8 @@ export function buildPayload(
     if (!LANDING_PAGE_LOCKED) body.landingPage = { enabled: s.onLandingPage };
     const source = buildSource(s);
     if (source) body.source = source;
+    const secrets = buildSecrets(s, true);
+    if (secrets) body.secrets = secrets;
     return { kind: "patch", body };
   }
 
@@ -349,6 +408,10 @@ export function buildPayload(
       : s.onLandingPage
         ? { landingPage: { enabled: true } }
         : {}),
+    // A launch never sends null (buildSecrets only adds those on an edit).
+    ...(buildSecrets(s, false)
+      ? { secrets: buildSecrets(s, false) as Record<string, string> }
+      : {}),
   };
 
   if (s.sourceTab === "upload")

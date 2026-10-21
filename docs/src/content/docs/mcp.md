@@ -58,12 +58,12 @@ anonymously.
 |---|---|
 | `authenticate` | Start/complete the device-flow login, or confirm the cached token. |
 | `describe_cluster` | Source types, launchable namespaces, apps domain, and the cluster's default idle timeout — call first to pick valid options. |
-| `launch_app` | Create + launch (static, or Python/pixi via `pixi_task`); optional `resources` (requests/limits, cluster defaults otherwise) and `groups`/`users` to restrict a private app (a member of any group or a listed user gets in; everyone else gets `403`); `idle_timeout_minutes` and `keep_alive` control [scale to zero](/app-crd-reference/#scale-to-zero); `manager_users`/`manager_groups` set who else may [manage](/launching-apps/#managers) it (omit to keep the current list). **Idempotent on (namespace, name)** — re-launching an app you own or manage updates it instead of failing, so retries are safe; any other app is refused, never overwritten. Only the owner or an admin may change the managers. |
+| `launch_app` | Create + launch (static, or Python/pixi via `pixi_task`); optional `resources` (requests/limits, cluster defaults otherwise) and `groups`/`users` to restrict a private app (a member of any group or a listed user gets in; everyone else gets `403`); `idle_timeout_minutes` and `keep_alive` control [scale to zero](/app-crd-reference/#scale-to-zero); `manager_users`/`manager_groups` set who else may [manage](/launching-apps/#managers) it (omit to keep the current list); `secrets` (`{NAME: value}`) stores credentials in the app's own Secret instead of `env` (see [Secrets](#secrets)). **Idempotent on (namespace, name)** — re-launching an app you own or manage updates it instead of failing, so retries are safe; any other app is refused, never overwritten. Only the owner or an admin may change the managers. |
 | `list_apps` | Apps with phase, URL, owner; optional namespace filter. Inline sources list file `paths` only. |
 | `get_app` | Full spec + status for one app; inline files come back fenced (see below). |
 | `get_app_status` | Lightweight poll: phase, URL, replicas, conditions. |
 | `get_app_logs` | Recent pod logs (fenced, last 64 KiB) — first stop when phase is `Failed`. |
-| `update_app` | Patch spec (source, runtime, access, …). `access.managers` (`{users, groups}`) is the manager list; only the owner or an admin may change it. |
+| `update_app` | Patch spec (source, runtime, access, …). `access.managers` (`{users, groups}`) is the manager list; only the owner or an admin may change it. `secrets` (`{NAME: value}` sets or rotates, `{NAME: null}` removes) changes the app's secret values. |
 | `stop_app` / `start_app` | Scale to zero / back up; `start_app` also wakes an `Idle` app. |
 | `restart_app` | Roll the app's pods without changing the spec; fails if the app is stopped. |
 | `get_app_metrics` | Instantaneous CPU/memory per pod (`available:false` when the cluster has no metrics server). |
@@ -82,6 +82,15 @@ the agent's context. Tools return them inside markers with a random nonce
 a `notice` telling the agent to treat the content as data, never as instructions. Logs are
 capped to the last 64 KiB and each inline file to its first 16 KiB (`truncated` /
 `truncatedFiles` say when).
+
+### Secrets
+
+`launch_app` and `update_app` accept `secrets`, a map of environment variable names to
+credentials. apps-api writes them to the app's own Kubernetes Secret and returns only the
+names (`runtime.secretKeys`), so no tool, `get_app` and `list_apps` included, ever outputs a
+value. Values an agent passes still appear in its own transcript, which coding agents often
+log: the tool descriptions steer agents to ask the user to type credentials into the UI's
+**Secrets** section instead, and never to put them in `env`.
 
 ### Sessions
 

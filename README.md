@@ -20,7 +20,9 @@ it into a Deployment, a Service and a `NebariApp`; the
 HTTPRoute, a TLS certificate, Keycloak SSO and, optionally, a landing-page tile. Each app is
 served at `https://<subdomain>.apps.<cluster-domain>`. The apps-api is the single authority:
 the UI and the MCP server are thin clients over it, so a launch behaves the same from a form
-or from an agent. Optionally, apps nobody visits are scaled to zero after an idle timeout and
+or from an agent. Credentials go in each app's own Kubernetes Secret, set write-only from the
+launch form, the API or the MCP server, never in the `App` itself
+([secrets](https://packs.nebari.dev/apps-pack/launching-apps/#secrets)). Optionally, apps nobody visits are scaled to zero after an idle timeout and
 start again on the next request
 ([scale to zero](https://packs.nebari.dev/apps-pack/app-crd-reference/#scale-to-zero)). See
 [Architecture & auth](https://packs.nebari.dev/apps-pack/architecture/).
@@ -30,7 +32,7 @@ start again on the next request
 | Component | What it does | Image |
 |---|---|---|
 | apps-operator | Reconciles `App` resources into a Deployment, Service, ConfigMap and `NebariApp`, reports status, scales idle Apps to zero and serves the page they show while they start. | `apps-operator` |
-| apps-api | REST API for CRUD, status, logs, events, analytics and zip/`.html` upload; writes `App` resources for the UI and the MCP server. | `apps-api` |
+| apps-api | REST API for CRUD, status, logs, events, analytics and zip/`.html` upload; writes `App` resources (and each App's write-only Secret) for the UI and the MCP server. | `apps-api` |
 | apps-ui | The apps list as the home page (with a Needs attention banner, a Mine filter and Open links), app detail with logs and events, and the launch form. | `apps-ui` |
 | apps-mcp | MCP server at `/mcp` that lets coding agents launch and manage apps, with Keycloak device-flow login. | `apps-mcp` |
 | apps-authz | Sidecar in the pods of Apps that list `access.groups` or `access.users` (returns `403` to everyone else) or that can idle (records when the app last served a request). | `apps-authz` |
@@ -108,6 +110,9 @@ The user guide is at [packs.nebari.dev/apps-pack](https://packs.nebari.dev/apps-
 - Users see and manage the Apps they launched or are listed as managers of
   (`access.managers`); members of `api.adminGroups` manage all of them. Ownership cannot be
   transferred yet.
+- App secrets are environment variables only (no mounted files), and a Secret edited with
+  `kubectl` reaches running pods only after a rollout restart. External secret stores are not
+  integrated, though they can create an app's `app-<name>-secrets` Secret.
 - Inline sources are capped at about 900 KB of text; larger sites need a `git` or `pvc` source.
 - Scale to zero is off by default (`apps.idle.timeoutMinutes`), and an idle app's first visit
   waits for a cold start: seconds for a static app, up to minutes for a Python app.

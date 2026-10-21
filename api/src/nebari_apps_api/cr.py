@@ -17,6 +17,34 @@ API_VERSION = f"{GROUP}/{VERSION}"
 # an RFC 3339 time the operator counts as a request.
 WAKE_ANNOTATION = "apps.nebari.dev/wake-requested-at"
 
+# Set on an App to the resourceVersion of its Secret after every write
+# (operator/api/v1alpha1 SecretsVersionAnnotation); the operator copies it to
+# the pod template, so a rotated value rolls the Deployment.
+SECRETS_VERSION_ANNOTATION = "apps.nebari.dev/secrets-version"
+
+
+def secret_name(app_name: str) -> str:
+    """The App's Secret (operator/api/v1alpha1 SecretName): derived from the
+    App's name, never chosen by a caller.
+    """
+    return f"app-{app_name}-secrets"
+
+
+def secret_keys(cr: dict[str, Any]) -> list[str]:
+    return list(((cr.get("spec") or {}).get("runtime") or {}).get("secretKeys") or [])
+
+
+def set_secret_keys(cr: dict[str, Any], keys: list[str]) -> None:
+    runtime = cr.setdefault("spec", {}).setdefault("runtime", {})
+    if keys:
+        runtime["secretKeys"] = list(keys)
+    else:
+        runtime.pop("secretKeys", None)
+
+
+def env_names(cr: dict[str, Any]) -> set[str]:
+    return {e.get("name", "") for e in ((cr.get("spec") or {}).get("runtime") or {}).get("env") or []}
+
 
 def wake_timestamp() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -51,7 +79,10 @@ def to_cr(req: AppCreate, owner: str) -> dict[str, Any]:
         "thumbnail": req.thumbnail,
         "owner": owner,
         "source": _clean(req.source.model_dump()),
-        "runtime": _clean(req.runtime.model_dump()),
+        # secretKeys comes from the secrets the request carries, never from
+        # the caller's runtime (the values go to the Secret, not here).
+        "runtime": _clean(req.runtime.model_dump(exclude={"secretKeys"}))
+        | ({"secretKeys": sorted(req.secrets)} if req.secrets else {}),
         "access": {
             "public": req.access.public,
             "groups": req.access.groups,
@@ -103,7 +134,11 @@ def apply_patch(cr: dict[str, Any], patch: AppPatch) -> dict[str, Any]:
     if patch.source is not None:
         spec["source"] = _clean(patch.source.model_dump())
     if patch.runtime is not None:
+        # secretKeys follows the Secret (main.py applies patch.secrets), so a
+        # runtime edit keeps the stored list whatever it sends.
+        keys = secret_keys(cr)
         spec["runtime"] = _merge(spec.get("runtime"), patch.runtime)
+        set_secret_keys(cr, keys)
     if patch.access is not None:
         spec["access"] = _merge(spec.get("access"), patch.access) | {"public": patch.access.public}
     if patch.landingPage is not None:

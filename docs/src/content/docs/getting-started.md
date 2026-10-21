@@ -181,6 +181,13 @@ or pilot.
   they launched or are listed as a [manager](/launching-apps/#managers) of; members of
   `api.adminGroups` manage all of them. Ownership cannot be transferred yet, and anyone with
   `kubectl` access to an app namespace bypasses the API.
+- **App secrets are environment variables only.** Credentials set as
+  [secrets](/launching-apps/#secrets) reach the app as env vars from its own Secret; there is
+  no mounted-file form yet, and no external secret store integration (Vault, External Secrets
+  Operator can still create an app's `app-<name>-secrets`). A Secret edited with `kubectl`
+  reaches running pods only after a rollout restart. The API's ServiceAccount can create and
+  patch Secrets (never read them) in app namespaces, cluster-wide when
+  `api.allowedNamespaces` is empty.
 - **Inline sources are capped at ~900 KB of UTF-8 text** (a ConfigMap). Binary assets or
   larger sites need a `git` or `pvc` source.
 - **No per-user quota.** Launched pods get default requests/limits and at most 10 replicas

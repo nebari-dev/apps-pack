@@ -116,6 +116,39 @@ listed group or a listed user; everyone else gets `403`. `access.groups` also go
 `NebariApp` as `auth.groups` (landing-page tile visibility); `access.users` does not, since
 `NebariApp` has no per-user field. See [Access control](/launching-apps/#access-control).
 
+## Secrets
+
+An App never holds a credential's value. `spec.runtime.env` is plain text that anyone who
+can read the App sees (`kubectl get app -o yaml`, `GET /apps`, MCP tool output), so
+credentials go in the App's own `Secret` instead:
+
+- **The App lists names only.** `spec.runtime.secretKeys` names keys of the Secret
+  `app-<name>-secrets` in the App's namespace. The operator injects each one into the `app`
+  container as an environment variable of the same name (`valueFrom.secretKeyRef`), so the
+  kubelet reads the value; nothing copies it into the spec, the Deployment or a status.
+  Init containers and the authz sidecar do not get them.
+- **apps-api writes the values.** A launch or edit that carries `secrets` (UI form, REST
+  API, MCP `launch_app`/`update_app`, `PATCH /apps/{ns}/{name}/secrets`) writes them to the
+  Secret, creating it with an owner reference to the App so Kubernetes deletes it with the
+  App, and sets `secretKeys` to match. Values are write-only: the API never reads the Secret
+  back and returns only key names, so the UI shows names and the MCP tools never echo a value.
+- **Rotation rolls the pods.** After each write apps-api sets the App's
+  `apps.nebari.dev/secrets-version` annotation to the Secret's `resourceVersion`; the
+  operator copies it onto the pod template, so a new value starts new pods (environment
+  variables are read only at container start).
+- **Only that App's pod reads it.** The Secret's name is derived from the App's name, never
+  chosen by a caller (and the API ignores a `secretKeys` list sent without values), so an
+  App's pods reference only their own Secret. App pods still get no ServiceAccount token, so
+  app code cannot read any Secret through the Kubernetes API.
+- **Who may set them.** The owner, managers (`access.managers`) and admins, through
+  `authorized_app` like every other per-App route. Managers may set, rotate and remove
+  values but, like everyone, never read them back.
+- **GitOps** can supply the Secret itself (`kubectl create secret`, Sealed Secrets, External
+  Secrets Operator) under the name `app-<name>-secrets` and list its keys in `secretKeys`;
+  run `kubectl rollout restart deployment/app-<name>` after changing it, or bump the
+  annotation. Until the Secret and every listed key exist, the app container waits in
+  `CreateContainerConfigError` instead of starting without its credentials.
+
 ## TLS
 
 `tls.enabled` (chart value) flows to every `NebariApp` this pack emits
@@ -156,8 +189,10 @@ The zone is configurable via the `appsDomain` value (default `apps.<clusterDomai
   hostname.
 - The API acts with a dedicated ServiceAccount. Inside each namespace in
   `api.allowedNamespaces` it gets a `RoleBinding` for `App` CRUD, read-only observability
-  (pods, logs, events), and one narrow write: patching child Deployments to roll pods for
-  restart. Cluster-wide it can only list namespaces and read `metrics.k8s.io` pod usage.
+  (pods, logs, events), and two narrow writes: patching child Deployments to roll pods for
+  restart, and creating and patching Secrets to store [App secrets](#secrets) (no `get`,
+  `list` or `watch`: the API never reads Secrets back, and it only names an App's own
+  `app-<name>-secrets`). Cluster-wide it can only list namespaces and read `metrics.k8s.io` pod usage.
   Only when `api.allowedNamespaces` is empty (namespaces discovered by label) is the
   namespaced grant bound cluster-wide. On top of that, the API's owner, manager or admin check
   is the boundary between users. The operator's RBAC covers only the resources it reconciles,

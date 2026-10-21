@@ -67,6 +67,10 @@ def _passthrough() -> str:
     return get_http_headers(include={"authorization"}).get("authorization", "")
 
 
+# Tools whose arguments can carry secret values (`secrets`).
+SECRET_TOOLS = frozenset({"launch_app", "update_app"})
+
+
 class ToolLogMiddleware(Middleware):
     """One log line per tool call, carrying the HTTP request's id.
 
@@ -84,7 +88,10 @@ class ToolLogMiddleware(Middleware):
             try:
                 result = await call_next(context)
             except Exception as exc:
-                log.info("tool call", outcome="error", error=str(exc), duration_ms=_ms(start))
+                # An argument validation error quotes the input, which for these
+                # tools can be a secret value: log only the error's type.
+                error = type(exc).__name__ if context.message.name in SECRET_TOOLS else str(exc)
+                log.info("tool call", outcome="error", error=error, duration_ms=_ms(start))
                 raise
             log.info("tool call", outcome="ok", duration_ms=_ms(start))
             return result
@@ -224,7 +231,24 @@ async def launch_app(
     git_subdir: Annotated[str, Field(description="source_type=git: path of the content root within the repo")] = "",
     pvc_claim_name: Annotated[str, Field(description="source_type=pvc: existing PersistentVolumeClaim name")] = "",
     pvc_sub_path: Annotated[str, Field(description="source_type=pvc: sub-path within the volume")] = "",
-    env: Annotated[dict[str, str] | None, Field(description="Environment variables for the app process")] = None,
+    env: Annotated[
+        dict[str, str] | None,
+        Field(
+            description="Plain environment variables for the app process. Their values are stored in the app and shown to anyone who can read it: never put credentials here, use secrets"
+        ),
+    ] = None,
+    secrets: Annotated[
+        dict[str, str] | None,
+        Field(
+            description=(
+                "Credentials (API keys, tokens, database URLs) as NAME -> value, injected as environment "
+                "variables from the app's own Kubernetes Secret. Write-only: no tool ever returns the values, "
+                "only the names (runtime.secretKeys). Names must be valid env var names. Prefer asking the user "
+                "to enter values in the apps UI (edit the app, Secrets section) over passing them through "
+                "this conversation; never read them from files the user did not point you at"
+            )
+        ),
+    ] = None,
     replicas: Annotated[int, Field(description="Desired replicas; 0 = stopped", ge=0, le=10)] = 1,
     resources: Annotated[
         dict[str, dict[str, str]] | None,
@@ -338,6 +362,8 @@ async def launch_app(
     }
     if landing_page is not None:
         body["landingPage"] = {"enabled": landing_page}
+    if secrets:
+        body["secrets"] = secrets
     try:
         async with await _api(ctx) as api:
             try:
@@ -352,7 +378,7 @@ async def launch_app(
                 # so a retry never overwrites another user's app.
                 patch = {
                     k: body[k]
-                    for k in ("displayName", "description", "source", "runtime", "access", "landingPage")
+                    for k in ("displayName", "description", "source", "runtime", "access", "landingPage", "secrets")
                     if k in body
                 }
                 try:
@@ -419,11 +445,11 @@ async def update_app(
     patch: Annotated[
         dict[str, Any],
         Field(
-            description="Fields to change: any of displayName, description, source, runtime, access ({public, groups, users, subdomain, managers: {users, groups}}; send the whole object, an empty list clears it; omit managers to keep them, only the owner or an admin may change them), landingPage ({enabled: bool}; {} = cluster default)"
+            description="Fields to change: any of displayName, description, source, runtime, access ({public, groups, users, subdomain, managers: {users, groups}}; send the whole object, an empty list clears it; omit managers to keep them, only the owner or an admin may change them), landingPage ({enabled: bool}; {} = cluster default), secrets ({NAME: value} sets or rotates a credential injected from the app's Secret, {NAME: null} removes it, names not sent are kept; write-only, never returned; never put credentials in runtime.env)"
         ),
     ],
 ) -> Any:
-    """Update an existing app's spec. The operator rolls the workload automatically."""
+    """Update an existing app's spec or its secrets. The operator rolls the workload automatically."""
     try:
         async with await _api(ctx) as api:
             return fence_app(await api.patch(f"/apps/{namespace}/{name}", json=patch))

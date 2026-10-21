@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import ipaddress
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 SourceType = Literal["git", "inline", "pvc"]
 SOURCE_TYPES: tuple[str, ...] = ("git", "inline", "pvc")
@@ -94,8 +94,20 @@ class Resources(BaseModel):
     limits: dict[str, str] | None = None
 
 
+# A secret key is injected as an environment variable of the same name, so
+# it must be one (mirrors the CRD's runtime.secretKeys items).
+SECRET_KEY_PATTERN = r"^[A-Za-z_][A-Za-z0-9_]*$"
+SECRET_KEY_MAX_LENGTH = 128
+MAX_SECRET_KEYS = 64
+SecretKey = Annotated[str, StringConstraints(pattern=SECRET_KEY_PATTERN, max_length=SECRET_KEY_MAX_LENGTH)]
+
+
 class AppRuntime(BaseModel):
     env: list[EnvVar] = Field(default_factory=list)
+    # Names of the keys in the App's Secret (app-<name>-secrets), each
+    # injected as an env var. Managed by the API from `secrets` in requests:
+    # a value sent here is ignored. Values are never returned.
+    secretKeys: list[str] | None = Field(default=None, max_length=MAX_SECRET_KEYS)
     resources: Resources | None = None
     replicas: int = Field(default=1, ge=0, le=10)
     # Exempts the app from scale-to-zero: it keeps running without requests.
@@ -155,6 +167,9 @@ class AppCreate(BaseModel):
     runtime: AppRuntime = Field(default_factory=AppRuntime)
     access: AppAccess
     landingPage: AppLandingPage | None = None
+    # Write-only secret values: stored in the App's Secret, never in the App
+    # and never returned; runtime.secretKeys lists their names.
+    secrets: dict[SecretKey, str] = Field(default_factory=dict, max_length=MAX_SECRET_KEYS)
 
 
 class AppPatch(BaseModel):
@@ -169,6 +184,9 @@ class AppPatch(BaseModel):
     runtime: AppRuntime | None = None
     access: AppAccess | None = None
     landingPage: AppLandingPage | None = None
+    # Set or rotate (a value) or remove (null) secret keys; keys not sent are
+    # kept. Write-only, like AppCreate.secrets.
+    secrets: dict[SecretKey, str | None] | None = Field(default=None, max_length=MAX_SECRET_KEYS)
 
 
 class AppReplicas(BaseModel):

@@ -34,14 +34,19 @@ Open `https://apps.<cluster-domain>`:
    your server.
 2. **Source** — **Upload** (a `.zip` of your app, or a single `.html` file for static
    sites), **Git**, or **Volume (PVC)**.
-3. **Runtime** — environment variables. **Advanced** holds replicas, the Small/Medium/Large
+3. **Runtime** — plain environment variables, which anyone who can see the app can read
+   (the form says so: put credentials under Secrets). **Advanced** holds replicas, the Small/Medium/Large
    presets, CPU/memory requests and limits, **Keep running when idle** (`keepAlive`) and the
    **idle timeout** (see [Idle apps](#idle-apps)), and the port rule for Python apps; an edit
    opens it when the app already has non-default replicas, resources or idle settings.
-4. **Access** — public toggle, allowed groups and users, and the subdomain, which follows
+4. **Secrets** — API keys, tokens, database URLs and other credentials, passed to the app
+   as environment variables from its own Kubernetes Secret (see [Secrets](#secrets)). On an
+   edit, saved secrets show their names only: leave a value empty to keep it, type to
+   replace it, or remove the row.
+5. **Access** — public toggle, allowed groups and users, and the subdomain, which follows
    the name (lowercased, other characters turned into hyphens) until you edit it. The
    landing-page option is locked off for now (see [Landing page](#landing-page)).
-5. **Managers** — other users and groups who may manage the app with you (see
+6. **Managers** — other users and groups who may manage the app with you (see
    [Managers](#managers)). Read-only when a manager edits the app.
 
 The form checks each field when you leave it and lists every remaining problem, each
@@ -173,6 +178,27 @@ natural language through the **apps-mcp** server — `launch_app` is idempotent 
 (namespace, name), so re-launching updates instead of failing. See the
 [MCP server](/mcp/) page for connection and authentication details.
 
+## Secrets
+
+Most apps need a credential or two. Never put them in `runtime.env`: those values are part of
+the App resource and come back to anyone who can read it, in `kubectl get app -o yaml`, the
+API and MCP tool output (which coding agents often log). Set them as **secrets** instead:
+
+- **UI** — the **Secrets** section of the launch and edit forms.
+- **API** — `secrets` on `POST /apps` or `PATCH /apps/{ns}/{name}`, or
+  `PATCH /apps/{ns}/{name}/secrets` (`{"OPENAI_API_KEY": "sk-…"}`; `null` removes a key). See
+  [Secrets](/api-reference/#secrets).
+- **MCP** — `secrets` on `launch_app` or in an `update_app` patch. Prefer the UI: values an
+  agent passes stay in its transcript.
+- **kubectl / GitOps** — create the Secret `app-<name>-secrets` yourself and list its keys in
+  `spec.runtime.secretKeys` (see [Secrets](/app-crd-reference/#secrets)).
+
+Each key reaches the app as an environment variable of the same name. Values are write-only:
+the App lists only their names (`runtime.secretKeys`), and nothing (UI, API or MCP) shows a
+value again. The Secret belongs to the App and is deleted with it, and only that app's pod
+reads it. Setting a new value restarts the app's pods. The owner, managers and admins can
+set, rotate and remove secrets.
+
 ## Access control
 
 - **`access.public: true`** — no authentication; anyone with the URL.
@@ -213,7 +239,8 @@ that it was issued to the app's own client) and checks its `groups` and
 
 An App has one owner (`spec.owner`, whoever launched it), and can list other **managers** in
 `spec.access.managers`: Keycloak usernames (`users`) and groups (`groups`). A manager can do
-everything the owner can through the UI, the API and the MCP server: edit the app, stop,
+everything the owner can through the UI, the API and the MCP server: edit the app (its
+[secrets](#secrets) included: they can set, rotate and remove values, never read them), stop,
 start, wake, restart and delete it, and read its status, logs, events and metrics. The
 app shows up in their Apps list and under **Mine**.
 

@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 
+import pytest
 from fastmcp import Client
+from fastmcp.exceptions import ToolError
 
 from nebari_apps_mcp.server import mcp
 
@@ -152,6 +154,35 @@ async def test_launch_and_update_managers(store):
     assert store.apps[("apps", "docs-site")]["spec"]["access"]["managers"] == {"users": ["carol"]}
 
 
+async def test_secrets_are_write_only(store):
+    app = await call("launch_app", {**LAUNCH_ARGS, "secrets": {"API_KEY": "sk-live-123"}})
+    assert app["runtime"]["secretKeys"] == ["API_KEY"]
+    assert "sk-live-123" not in json.dumps(app)
+    assert store.secrets[("apps", "app-docs-site-secrets")] == {"API_KEY": "sk-live-123"}
+    assert "sk-live-123" not in json.dumps(store.apps[("apps", "docs-site")])
+
+    # Re-launching without secrets keeps them; with secrets it rotates.
+    await call("launch_app", {**LAUNCH_ARGS, "display_name": "v2"})
+    assert store.apps[("apps", "docs-site")]["spec"]["runtime"]["secretKeys"] == ["API_KEY"]
+    await call("launch_app", {**LAUNCH_ARGS, "secrets": {"API_KEY": "sk-live-456"}})
+    assert store.secrets[("apps", "app-docs-site-secrets")] == {"API_KEY": "sk-live-456"}
+
+    updated = await call(
+        "update_app",
+        {"namespace": "apps", "name": "docs-site", "patch": {"secrets": {"API_KEY": None, "TOKEN": "t0k"}}},
+    )
+    assert "t0k" not in json.dumps(updated)
+    assert store.secrets[("apps", "app-docs-site-secrets")] == {"TOKEN": "t0k"}
+
+    for tool, args in (
+        ("get_app", {"namespace": "apps", "name": "docs-site"}),
+        ("list_apps", {}),
+        ("get_app_status", {"namespace": "apps", "name": "docs-site"}),
+    ):
+        out = json.dumps(await call(tool, args))
+        assert "t0k" not in out and "sk-live" not in out, tool
+
+
 async def test_stop_start_remove(store):
     await call("launch_app", LAUNCH_ARGS)
 
@@ -295,3 +326,11 @@ async def test_launch_over_the_inline_cap_is_413(store, monkeypatch):
     assert result["status"] == 413
     assert "1000-byte cap" in result["error"]
     assert ("apps", "docs-site") not in store.apps
+
+
+async def test_secret_values_stay_out_of_tool_error_logs(caplog, capsys):
+    with pytest.raises(ToolError):
+        await call("launch_app", {**LAUNCH_ARGS, "secrets": {"API_KEY": ["sk-leak-999"]}})
+    assert "tool call" in caplog.text
+    out = capsys.readouterr()
+    assert "sk-leak-999" not in caplog.text + out.out + out.err

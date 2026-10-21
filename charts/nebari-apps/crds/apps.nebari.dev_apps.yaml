@@ -145,6 +145,10 @@ spec:
                 description: AppRuntime configures how the app process runs.
                 properties:
                   env:
+                    description: |-
+                      Env holds plain environment variables. Their values are stored in the
+                      App and shown to everyone who can read it: put credentials in
+                      secretKeys instead.
                     items:
                       description: EnvVar represents an environment variable present
                         in a Container.
@@ -395,6 +399,23 @@ spec:
                           More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
                         type: object
                     type: object
+                  secretKeys:
+                    description: |-
+                      SecretKeys names keys of the App's Secret, app-<name>-secrets in its
+                      namespace, each injected into the app container as an environment
+                      variable of the same name (a secretKeyRef, resolved by the kubelet).
+                      The App holds only the names: apps-api writes the values to the Secret
+                      (owned by the App, so it is deleted with it), and GitOps can supply the
+                      Secret itself. A secret key wins over an env entry of the same name.
+                      The Deployment rolls when the apps.nebari.dev/secrets-version
+                      annotation on the App changes (apps-api sets it on every write).
+                    items:
+                      maxLength: 128
+                      pattern: ^[A-Za-z_][A-Za-z0-9_]*$
+                      type: string
+                    maxItems: 64
+                    type: array
+                    x-kubernetes-list-type: set
                 type: object
               source:
                 description: AppSource declares where the app's static content comes

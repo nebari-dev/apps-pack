@@ -62,6 +62,15 @@ kubectl -n <ns> logs deploy/app-<name> -c app           # the app itself
   no `auth.forwardAccessToken` (nebari-operator older than `%NEBARI_OPERATOR_VERSION%`).
 - **A restricted app stays `Failed` with "need the realm's URL" or "--authz-image".** Set
   the chart's `keycloak.url` (or `keycloak.internalUrl`) and keep `authz.image`.
+- **`CreateContainerConfigError` with `secret "app-<name>-secrets" not found` or
+  `couldn't find key`.** The App lists `runtime.secretKeys` that its Secret does not hold.
+  Set the missing values (UI **Secrets**, `PATCH /apps/{ns}/{name}/secrets`), or, for an App
+  managed with kubectl, create the Secret or remove the name from `secretKeys`. Right after
+  a launch with secrets this clears by itself within seconds, once apps-api has written the
+  Secret.
+- **A rotated secret has no effect.** Pods read environment variables at start. apps-api
+  rolls them on every write; after editing the Secret with kubectl, run
+  `kubectl -n <ns> rollout restart deployment/app-<name>`.
 - **`Pending` with `FailedScheduling`.** The namespace's quota or the nodes cannot fit the
   requests; lower `runtime.resources.requests` or `replicas`.
 

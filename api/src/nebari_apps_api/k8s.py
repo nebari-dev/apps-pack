@@ -6,6 +6,7 @@ an in-memory fake.
 
 from __future__ import annotations
 
+import base64
 from collections.abc import Callable
 from datetime import UTC
 from typing import TYPE_CHECKING, Any, Protocol, cast
@@ -60,6 +61,10 @@ class AppStore(Protocol):
     def app_events(self, namespace: str, app_name: str) -> list[dict[str, Any]]: ...
 
     def restart_app(self, namespace: str, app_name: str) -> None: ...
+
+    def write_secret(
+        self, namespace: str, name: str, owner: dict[str, str], labels: dict[str, str], changes: dict[str, str | None]
+    ) -> str: ...
 
     def pod_metrics(self, namespace: str, app_name: str) -> list[dict[str, Any]]: ...
 
@@ -235,6 +240,45 @@ class KubernetesAppStore:
         except Exception as exc:
             raise self._wrap(exc) from exc
 
+    def write_secret(
+        self, namespace: str, name: str, owner: dict[str, str], labels: dict[str, str], changes: dict[str, str | None]
+    ) -> str:
+        """Set (a value) or remove (None) keys of an App's Secret without
+        reading it, creating it owned by the App if it does not exist, and
+        return its new resourceVersion. The chart grants create and patch on
+        Secrets but not get/list/watch; the response bodies are dropped here.
+        """
+        from kubernetes.client import V1Secret
+
+        data = {key: _b64(value) for key, value in changes.items() if value is not None}
+        metadata = {"name": name, "namespace": namespace, "labels": labels, "ownerReferences": [owner]}
+        try:
+            try:
+                secret = V1Secret.model_validate(
+                    {"apiVersion": "v1", "kind": "Secret", "type": "Opaque", "metadata": metadata, "data": data}
+                )
+                res = self._core.create_namespaced_secret(namespace, secret, _request_timeout=REQUEST_TIMEOUT)
+            except Exception as exc:
+                if not isinstance(self._wrap(exc), ConflictError):
+                    raise
+                # It exists: a strategic merge patch sets the sent keys, drops
+                # the ones sent as null and adds the App to its owners (merged
+                # by uid, so a recreated App adopts a Secret its namesake left).
+                body = {
+                    "metadata": {"labels": labels, "ownerReferences": [owner]},
+                    "data": {key: _b64(value) if value is not None else None for key, value in changes.items()},
+                }
+                res = self._core.patch_namespaced_secret(
+                    name,
+                    namespace,
+                    body,
+                    _content_type="application/strategic-merge-patch+json",
+                    _request_timeout=REQUEST_TIMEOUT,
+                )
+        except Exception as exc:
+            raise self._wrap(exc) from exc
+        return str(res.metadata.resource_version if res.metadata else "")
+
     def pod_metrics(self, namespace: str, app_name: str) -> list[dict[str, Any]]:
         try:
             res = self._custom.list_namespaced_custom_object(
@@ -308,6 +352,10 @@ class KubernetesAppStore:
             restarts = sum(cs.restart_count or 0 for cs in statuses)
             out.append({"namespace": meta.namespace or "", "app": app, "restarts": restarts})
         return out
+
+
+def _b64(value: str) -> str:
+    return base64.b64encode(value.encode()).decode()
 
 
 def _obj(res: object) -> dict[str, Any]:

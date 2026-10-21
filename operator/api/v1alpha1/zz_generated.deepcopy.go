@@ -169,6 +169,11 @@ func (in *AppRuntime) DeepCopyInto(out *AppRuntime) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.SecretKeys != nil {
+		in, out := &in.SecretKeys, &out.SecretKeys
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	in.Resources.DeepCopyInto(&out.Resources)
 	if in.IdleTimeoutMinutes != nil {
 		in, out := &in.IdleTimeoutMinutes, &out.IdleTimeoutMinutes

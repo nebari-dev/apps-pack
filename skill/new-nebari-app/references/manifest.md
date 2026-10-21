@@ -31,9 +31,12 @@ source:
 
 runtime:                       # optional
   replicas: 1
-  env:
-    - name: LOG_LEVEL
+  env:                         # plain values, visible to anyone who can read the app:
+    - name: LOG_LEVEL          # never credentials
       value: info
+  # Names of credentials the app reads from its environment. NAMES ONLY: the
+  # values are supplied out of band (see "Secrets" below) and never committed.
+  secretKeys: [OPENAI_API_KEY]
   resources:
     requests: { cpu: 250m, memory: 512Mi }
   # Python/pixi apps only: the pixi task that launches the app. When set, the
@@ -72,6 +75,7 @@ landingPage:                   # optional
 | `source.type: git` | `source_type: "git"` + `git_url`, `git_ref`, `git_subdir` |
 | `source.type: pvc` | `source_type: "pvc"` + `pvc_claim_name`, `pvc_sub_path` |
 | `runtime.env` | `env` (as a `{NAME: value}` dict) |
+| `runtime.secretKeys` | none directly: names the keys the user must supply; see [Secrets](#secrets) (`secrets` takes `{NAME: value}`) |
 | `runtime.replicas` | `replicas` (0–10) |
 | `runtime.resources` | `resources` (same `{requests, limits}` shape; omitted values get the cluster default) |
 | `runtime.pixiTask` | `pixi_task` |
@@ -92,6 +96,29 @@ API (`PATCH`) or `kubectl` after launch if needed.
 (`.html .css .js .mjs .json .svg .txt .md .xml .csv .webmanifest .map` plus
 `.py .toml .lock .cfg .ini .yaml .yml .in .sh`); ~900KB total. Skip hidden files and
 anything in `.gitignore`. Larger or binary-heavy apps: use a `git` source.
+
+## Secrets
+
+Credentials (API keys, tokens, database URLs, passwords) **never** go in `nebari-app.yaml`,
+in `runtime.env`, or in any committed file (`.env` included): the manifest is a version-
+controlled GitOps artifact, and `env` values are stored in the `App` and returned to anyone
+who can read it. The manifest lists only the **names** in `runtime.secretKeys`; the values
+are supplied out of band and stored write-only in the app's own Kubernetes Secret
+(`app-<name>-secrets`, deleted with the app, readable only by its pod):
+
+1. **Preferred:** after `launch_app`, ask the user to open the app in the Apps UI → **Edit**
+   → **Secrets** and enter each value. The values never pass through the agent.
+2. If the user hands you a value in the conversation and asks you to set it, pass it as
+   `secrets: {NAME: value}` to `launch_app` or in an `update_app` patch, and say that it is
+   now in the conversation transcript. Never read values from files on your own initiative.
+3. GitOps: create the Secret with `kubectl create secret generic app-<name>-secrets ...`
+   (or Sealed Secrets / External Secrets) and keep `secretKeys` in the rendered App.
+
+Each key reaches the app as an environment variable of the same name (names must match
+`^[A-Za-z_][A-Za-z0-9_]*$`). No tool ever returns a value: `get_app` shows the names that
+are set in `runtime.secretKeys`, which is how to check that every name the manifest lists
+has been supplied. Until it has, the app does not start; do not report it as broken. Setting
+a value restarts the app.
 
 ## Serving model
 

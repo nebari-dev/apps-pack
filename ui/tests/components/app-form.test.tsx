@@ -263,6 +263,45 @@ describe("AppForm (create)", () => {
     expect(payload.body.access.managers).toEqual({ users: ["dave"], groups: ["web-team"] });
   });
 
+  it("launches with write-only secrets and warns against credentials in env", async () => {
+    const { user, onSubmit, submit, error } = setup();
+    expect(screen.getByText(/Put API keys, tokens and passwords/)).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Name"), "docs");
+    await user.type(screen.getByLabelText("Display name"), "Docs");
+    await user.click(screen.getByRole("tab", { name: "Git" }));
+    await user.type(screen.getByLabelText("Repository URL"), "https://github.com/org/docs");
+    await user.click(screen.getByRole("button", { name: /Add secret/ }));
+    await user.type(screen.getByLabelText("Secret 1 name"), "API-KEY");
+    await submit();
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(error("secrets")).toMatch(/letters, digits and underscores/);
+    expect(document.activeElement).toBe(screen.getByLabelText("Secret 1 name"));
+
+    await user.clear(screen.getByLabelText("Secret 1 name"));
+    await user.type(screen.getByLabelText("Secret 1 name"), "API_KEY");
+    await submit();
+    expect(error("secrets")).toBe("Enter a value for secret API_KEY.");
+    const value = screen.getByLabelText("Value of secret API_KEY");
+    expect(value).toHaveAttribute("type", "password");
+    await user.type(value, "sk-123");
+    await submit();
+    const payload = onSubmit.mock.calls[0][0];
+    if (payload.kind !== "create") throw new Error(`expected a create, got ${payload.kind}`);
+    expect(payload.body.secrets).toEqual({ API_KEY: "sk-123" });
+    expect(JSON.stringify(payload.body.runtime)).not.toContain("sk-123");
+  });
+
+  it("refuses a secret named like an environment variable", async () => {
+    const { user, submit, error } = setup();
+    await user.click(screen.getByRole("button", { name: /Add variable/ }));
+    await user.type(screen.getByLabelText("Variable 1 name"), "TOKEN");
+    await user.click(screen.getByRole("button", { name: /Add secret/ }));
+    await user.type(screen.getByLabelText("Secret 1 name"), "TOKEN");
+    await user.type(screen.getByLabelText("Value of secret TOKEN"), "x");
+    await submit();
+    expect(error("secrets")).toMatch(/both a secret and an environment variable/);
+  });
+
   it("requires a PVC claim name for PVC sources", async () => {
     const { user, onSubmit, submit, error } = setup();
     await user.type(screen.getByLabelText("Name"), "data");
@@ -364,6 +403,37 @@ describe("AppForm (edit)", () => {
       limits: { memory: "512Mi", "nvidia.com/gpu": "1" },
     });
     expect(payload.body.runtime?.replicas).toBe(2);
+  });
+
+  it("shows saved secrets by name only and sends rotations and removals", async () => {
+    const withSecrets = {
+      ...EXISTING,
+      runtime: { ...EXISTING.runtime, secretKeys: ["API_KEY", "OLD_TOKEN", "UNCHANGED"] },
+    } as App;
+    const { user, onSubmit, submit } = setup({ mode: "edit", initial: withSecrets });
+    const apiKey = screen.getByLabelText("Value of secret API_KEY");
+    expect(apiKey).toHaveValue("");
+    expect(apiKey).toHaveAttribute("placeholder", "Saved: type to replace");
+    expect(screen.getByLabelText("Secret 1 name")).toHaveAttribute("readonly");
+    await user.type(apiKey, "rotated");
+    await user.click(screen.getByRole("button", { name: "Remove secret OLD_TOKEN" }));
+    await submit();
+    const payload = onSubmit.mock.calls[0][0];
+    if (payload.kind !== "patch") throw new Error(`expected a patch, got ${payload.kind}`);
+    expect(payload.body.secrets).toEqual({ API_KEY: "rotated", OLD_TOKEN: null });
+    expect(payload.body.runtime).not.toHaveProperty("secretKeys");
+  });
+
+  it("leaves secrets out of an edit that does not touch them", async () => {
+    const withSecrets = {
+      ...EXISTING,
+      runtime: { ...EXISTING.runtime, secretKeys: ["API_KEY"] },
+    } as App;
+    const { onSubmit, submit } = setup({ mode: "edit", initial: withSecrets });
+    await submit();
+    const payload = onSubmit.mock.calls[0][0];
+    if (payload.kind !== "patch") throw new Error(`expected a patch, got ${payload.kind}`);
+    expect(payload.body).not.toHaveProperty("secrets");
   });
 
   it("round-trips allowed users and never changes a registered tile", async () => {

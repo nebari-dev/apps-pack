@@ -245,6 +245,12 @@ func TestEnvtestCRDRejectsInvalidApps(t *testing.T) {
 		"idle timeout too long": func(a *appsv1alpha1.App) {
 			a.Spec.Runtime.IdleTimeoutMinutes = ptr.To(int32(43201))
 		},
+		"secret key not an env name": func(a *appsv1alpha1.App) {
+			a.Spec.Runtime.SecretKeys = []string{"API-KEY"}
+		},
+		"duplicate secret key": func(a *appsv1alpha1.App) {
+			a.Spec.Runtime.SecretKeys = []string{"API_KEY", "API_KEY"}
+		},
 	} {
 		app := inlineApp("team-a")
 		app.Generation = 0
