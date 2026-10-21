@@ -9,7 +9,7 @@
  */
 import AxeBuilder from "@axe-core/playwright";
 import { test as base, expect, type Page, type Request } from "@playwright/test";
-import type { App, AppCreate } from "../src/lib/types";
+import type { ApiVersion, App, AppCreate } from "../src/lib/types";
 import {
   API_VERSION,
   BRANDING,
@@ -36,6 +36,8 @@ export interface MockApi {
   /** When set, GET /apps fails with this status and detail. */
   failList: { status: number; detail: string } | null;
   logs: string;
+  /** What GET /version returns. */
+  version: ApiVersion;
   /** When set, GET /analytics/metrics fails with this status and detail. */
   failMetrics: { status: number; detail: string } | null;
   /** Container restarts per App ("namespace/name") for GET /analytics/metrics. */
@@ -104,7 +106,7 @@ async function installApiRoutes(page: Page, api: MockApi, held: Held[]) {
 
     if (path === "/config") return route.fulfill(json(200, UI_CONFIG));
     if (path === "/capabilities") return route.fulfill(json(200, CAPABILITIES));
-    if (path === "/version") return route.fulfill(json(200, API_VERSION));
+    if (path === "/version") return route.fulfill(json(200, api.version));
     if (path === "/auth/me") return route.fulfill(json(200, ME));
     if (path === "/analytics/metrics") {
       if (api.failMetrics) return route.fulfill(json(api.failMetrics.status, api.failMetrics));
@@ -229,6 +231,7 @@ export const test = base.extend<{
         failList: null,
         failMetrics: null,
         logs: LOGS,
+        version: { ...API_VERSION },
         restarts: { ...RESTARTS },
         requests: [],
         hold: (path) => {

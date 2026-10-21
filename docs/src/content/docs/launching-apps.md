@@ -67,8 +67,9 @@ condition and its reason, with **View logs** and **Restart**.
 **Settings** (in the account menu, next to **Sign out**) is a read-only page in four
 sections:
 
-- **About** — the UI's and the API's version and build, links to these docs and the
-  changelog, and **Report a bug**, which opens a GitHub issue with both versions filled in.
+- **About** — the UI's version (built into the UI) and build (its image tag), the API's
+  version and build, a note when the two differ (as during a rollout), links to these docs
+  and the changelog, and **Report a bug**, which opens a GitHub issue with both filled in.
 - **Your account** — your username, email and groups, and whether you are an admin. Your
   groups decide which restricted apps you can open (see [Access control](#access-control))
   and which apps you can manage (see [Managers](#managers)).

@@ -73,7 +73,9 @@ its `text` is empty, which is the default.
 ## Kubernetes / Helm
 
 Set `ui.title` and `ui.branding` in values. The chart renders them into a `/config.json`
-ConfigMap mounted into the UI pod:
+ConfigMap mounted into the UI pod, together with a `build` field: the UI's image tag
+(`ui.image.tag`, or the chart's `appVersion`), which the Settings page shows as the UI build.
+An `ui.existingConfigMap` can set `build` too; without it the UI build reads "unknown".
 
 ```yaml
 ui:

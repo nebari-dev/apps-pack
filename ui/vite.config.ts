@@ -1,12 +1,18 @@
 /// <reference types="vitest/config" />
 
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
+// The UI's own release, bumped by release-please, baked into the bundle (the
+// Settings page shows it next to the API's).
+const { version } = JSON.parse(readFileSync(path.resolve(__dirname, "package.json"), "utf8"));
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  define: { "import.meta.env.UI_VERSION": JSON.stringify(version) },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),
