@@ -248,7 +248,7 @@ describe("apps page", () => {
     await renderApps();
     const search = screen.getByPlaceholderText(/Search by name/);
     expect(search).toHaveAttribute("aria-keyshortcuts", "/");
-    expect(screen.getByText("/", { selector: "kbd" })).toBeInTheDocument();
+    expect(screen.queryByText("/", { selector: "kbd" })).not.toBeInTheDocument();
 
     await user.keyboard("/");
     expect(search).toHaveFocus();
@@ -256,7 +256,6 @@ describe("apps page", () => {
 
     await user.keyboard("a/b");
     expect(search).toHaveValue("a/b");
-    expect(screen.queryByText("/", { selector: "kbd" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Clear search" })).toBeInTheDocument();
   });
 
