@@ -29,6 +29,23 @@ def test_create_and_get_app(client):
     assert resp.json()["displayName"] == "Docs Site"
 
 
+def test_app_reports_generation_and_observed_generation(client, store):
+    """The UI polls fast while the operator has yet to reconcile the latest spec."""
+    body = client.post("/api/v1/apps", json=make_app_body()).json()
+    assert body["generation"] == 0, "the fake store sets no generation"
+    assert body["status"]["observedGeneration"] == 0
+
+    cr = store.apps[("apps", "docs-site")]
+    cr["metadata"]["generation"] = 3
+    cr["status"] = {"phase": "Running", "observedGeneration": 2}
+    got = client.get("/api/v1/apps/apps/docs-site").json()
+    assert got["generation"] == 3
+    assert got["status"]["observedGeneration"] == 2
+    listed = client.get("/api/v1/apps").json()
+    assert [(a["generation"], a["status"]["observedGeneration"]) for a in listed] == [(3, 2)]
+    assert client.get("/api/v1/apps/apps/docs-site/status").json()["observedGeneration"] == 2
+
+
 def test_create_conflict(client):
     assert client.post("/api/v1/apps", json=make_app_body()).status_code == 201
     assert client.post("/api/v1/apps", json=make_app_body()).status_code == 409
