@@ -149,8 +149,18 @@ kubectl -n nebari-operator-system logs deploy/nebari-operator-controller-manager
 
 ## The MCP server
 
-- **Every tool says to call `authenticate`.** Call it and finish the device login in the
-  browser; the session expires after `MCP_SESSION_TTL_SECONDS` (8 hours by default).
-- **`authenticate` fails with a TLS error.** The MCP pod could not verify Keycloak's
-  certificate (common with self-signed certificates on local clusters).
+- **Claude Code shows the server as needing authentication.** Run `/mcp`, select it and
+  choose **Authenticate**, or `claude mcp login nebari-apps`.
+- **The browser login fails with "Invalid parameter: redirect_uri".** The `--callback-port`
+  (or `oauth.callbackPort`) does not match the client's redirect URI in Keycloak, or the
+  server was added without `--client-id`. Re-add it with the command from the UI's Settings
+  page.
+- **Claude Code says dynamic client registration failed.** No client id was configured, so
+  it tried to register one and Keycloak refused. Add the server with `--client-id`; see
+  [The sign-in client](/mcp/#the-sign-in-client).
+- **Every request gets `401` with `error="invalid_token"` after signing in.** The token is
+  from a client the pack does not accept (set `mcp.oauth.clientId` to the client you sign in
+  with), or apps-mcp cannot fetch the realm JWKS: its log says `token rejected` with the
+  reason. A TLS error there means Keycloak's certificate comes from a private CA; trust it
+  with `mcp.orgCABundle` or set `keycloak.internalUrl`.
 - **`remove_app` does nothing.** It requires `confirm=true`.

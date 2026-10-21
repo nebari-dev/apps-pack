@@ -1,9 +1,10 @@
 {{/*
 OIDC settings shared by apps-api and apps-mcp: both verify Keycloak tokens
-against the same issuer and accept only this pack's two clients (the UI's
-SPA client and the device-flow client), whose ids the UI's NebariApp writes
-into its OIDC secret. If the secret is missing the $(...) references stay
-unexpanded and every token is rejected (fail closed).
+against the same issuer and accept only this pack's clients: the UI's SPA
+client and the device-flow client, whose ids the UI's NebariApp writes into
+its OIDC secret, plus the MCP OAuth client (mcp.oauth.clientId) when set. If
+the secret is missing the $(...) references stay unexpanded and their tokens
+are rejected (fail closed).
 
 Takes (dict "root" $ "spaVar" "<env var the service reads the SPA id from>").
 */}}
@@ -31,7 +32,7 @@ Takes (dict "root" $ "spaVar" "<env var the service reads the SPA id from>").
       key: device-client-id
       optional: true
 - name: OIDC_ALLOWED_CLIENTS
-  value: "$({{ .spaVar }}),$(OIDC_DEVICE_CLIENT_ID)"
+  value: "$({{ .spaVar }}),$(OIDC_DEVICE_CLIENT_ID){{ with $root.Values.mcp.oauth.clientId }},{{ . }}{{ end }}"
 {{- end }}
 {{- end }}
 

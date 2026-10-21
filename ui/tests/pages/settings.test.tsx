@@ -26,8 +26,15 @@ const { api } = await import("@/lib/api");
 const { getConfig } = await import("@/lib/auth");
 const { copyText } = await import("@/lib/clipboard");
 const { getBranding } = await import("@/lib/branding");
-const { SettingsPage, buildsDiffer, bugReportUrl, idleTimeoutLine, uiBuild, versionLine } =
-  await import("@/pages/settings");
+const {
+  SettingsPage,
+  buildsDiffer,
+  bugReportUrl,
+  claudeCommand,
+  idleTimeoutLine,
+  uiBuild,
+  versionLine,
+} = await import("@/pages/settings");
 const mocked = vi.mocked(api);
 
 /** ui/package.json's version, baked in by vite.config.ts. */
@@ -222,6 +229,28 @@ describe("SettingsPage", () => {
 });
 
 describe("settings helpers", () => {
+  it("adds the MCP OAuth client to the claude mcp add command when auth is on", () => {
+    const url = "https://apps.example.ai/mcp";
+    const base = { keycloak: { url: "", realm: "", clientId: "" }, appsDomain: "" };
+    const mcpOAuth = { clientId: "nebari-apps-mcp", callbackPort: 33418 };
+    expect(claudeCommand(url, { ...base, authEnabled: true, mcpOAuth })).toBe(
+      `claude mcp add --transport http --client-id nebari-apps-mcp --callback-port 33418 nebari-apps ${url}`,
+    );
+    expect(
+      claudeCommand(url, {
+        ...base,
+        authEnabled: true,
+        mcpOAuth: { clientId: "c", callbackPort: 0 },
+      }),
+    ).toBe(`claude mcp add --transport http --client-id c nebari-apps ${url}`);
+    expect(claudeCommand(url, { ...base, authEnabled: false, mcpOAuth })).toBe(
+      `claude mcp add --transport http nebari-apps ${url}`,
+    );
+    expect(claudeCommand(url, { ...base, authEnabled: true })).toBe(
+      `claude mcp add --transport http nebari-apps ${url}`,
+    );
+  });
+
   it("formats a version with its build", () => {
     expect(versionLine("0.4.0", "sha-abc")).toBe("0.4.0 (sha-abc)");
     expect(versionLine("0.4.0", "0.4.0")).toBe("0.4.0");

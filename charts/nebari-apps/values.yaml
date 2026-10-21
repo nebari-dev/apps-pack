@@ -288,6 +288,22 @@ mcp:
     pullPolicy: IfNotPresent
   # -- apps-mcp replicas.
   replicaCount: 1
+  # MCP OAuth (when `api.auth.enabled`): apps-mcp is an OAuth protected
+  # resource and the Keycloak realm its authorization server, so MCP clients
+  # such as Claude Code sign the user in through the browser themselves. They
+  # need a public Keycloak client to do it with. The nebari-operator cannot
+  # provision one yet (its NebariApp clients have no loopback redirect URI),
+  # so create it in Keycloak (see the MCP server docs) and name it here.
+  oauth:
+    # -- Client id of a public Keycloak client (standard flow, PKCE S256)
+    # with the redirect URI `http://localhost:<callbackPort>/callback`. Its
+    # tokens are accepted by apps-api and apps-mcp, and the UI's Settings page
+    # puts it in the `claude mcp add` command. Empty: MCP clients must bring
+    # their own way to a token.
+    clientId: ""
+    # -- Port of the MCP client's OAuth callback (`--callback-port` in Claude
+    # Code); must match the client's redirect URI.
+    callbackPort: 33418
   # -- Container resources. Requests equal limits, so the pod is Guaranteed.
   resources:
     requests: { cpu: 250m, memory: 256Mi }
@@ -296,8 +312,8 @@ mcp:
   # entry with the same name wins).
   extraEnv: []
   # A PEM CA bundle apps-mcp trusts for outbound HTTPS, for clusters whose
-  # Keycloak certificate (`keycloak.url`, which the login device flow calls)
-  # is signed by a private CA. The bundle replaces the image's trust store,
+  # Keycloak certificate (`keycloak.url`, whose JWKS apps-mcp fetches unless
+  # `keycloak.internalUrl` is set) is signed by a private CA. The bundle replaces the image's trust store,
   # so include the public roots too if anything else needs them.
   orgCABundle:
     # -- ConfigMap in the release namespace holding the bundle. Empty

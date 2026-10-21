@@ -260,6 +260,11 @@ def create_app(store: AppStore | None = None) -> FastAPI:
             },
             "appsDomain": settings.apps_domain,
             "appsScheme": "http" if settings.tls_disabled else "https",
+            # Empty clientId: no MCP OAuth client is configured.
+            "mcpOAuth": {
+                "clientId": settings.mcp_oauth_client_id,
+                "callbackPort": settings.mcp_oauth_callback_port,
+            },
         }
 
     @app.get(PREFIX + "/capabilities", response_model=Capabilities)

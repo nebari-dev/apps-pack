@@ -75,7 +75,7 @@ UI's **Secrets** section (preferred) or handed to the agent for `launch_app`'s `
 When the user asks, the agent:
 
 1. reads `nebari-app.yaml`,
-2. calls `describe_cluster` (and `authenticate` if prompted),
+2. calls `describe_cluster` (if it reports an authentication problem, the user signs in to the server from `/mcp`),
 3. maps the manifest onto `launch_app` — idempotent, so iterating is safe,
 4. polls `get_app_status` until `Running` (checking `get_app_logs` on failure),
 5. reports the app URL.

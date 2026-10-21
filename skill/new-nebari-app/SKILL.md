@@ -64,8 +64,9 @@ manifest or its directory) returns these same steps; get it when your client sup
 prompts, and use the `triage_app` prompt (`namespace`, `name`) if the app lands in `Failed`:
 
 1. `describe_cluster` — confirm the target `namespace` is available and get `appsDomain`.
-   If a tool returns an auth error, call `authenticate` and follow its instructions
-   (show the user the verification URL + code, then retry).
+   If a tool returns an auth error, ask the user to sign in to the `nebari-apps` server
+   (in Claude Code: `/mcp`, select it, **Authenticate**; the browser login is the
+   client's, not a tool), then retry.
 2. Map the manifest to a `launch_app` call — the full mapping table is in
    [references/manifest.md](references/manifest.md). The common case:
    - **`source.type: files`**: read every text file under `files.path`

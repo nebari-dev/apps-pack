@@ -1,183 +1,33 @@
-"""Keycloak device-flow authentication (RFC 8628) with per-session tokens.
+"""MCP OAuth: apps-mcp is an OAuth 2.0 protected resource, Keycloak the authorization server.
 
-The MCP server is shared, so tokens are cached per MCP session id - one
-agent's login never leaks into another session. Clients that already have a
-token can skip the device flow entirely by sending an Authorization header;
-it is passed through to apps-api unchanged.
+The MCP client (Claude Code, for one) discovers Keycloak from this server's
+Protected Resource Metadata (RFC 9728), signs the user in through the browser,
+and sends `Authorization: Bearer <access token>` on every request. Nothing is
+kept per MCP session: each request carries its own token, which is what makes
+sessionless (2026-07-28 and later) requests work like handshake-era ones.
+
+The token is verified here against the realm JWKS (and bound to this pack's
+clients) and then passed through to apps-api, which verifies it again.
 """
 
 from __future__ import annotations
 
-import time
-from dataclasses import dataclass, field
 from typing import Any
 
-import httpx
+import anyio
+import structlog
+from fastmcp.server.auth import AccessToken, AuthProvider, RemoteAuthProvider, TokenVerifier
+from pydantic import AnyHttpUrl
 
 from .config import settings
 
+log = structlog.get_logger("nebari_apps_mcp.auth")
 
-@dataclass
-class TokenState:
-    access_token: str = ""
-    refresh_token: str = ""
-    expires_at: float = 0.0
-    # An in-flight device authorization, if any.
-    device_code: str = ""
-    verification_uri: str = ""
-    user_code: str = ""
-    interval: float = 5.0
-    device_expires_at: float = 0.0
-    last_used: float = field(default_factory=time.time)
-
-    @property
-    def valid(self) -> bool:
-        return bool(self.access_token) and time.time() < self.expires_at - 15
-
-
-@dataclass
-class DeviceFlowAuth:
-    _sessions: dict[str, TokenState] = field(default_factory=dict)
-
-    def state(self, session_id: str) -> TokenState:
-        """This session's login. Sessions idle longer than the TTL are dropped first.
-
-        Without a session id there is nothing to key a login on, and a shared
-        fallback would hand one agent's token to another, so it is refused.
-        """
-        if not session_id:
-            raise MissingSessionError("this MCP connection has no session id; reconnect with a stateful client")
-        now = time.time()
-        for stale in [sid for sid, s in self._sessions.items() if now - s.last_used > settings.session_ttl]:
-            del self._sessions[stale]
-        state = self._sessions.setdefault(session_id, TokenState())
-        state.last_used = now
-        return state
-
-    async def authenticate(self, session_id: str) -> dict[str, Any]:
-        """Start, poll, or confirm a device-flow login for this session."""
-        if not settings.auth_enabled:
-            return {
-                "status": "not_required",
-                "message": "authentication is disabled on this cluster; tools work without logging in",
-            }
-        if not settings.oidc_issuer or not settings.oidc_device_client_id:
-            return {
-                "status": "unavailable",
-                "message": "the device-flow client is not configured; ask the operator to set "
-                "keycloak.url (the OIDC secret provides the client id once the NebariApp reconciles)",
-            }
-
-        try:
-            state = self.state(session_id)
-        except MissingSessionError as exc:
-            return {"status": "unavailable", "message": str(exc)}
-
-        if state.valid:
-            return {"status": "authenticated", "message": "already logged in; token is valid"}
-
-        if state.refresh_token and await self._refresh(state):
-            return {"status": "authenticated", "message": "session refreshed; token is valid"}
-
-        async with httpx.AsyncClient(timeout=15) as client:
-            # Poll an in-flight device authorization first.
-            if state.device_code and time.time() < state.device_expires_at:
-                result = await self._poll(client, state)
-                if result is not None:
-                    return result
-
-            # Start a new device authorization.
-            resp = await client.post(
-                settings.device_endpoint,
-                data={"client_id": settings.oidc_device_client_id, "scope": "openid profile email groups"},
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            state.device_code = data["device_code"]
-            state.user_code = data["user_code"]
-            state.verification_uri = data.get("verification_uri_complete") or data["verification_uri"]
-            state.interval = float(data.get("interval", 5))
-            state.device_expires_at = time.time() + float(data.get("expires_in", 600))
-
-        return {
-            "status": "action_required",
-            "verificationUrl": state.verification_uri,
-            "userCode": state.user_code,
-            "message": (
-                f"Ask the user to open {state.verification_uri} and approve the login "
-                f"(code: {state.user_code}). Then call the authenticate tool again to complete."
-            ),
-        }
-
-    async def _poll(self, client: httpx.AsyncClient, state: TokenState) -> dict[str, Any] | None:
-        """One token-endpoint poll. None means the flow is dead - restart it."""
-        resp = await client.post(
-            settings.token_endpoint,
-            data={
-                "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
-                "client_id": settings.oidc_device_client_id,
-                "device_code": state.device_code,
-            },
-        )
-        if resp.status_code == 200:
-            self._store(state, resp.json())
-            return {"status": "authenticated", "message": "login approved; token cached for this session"}
-        error = resp.json().get("error", "")
-        if error == "authorization_pending":
-            return {
-                "status": "pending",
-                "verificationUrl": state.verification_uri,
-                "userCode": state.user_code,
-                "message": "the user has not approved the login yet; ask them to finish, then retry",
-            }
-        if error == "slow_down":
-            state.interval += 5
-            return {"status": "pending", "message": "polling too fast; wait a few seconds and retry"}
-        # expired_token / access_denied / anything else: restart the flow.
-        state.device_code = ""
-        return None
-
-    async def _refresh(self, state: TokenState) -> bool:
-        try:
-            async with httpx.AsyncClient(timeout=15) as client:
-                resp = await client.post(
-                    settings.token_endpoint,
-                    data={
-                        "grant_type": "refresh_token",
-                        "client_id": settings.oidc_device_client_id,
-                        "refresh_token": state.refresh_token,
-                    },
-                )
-            if resp.status_code != 200:
-                return False
-            self._store(state, resp.json())
-            return True
-        except httpx.HTTPError:
-            return False
-
-    def _store(self, state: TokenState, data: dict[str, Any]) -> None:
-        state.access_token = data["access_token"]
-        state.refresh_token = data.get("refresh_token", state.refresh_token)
-        state.expires_at = time.time() + float(data.get("expires_in", 300))
-        state.device_code = ""
-
-    async def bearer(self, session_id: str, passthrough: str = "") -> str:
-        """The Authorization value for apps-api calls, or '' when anonymous."""
-        if passthrough:
-            return passthrough
-        if not settings.auth_enabled:
-            return ""
-        state = self.state(session_id)
-        if not state.valid and state.refresh_token:
-            await self._refresh(state)
-        return f"Bearer {state.access_token}" if state.valid else ""
-
-
-auth = DeviceFlowAuth()
-
-
-class MissingSessionError(Exception):
-    pass
+# Scopes advertised in the protected resource metadata. Only `openid`: every
+# Keycloak client has it, and a client's default scopes (profile, email,
+# groups) are added to its tokens without being asked for. Advertising a scope
+# the client lacks would make Keycloak refuse the login with invalid_scope.
+SCOPES_SUPPORTED = ["openid"]
 
 
 class TokenVerificationError(Exception):
@@ -249,3 +99,51 @@ def get_validator() -> JWTValidator:
             settings.oidc_allowed_clients,
         )
     return _validator
+
+
+class KeycloakTokenVerifier(TokenVerifier):
+    """FastMCP token verifier over JWTValidator (split-horizon JWKS, azp/aud binding)."""
+
+    async def verify_token(self, token: str) -> AccessToken | None:
+        try:
+            # PyJWKClient fetches the JWKS with blocking I/O on a cache miss.
+            claims = await anyio.to_thread.run_sync(lambda: get_validator().validate(token))
+        except TokenVerificationError as exc:
+            log.info("token rejected", error=str(exc))
+            return None
+        exp = claims.get("exp")
+        return AccessToken(
+            token=token,
+            client_id=str(claims.get("azp") or ""),
+            scopes=str(claims.get("scope") or "").split(),
+            expires_at=int(exp) if isinstance(exp, int | float) else None,
+            subject=str(claims["sub"]) if claims.get("sub") else None,
+            claims=claims,
+        )
+
+
+def build_auth_provider() -> AuthProvider | None:
+    """The HTTP-layer auth for /mcp, or None when auth is disabled.
+
+    With the issuer and the public URL known, this serves Protected Resource
+    Metadata naming the Keycloak realm, and unauthenticated requests get a 401
+    whose WWW-Authenticate points at it, so MCP clients can start the OAuth
+    login on their own. Without them it still requires a verified bearer token,
+    but cannot tell clients where to get one.
+    """
+    if not settings.auth_enabled:
+        return None
+    verifier = KeycloakTokenVerifier()
+    if not (settings.oidc_issuer and settings.public_url):
+        log.warning(
+            "OIDC_ISSUER or MCP_PUBLIC_URL is not set: /mcp requires a bearer token but serves no "
+            "OAuth protected resource metadata, so MCP clients cannot sign in on their own"
+        )
+        return verifier
+    return RemoteAuthProvider(
+        token_verifier=verifier,
+        authorization_servers=[AnyHttpUrl(settings.oidc_issuer)],
+        base_url=settings.public_url,
+        scopes_supported=SCOPES_SUPPORTED,
+        resource_name="Nebari Apps",
+    )

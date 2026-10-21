@@ -161,6 +161,13 @@ spec:
               value: {{ .Values.keycloak.url }}
             - name: UI_KEYCLOAK_REALM
               value: {{ .Values.keycloak.realm }}
+            {{- if and .Values.mcp.enabled .Values.mcp.oauth.clientId }}
+            # Served to the UI for its `claude mcp add` command.
+            - name: MCP_OAUTH_CLIENT_ID
+              value: {{ .Values.mcp.oauth.clientId | quote }}
+            - name: MCP_OAUTH_CALLBACK_PORT
+              value: {{ .Values.mcp.oauth.callbackPort | quote }}
+            {{- end }}
             {{- end }}
             {{- /* Last, so an extraEnv entry overrides a chart variable of the same name. */}}
             {{- with .Values.api.extraEnv }}

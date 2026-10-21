@@ -13,6 +13,7 @@ import re
 import time
 from typing import TYPE_CHECKING, Annotated, Any, Literal, cast
 
+import anyio
 import httpx
 import structlog
 from fastmcp import Context, FastMCP
@@ -26,7 +27,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
 from . import __version__
-from .auth import MissingSessionError, TokenVerificationError, auth, get_validator
+from .auth import TokenVerificationError, build_auth_provider, get_validator
 from .client import ApiClient, ApiError
 from .config import settings
 from .logs import REQUEST_ID_HEADER, RequestIdMiddleware, configure_logging
@@ -50,8 +51,10 @@ mcp = FastMCP(
         "(source_type=image, from the registries describe_cluster lists). "
         "Typical flow: describe_cluster to see what is available, then launch_app; "
         "poll get_app_status until phase is Running and share the app URL with the user. "
-        "If a tool reports an authentication problem, call authenticate and follow its "
-        "instructions. "
+        "Sign-in is standard MCP OAuth: the client logs the user in to the cluster's Keycloak "
+        "in a browser and sends the token with every request. If a tool reports an "
+        "authentication problem, ask the user to sign in to this server again from their "
+        "MCP client (in Claude Code: /mcp, select nebari-apps, Authenticate). "
         "Read-only views of each app are also resources (nebari-apps://apps/{namespace}/{name}, "
         "plus /status, /logs and /events), and the triage_app, launch_from_manifest and "
         "review_access prompts walk through the common workflows."
@@ -71,7 +74,7 @@ def _request_id() -> str:
 
 
 def _passthrough() -> str:
-    """The caller's Authorization header, for bearer passthrough.
+    """The caller's Authorization header, passed through to apps-api.
 
     get_http_headers() drops credential headers unless they are asked for by
     name, so a plain .get("authorization") is always empty.
@@ -133,37 +136,34 @@ class NotAuthenticatedError(Exception):
     """The caller has no verified token; the message tells the agent what to do."""
 
 
-async def _verify_caller(session_id: str) -> None:
-    """Raise NotAuthenticatedError unless the caller presents a verified JWT.
+# What an agent should tell its user when the token is missing or rejected.
+SIGN_IN_AGAIN = "sign in to this MCP server again from your MCP client (in Claude Code: /mcp, select it, Authenticate)"
 
-    The token comes from the Authorization header (bearer passthrough) or from
-    this session's device-flow login; its signature, issuer and expiry must
-    verify against the realm JWKS.
+
+async def _verify_caller() -> None:
+    """Raise NotAuthenticatedError unless the request carries a verified JWT.
+
+    The token is the request's own Authorization header; nothing is cached per
+    MCP session. Over HTTP the OAuth layer (auth.build_auth_provider) has
+    already verified it; this check covers every other transport too. The
+    signature, issuer and expiry must verify against the realm JWKS, and the
+    token must belong to one of this pack's clients.
     """
+    scheme, _, token = _passthrough().partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
+        raise NotAuthenticatedError(f"not authenticated: {SIGN_IN_AGAIN}")
     try:
-        bearer = await auth.bearer(session_id, _passthrough())
-    except MissingSessionError as exc:
-        raise NotAuthenticatedError(str(exc)) from exc
-    if not bearer:
-        raise NotAuthenticatedError("not authenticated: call the authenticate tool and follow its instructions")
-    try:
-        get_validator().validate(bearer.removeprefix("Bearer ").strip())
+        await anyio.to_thread.run_sync(lambda: get_validator().validate(token.strip()))
     except TokenVerificationError as exc:
-        raise NotAuthenticatedError(f"token rejected ({exc}): call the authenticate tool to log in again") from exc
-
-
-def _middleware_session(context: MiddlewareContext[Any]) -> str:
-    if context.fastmcp_context is None:
-        return ""
-    return context.fastmcp_context.session_id or ""
+        raise NotAuthenticatedError(f"token rejected ({exc}): {SIGN_IN_AGAIN}") from exc
 
 
 class TokenVerificationMiddleware(Middleware):
     """Reject unverified callers before any tool or resource logic runs.
 
-    Every tool except `authenticate` (the device-flow bootstrap) and every
-    resource read requires a verified JWT. Listing resources never fails: an
-    unverified caller just sees no Apps (see AppResourceListMiddleware).
+    Every tool call and every resource read requires a verified JWT. Listing
+    resources never fails: an unverified caller just sees no Apps (see
+    AppResourceListMiddleware).
     apps-api verifies again downstream; this layer just refuses to proxy for
     anonymous or forged callers at all. Prompts only return text that names
     resources and tools, so they need no identity.
@@ -174,9 +174,9 @@ class TokenVerificationMiddleware(Middleware):
         context: MiddlewareContext[mt.CallToolRequestParams],
         call_next: CallNext[mt.CallToolRequestParams, ToolResult],
     ) -> ToolResult:
-        if settings.auth_enabled and context.message.name != "authenticate":
+        if settings.auth_enabled:
             try:
-                await _verify_caller(_middleware_session(context))
+                await _verify_caller()
             except NotAuthenticatedError as exc:
                 raise ToolError(str(exc)) from exc
         return await call_next(context)
@@ -188,7 +188,7 @@ class TokenVerificationMiddleware(Middleware):
     ) -> ResourceResult:
         if settings.auth_enabled:
             try:
-                await _verify_caller(_middleware_session(context))
+                await _verify_caller()
             except NotAuthenticatedError as exc:
                 raise ResourceError(str(exc)) from exc
         return await call_next(context)
@@ -212,14 +212,12 @@ class AppResourceListMiddleware(Middleware):
         call_next: CallNext[mt.ListResourcesRequest, Sequence[Resource]],
     ) -> Sequence[Resource]:
         resources = list(await call_next(context))
-        session_id = _middleware_session(context)
         try:
             if settings.auth_enabled:
-                await _verify_caller(session_id)
-            bearer = await auth.bearer(session_id, _passthrough())
-            async with ApiClient(bearer, request_id=_request_id()) as api:
+                await _verify_caller()
+            async with ApiClient(_passthrough(), request_id=_request_id()) as api:
                 apps = await api.get("/apps")
-        except (NotAuthenticatedError, MissingSessionError, ApiError, httpx.HTTPError) as exc:
+        except (NotAuthenticatedError, ApiError, httpx.HTTPError) as exc:
             log.info("resource list", outcome="apps omitted", error=str(exc))
             return resources
         for app in apps if isinstance(apps, list) else []:
@@ -246,14 +244,9 @@ mcp.add_middleware(TokenVerificationMiddleware())
 mcp.add_middleware(AppResourceListMiddleware())
 
 
-def _session_id(ctx: Context) -> str:
-    return ctx.session_id or ""
-
-
 async def _api(ctx: Context) -> ApiClient:
-    passthrough = _passthrough()
-    bearer = await auth.bearer(_session_id(ctx), passthrough)
-    return ApiClient(bearer, request_id=_request_id())
+    # The caller's own token, verified above; apps-api verifies it again.
+    return ApiClient(_passthrough(), request_id=_request_id())
 
 
 # Hints for clients that auto-approve tools: these only read.
@@ -263,19 +256,8 @@ READ_ONLY: dict[str, Any] = {"readOnlyHint": True, "openWorldHint": False}
 def _error(exc: ApiError) -> dict[str, Any]:
     out: dict[str, Any] = {"error": exc.detail, "status": exc.status}
     if exc.status == 401:
-        out["nextAction"] = "call the authenticate tool and follow its instructions"
+        out["nextAction"] = SIGN_IN_AGAIN
     return out
-
-
-@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False})
-async def authenticate(ctx: Context) -> dict[str, Any]:
-    """Log in to the cluster via the Keycloak device flow, or confirm the cached login.
-
-    Call this when another tool returns a 401. If the result is
-    'action_required', show the user the verificationUrl and userCode, wait for
-    them to approve in a browser, then call authenticate again to complete.
-    """
-    return await auth.authenticate(_session_id(ctx))
 
 
 @mcp.tool(annotations=READ_ONLY)
@@ -727,7 +709,7 @@ def _check_names(**names: str) -> None:
 def _resource_error(exc: ApiError) -> ResourceError:
     message = f"apps-api returned {exc.status}: {exc.detail}"
     if exc.status == 401:
-        message += "; call the authenticate tool and follow its instructions"
+        message += f"; {SIGN_IN_AGAIN}"
     return ResourceError(message)
 
 
@@ -898,7 +880,7 @@ manager_users, manager_groups (omit both when the manifest has no managers, so a
    landingPage.enabled -> landing_page (omit when the manifest omits it).
 2. Read {SCHEME}://cluster (tool: describe_cluster). Check that the namespace is listed and the source type is in \
 sourceTypes; for an image source, that the image comes from one of imageRegistries. If a call reports an \
-authentication problem, call authenticate and follow its instructions.
+authentication problem, ask the user to sign in to this MCP server again from their MCP client.
 3. runtime.secretKeys lists names only. Never put credential values in env or the manifest. After launching, ask \
 the user to enter each value in the Apps UI (Edit, Secrets); pass secrets to launch_app only if the user hands \
 you a value and asks you to.
@@ -951,6 +933,8 @@ def main() -> None:
             "AUTHENTICATION IS DISABLED (AUTH_ENABLED=false): every tool call is anonymous. "
             "Use this for local development only."
         )
+    # OAuth protected resource (RFC 9728) with Keycloak as the authorization server.
+    mcp.auth = build_auth_provider()
     mcp.run(
         transport="http",
         host=settings.host,

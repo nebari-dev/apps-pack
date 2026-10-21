@@ -31,7 +31,7 @@ https://<subdomain>.apps.<cluster-domain>
   restarting apps; per-app detail pages with live logs, events, usage, restart, and a copyable
   manifest; and launch / edit forms (drag-and-drop upload, git, or PVC).
 - **apps-mcp** — an MCP server at `/mcp` so coding agents launch and manage apps with
-  natural language (Keycloak device-flow auth).
+  natural language (standard MCP OAuth against the cluster's Keycloak).
 - **`new-nebari-app` skill** — teaches Claude Code to scaffold apps in the expected layout
   with a `nebari-app.yaml` manifest, so "generate, then launch it" is one flow.
 

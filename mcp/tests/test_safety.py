@@ -1,18 +1,14 @@
-"""Tool annotations, confirmation on delete, fenced app output, session eviction."""
+"""Tool annotations, confirmation on delete, fenced app output."""
 
 from __future__ import annotations
 
 import re
-import time
 
 import pytest
 from fastmcp import Client
 from fastmcp.exceptions import ToolError
 from test_tools import LAUNCH_ARGS, call
 
-from nebari_apps_mcp import auth as auth_mod
-from nebari_apps_mcp.auth import MissingSessionError, TokenState
-from nebari_apps_mcp.config import settings as mcp_settings
 from nebari_apps_mcp.server import mcp
 from nebari_apps_mcp.untrusted import FILE_CAP, LOG_CAP
 
@@ -24,7 +20,7 @@ DESTRUCTIVE_TOOLS = {"remove_app", "update_app", "stop_app", "launch_app"}
 async def test_annotations():
     async with Client(mcp) as client:
         tools = {t.name: t.annotations for t in await client.list_tools()}
-    assert len(tools) == 13
+    assert len(tools) == 12
     for name, ann in tools.items():
         assert ann is not None, name
         assert ann.open_world_hint is False, name
@@ -94,32 +90,3 @@ async def test_stop_returns_fenced_app(store):
     await call("launch_app", {**LAUNCH_ARGS, "inline_files": injected_files()})
     app = await call("stop_app", {"namespace": "apps", "name": "docs-site"})
     assert INJECTION in fenced(app["source"]["inline"]["files"]["index.html"])
-
-
-@pytest.fixture
-def sessions():
-    auth_mod.auth._sessions.clear()
-    yield auth_mod.auth
-    auth_mod.auth._sessions.clear()
-
-
-def test_idle_sessions_are_evicted(sessions, monkeypatch):
-    monkeypatch.setattr(mcp_settings, "session_ttl", 60)
-    sessions._sessions["old"] = TokenState(access_token="a", refresh_token="r", last_used=time.time() - 61)
-    sessions._sessions["recent"] = TokenState(access_token="b", last_used=time.time() - 10)
-    sessions.state("new")
-    assert set(sessions._sessions) == {"recent", "new"}
-
-
-def test_empty_session_id_refused(sessions):
-    with pytest.raises(MissingSessionError):
-        sessions.state("")
-    assert sessions._sessions == {}
-
-
-async def test_authenticate_without_session_is_unavailable(sessions, monkeypatch):
-    monkeypatch.setattr(mcp_settings, "auth_enabled", True)
-    monkeypatch.setattr(mcp_settings, "oidc_issuer", "https://kc.test/realms/nebari")
-    monkeypatch.setattr(mcp_settings, "oidc_device_client_id", "device")
-    result = await sessions.authenticate("")
-    assert result["status"] == "unavailable"

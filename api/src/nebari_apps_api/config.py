@@ -67,6 +67,12 @@ class Settings:
     ui_keycloak_url: str = field(default_factory=lambda: os.environ.get("UI_KEYCLOAK_URL", ""))
     ui_keycloak_realm: str = field(default_factory=lambda: os.environ.get("UI_KEYCLOAK_REALM", "nebari"))
     ui_keycloak_client_id: str = field(default_factory=lambda: os.environ.get("UI_KEYCLOAK_CLIENT_ID", ""))
+    # The public Keycloak client MCP clients sign in to apps-mcp with
+    # (mcp.oauth), so the UI can show a complete `claude mcp add` command.
+    mcp_oauth_client_id: str = field(default_factory=lambda: os.environ.get("MCP_OAUTH_CLIENT_ID", ""))
+    mcp_oauth_callback_port: int = field(
+        default_factory=lambda: int(os.environ.get("MCP_OAUTH_CALLBACK_PORT", "0") or 0)
+    )
 
     # The image this API runs from (the chart passes its image tag, sha-<commit>
     # for released charts), reported next to the version by /api/v1/version.

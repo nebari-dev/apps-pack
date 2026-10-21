@@ -178,9 +178,6 @@ async def test_foreign_owner_and_non_manager_cannot_read(store, api_users):
 def auth_on(monkeypatch):
     monkeypatch.setattr(mcp_settings, "auth_enabled", True)
     monkeypatch.setattr(auth_mod, "_validator", FakeValidator())
-    auth_mod.auth._sessions.clear()
-    yield
-    auth_mod.auth._sessions.clear()
 
 
 async def test_unauthenticated_reads_refused(store, auth_on):
@@ -191,7 +188,7 @@ async def test_unauthenticated_reads_refused(store, auth_on):
     # Listing still answers, with only the static entries and no Apps.
     assert await listed() == {"nebari-apps://cluster", "nebari-apps://apps"}
     for uri in ["nebari-apps://cluster", "nebari-apps://apps", *APP_URIS]:
-        with pytest.raises(MCPError, match="authenticate"):
+        with pytest.raises(MCPError, match="not authenticated: sign in"):
             await read(uri)
     # Prompts carry no cluster data, so they need no login.
     assert "nebari-apps://cluster" in await prompt("launch_from_manifest", {})

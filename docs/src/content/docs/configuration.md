@@ -123,9 +123,11 @@ namespace.
 Environment the API container receives: `APPS_DOMAIN`, `APPS_NAMESPACES`, `APPS_ADMIN_GROUPS`, `AUTH_ENABLED`,
 `TLS_DISABLED`, `IMAGE_REGISTRIES` (from `apps.image.allowedRegistries`), `OIDC_ISSUER`, `OIDC_ISSUER_INTERNAL`, `UI_KEYCLOAK_URL`, `UI_KEYCLOAK_REALM`,
 `UI_KEYCLOAK_CLIENT_ID` and `OIDC_DEVICE_CLIENT_ID` (from the Secret the UI's `NebariApp`
-provisions), and `OIDC_ALLOWED_CLIENTS` (built from those two: a token is accepted only if its
-`azp` or `aud` names one of them; if the Secret is missing every token is rejected). The MCP
-server receives the same `OIDC_ALLOWED_CLIENTS`. Not rendered by the chart but honoured when set on the container: `OIDC_JWKS_URL`, `OIDC_AUDIENCE`,
+provisions), and `OIDC_ALLOWED_CLIENTS` (built from those two plus `mcp.oauth.clientId` when
+set: a token is accepted only if its `azp` or `aud` names one of them; if the Secret is missing
+only the `mcp.oauth` client's tokens are accepted). The MCP server receives the same
+`OIDC_ALLOWED_CLIENTS`. With `mcp.oauth.clientId` set, the API also gets `MCP_OAUTH_CLIENT_ID`
+and `MCP_OAUTH_CALLBACK_PORT`, which `GET /api/v1/config` passes to the UI. Not rendered by the chart but honoured when set on the container: `OIDC_JWKS_URL`, `OIDC_AUDIENCE`,
 `LOG_LEVEL` (default `INFO`), `MAX_UPLOAD_BYTES` (default 921600, the cap on an upload and on its extracted contents) and
 `MAX_REQUEST_BYTES` (default 2097152, the cap on any request body, enforced while it streams
 in).
@@ -153,14 +155,17 @@ in).
 |---|---|---|
 | `mcp.enabled` | `true` | Deploy the MCP server at `https://<ui hostname>/mcp` (proxied by the UI's nginx; no separate hostname). When off, `/mcp` returns 404. |
 | `mcp.image.repository` / `tag` / `pullPolicy` | `ghcr.io/nebari-dev/apps-pack/apps-mcp` / `""` / `IfNotPresent` | MCP image. |
-| `mcp.replicaCount` | `1` | **Keep at 1**: device-flow sessions are held in process memory. |
+| `mcp.replicaCount` | `1` | **Keep at 1**: handshake-era MCP sessions are held in process memory (authentication is per request and does not depend on them). |
+| `mcp.oauth.clientId` | `""` | Public Keycloak client MCP clients sign in with ([MCP authentication](/mcp/#the-sign-in-client)); create it in Keycloak first. The chart adds it to the allowed clients of apps-api and apps-mcp, and the UI's `claude mcp add` command passes it as `--client-id`. Empty: MCP clients cannot sign in on their own and need a token from elsewhere. |
+| `mcp.oauth.callbackPort` | `33418` | The MCP client's OAuth callback port (`--callback-port`); the client's redirect URI must be `http://localhost:<port>/callback`. |
 | `mcp.resources` | `250m/256Mi` (requests = limits) | Pod resources. |
-| `mcp.orgCABundle.configMapName` / `key` | `""` / `ca-bundle.crt` | ConfigMap (release namespace) with a PEM CA bundle the MCP server trusts for outbound HTTPS. Set it when `keycloak.url` has a certificate from a private CA, or `authenticate` fails with `CERTIFICATE_VERIFY_FAILED`. The bundle replaces the image's trust store, so include the public roots too. |
+| `mcp.orgCABundle.configMapName` / `key` | `""` / `ca-bundle.crt` | ConfigMap (release namespace) with a PEM CA bundle the MCP server trusts for outbound HTTPS. Set it when `keycloak.url` has a certificate from a private CA (and `keycloak.internalUrl` is not set), or every token is rejected because the JWKS fetch fails with `CERTIFICATE_VERIFY_FAILED`. The bundle replaces the image's trust store, so include the public roots too. |
 
-Environment: `API_URL`, `AUTH_ENABLED`, `OIDC_ISSUER`, `OIDC_ISSUER_INTERNAL`,
-`OIDC_DEVICE_CLIENT_ID` (from the UI's OIDC Secret); optional `OIDC_JWKS_URL`,
-`OIDC_AUDIENCE`, `HOST`, `PORT`, `LOG_LEVEL`, `MCP_SESSION_TTL_SECONDS` (default 28800:
-how long an idle device-flow login is kept), `SSL_CERT_FILE` (set by `mcp.orgCABundle`).
+Environment: `API_URL`, `AUTH_ENABLED`, `OIDC_ISSUER` (the authorization server the
+protected resource metadata names), `OIDC_ISSUER_INTERNAL`, `OIDC_ALLOWED_CLIENTS`,
+`MCP_PUBLIC_URL` (the UI host's origin; the protected resource is `<MCP_PUBLIC_URL>/mcp`);
+optional `OIDC_JWKS_URL`, `OIDC_AUDIENCE`, `HOST`, `PORT`, `LOG_LEVEL`, `SSL_CERT_FILE` (set
+by `mcp.orgCABundle`).
 
 ## Logs and probes
 
@@ -251,7 +256,7 @@ The pack integrates with the platform through two kinds of `NebariApp`
 | `auth.redirectURI` | `/*` | fixed |
 | `auth.scopes` | `openid profile email groups` | fixed |
 | `auth.spaClient.enabled` | `true` | fixed — provisions the public PKCE client the UI uses; its id lands in the `<release>-ui-oidc-client` Secret (`spa-client-id`) |
-| `auth.deviceFlowClient.enabled` | `true` when `mcp.enabled` | provisions the RFC 8628 client the MCP server uses (`device-client-id` in the same Secret) |
+| `auth.deviceFlowClient.enabled` | `true` when `mcp.enabled` | provisions an RFC 8628 client (`device-client-id` in the same Secret) whose tokens apps-api and apps-mcp accept, for CLIs and scripts that send a bearer token themselves |
 | `landingPage.enabled` | `true` | fixed |
 | `landingPage.displayName` / `description` / `category` / `icon` | `ui.landingPage.*` | chart (`icon` defaults to the bundled SVG as a data URI) |
 | `landingPage.healthCheck.*` | `ui.landingPage.healthCheck.*` | chart |

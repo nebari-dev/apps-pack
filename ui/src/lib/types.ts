@@ -156,6 +156,11 @@ export interface UiConfig {
   keycloak: { url: string; realm: string; clientId: string };
   appsDomain: string;
   appsScheme?: string;
+  /**
+   * The public Keycloak client MCP clients sign in to the MCP server with
+   * (chart value mcp.oauth); an empty clientId means none is configured.
+   */
+  mcpOAuth?: { clientId: string; callbackPort: number };
   /** Release (e.g. 0.2.0) and image build (e.g. sha-abc1234) of the API. */
   version?: string;
   build?: string;
