@@ -87,8 +87,10 @@ optional in-cluster JWKS URL for split-horizon clusters) and derives the caller'
 and groups from the claims. Tokens must have been issued to one of this pack's own clients
 (the SPA or the device-flow client, checked against `azp`/`aud`), so a token another realm
 client obtained is refused. It then authorizes every request: the caller must own the
-app (`spec.owner`, stamped from `preferred_username` on create) or belong to one of
-`api.adminGroups`. Lists and analytics are filtered the same way.
+app (`spec.owner`, stamped from `preferred_username` on create), be one of its managers
+(`spec.access.managers`: a listed username, or a group in the token's `groups` claim), or
+belong to one of `api.adminGroups`. Only the owner and admins may change the manager list.
+Lists and analytics are filtered the same way.
 
 ### The MCP endpoint — verified twice
 
@@ -157,8 +159,8 @@ The zone is configurable via the `appsDomain` value (default `apps.<clusterDomai
   (pods, logs, events), and one narrow write: patching child Deployments to roll pods for
   restart. Cluster-wide it can only list namespaces and read `metrics.k8s.io` pod usage.
   Only when `api.allowedNamespaces` is empty (namespaces discovered by label) is the
-  namespaced grant bound cluster-wide. On top of that, the API's owner-or-admin check is
-  the boundary between users. The operator's RBAC covers only the resources it reconciles,
+  namespaced grant bound cluster-wide. On top of that, the API's owner, manager or admin check
+  is the boundary between users. The operator's RBAC covers only the resources it reconciles,
   plus read-only access to PersistentVolumeClaims and pods (the idle check), and the
   activator's `ReferenceGrant` in its own namespace.
 - The operator reads each idling App's activity from the pod, which runs untrusted code: the

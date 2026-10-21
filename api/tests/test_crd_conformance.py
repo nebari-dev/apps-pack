@@ -45,6 +45,7 @@ MIRRORS: dict[type[BaseModel], tuple[str, set[str], set[str]]] = {
     models.Resources: ("runtime.resources", {"claims"}, set()),
     models.AppRuntime: ("runtime", set(), set()),
     models.AppAccess: ("access", set(), set()),
+    models.AppManagers: ("access.managers", set(), set()),
     models.AppLandingPage: ("landingPage", set(), set()),
     # owner is set by the API from the caller; name and namespace are metadata.
     models.AppCreate: ("", {"owner"}, {"name", "namespace"}),

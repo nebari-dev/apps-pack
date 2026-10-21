@@ -249,6 +249,20 @@ describe("AppForm (create)", () => {
     expect(screen.getByTestId("url-preview")).toHaveTextContent("https://docs.apps.example.ai");
   });
 
+  it("launches with managers", async () => {
+    const { user, onSubmit, submit } = setup();
+    await user.type(screen.getByLabelText("Name"), "docs");
+    await user.type(screen.getByLabelText("Display name"), "Docs");
+    await user.click(screen.getByRole("tab", { name: "Git" }));
+    await user.type(screen.getByLabelText("Repository URL"), "https://github.com/org/docs");
+    await user.type(screen.getByLabelText("Manager users"), "dave, ");
+    await user.type(screen.getByLabelText("Manager groups"), "web-team");
+    await submit();
+    const payload = onSubmit.mock.calls[0][0];
+    if (payload.kind !== "create") throw new Error(`expected a create, got ${payload.kind}`);
+    expect(payload.body.access.managers).toEqual({ users: ["dave"], groups: ["web-team"] });
+  });
+
   it("requires a PVC claim name for PVC sources", async () => {
     const { user, onSubmit, submit, error } = setup();
     await user.type(screen.getByLabelText("Name"), "data");
@@ -375,6 +389,52 @@ describe("AppForm (edit)", () => {
       subdomain: "docs-site",
     });
     expect(payload.body).not.toHaveProperty("landingPage");
+  });
+
+  it("lets the owner change managers and clear them with null", async () => {
+    const managed = {
+      ...EXISTING,
+      role: "owner",
+      access: { ...EXISTING.access, managers: { users: ["dave"], groups: ["web-team"] } },
+    } as App;
+    const { user, onSubmit, submit } = setup({ mode: "edit", initial: managed });
+    const users = screen.getByLabelText("Manager users");
+    const groups = screen.getByLabelText("Manager groups");
+    expect(users).toHaveValue("dave");
+    expect(groups).toHaveValue("web-team");
+    await user.clear(users);
+    await user.type(users, "erin, frank");
+    await submit();
+    let payload = onSubmit.mock.calls[0][0];
+    if (payload.kind !== "patch") throw new Error(`expected a patch, got ${payload.kind}`);
+    expect(payload.body.access?.managers).toEqual({
+      users: ["erin", "frank"],
+      groups: ["web-team"],
+    });
+
+    await user.clear(users);
+    await user.clear(groups);
+    await submit();
+    payload = onSubmit.mock.calls[1][0];
+    expect(payload.kind === "patch" && payload.body.access?.managers).toBeNull();
+  });
+
+  it("shows a manager the list read-only and leaves it out of the patch", async () => {
+    const managed = {
+      ...EXISTING,
+      role: "manager",
+      access: { ...EXISTING.access, managers: { users: ["dave"] } },
+    } as App;
+    const { onSubmit, submit } = setup({ mode: "edit", initial: managed });
+    expect(screen.getByLabelText("Manager users")).toBeDisabled();
+    expect(screen.getByLabelText("Manager groups")).toBeDisabled();
+    expect(
+      screen.getByText("Only the owner or an admin can change who manages this app."),
+    ).toBeInTheDocument();
+    await submit();
+    const payload = onSubmit.mock.calls[0][0];
+    if (payload.kind !== "patch") throw new Error(`expected a patch, got ${payload.kind}`);
+    expect(payload.body.access).not.toHaveProperty("managers");
   });
 
   it("clears resources with null once every field is emptied", async () => {

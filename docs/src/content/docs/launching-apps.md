@@ -41,6 +41,8 @@ Open `https://apps.<cluster-domain>`:
 4. **Access** — public toggle, allowed groups and users, and the subdomain, which follows
    the name (lowercased, other characters turned into hyphens) until you edit it. The
    landing-page option is locked off for now (see [Landing page](#landing-page)).
+5. **Managers** — other users and groups who may manage the app with you (see
+   [Managers](#managers)). Read-only when a manager edits the app.
 
 The form checks each field when you leave it and lists every remaining problem, each
 under its field, when you press **Launch app**; focus moves to the first one.
@@ -206,6 +208,34 @@ that it was issued to the app's own client) and checks its `groups` and
   only on 8080. Static apps listen on loopback behind the sidecar; a Python task that
   binds `0.0.0.0` is reachable on 8081 from inside the cluster unless that policy is on.
 :::
+
+## Managers
+
+An App has one owner (`spec.owner`, whoever launched it), and can list other **managers** in
+`spec.access.managers`: Keycloak usernames (`users`) and groups (`groups`). A manager can do
+everything the owner can through the UI, the API and the MCP server: edit the app, stop,
+start, wake, restart and delete it, and read its status, logs, events and metrics. The
+app shows up in their Apps list and under **Mine**.
+
+- **Only the owner and admins** (`api.adminGroups`) can change the manager list. A manager's
+  edit may send the list unchanged or leave it out; changing it is refused with `403`.
+- **Managing is not opening.** Managers of a restricted app still need to be in its
+  `access.groups` or `access.users` to open it; add them there too if they should.
+- Group membership comes from the caller's verified access token, so adding someone to a
+  manager group applies when their token refreshes.
+- Ownership itself cannot be transferred yet.
+
+```yaml
+spec:
+  access:
+    subdomain: team-dashboard
+    managers:
+      users: ["bob"]
+      groups: ["data-team"]
+```
+
+The detail page shows who can manage the app (the owner, the managers, and admins) and
+your own role.
 
 ## Landing page
 

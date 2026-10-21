@@ -7,6 +7,7 @@ import {
   CONTROL_IDS,
   type FieldProps,
   type FormContext,
+  ManagersSection,
   RuntimeSection,
   SourceSection,
 } from "./sections";
@@ -122,6 +123,7 @@ export function AppForm({
       <SourceSection form={form} />
       <RuntimeSection form={form} />
       <AccessSection form={form} />
+      <ManagersSection form={form} />
 
       {/* Below sm the preview takes its own line and the buttons go full width. */}
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">

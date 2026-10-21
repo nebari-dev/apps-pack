@@ -68,8 +68,9 @@ helm lint charts/nebari-apps --set clusterDomain=nebari.example.com
   `operator/internal/controller/nebariapp_contract_test.go`. Do not change emitted fields
   without updating that test and the "NebariApp fields the chart emits" table in
   `docs/src/content/docs/configuration.md`.
-- **Every per-App API route authorizes through `authorized_app`** (owner or an
-  `api.adminGroups` member). `api/tests/test_authz.py` enumerates the routes and fails when a
+- **Every per-App API route authorizes through `authorized_app`** (owner, a manager listed
+  in `spec.access.managers`, or an `api.adminGroups` member; only the owner and admins may
+  change the manager list). `api/tests/test_authz.py` enumerates the routes and fails when a
   new one has no authorization case; add it there.
 - **App pods are untrusted user code.** Keep them non-root, capability-free, without a
   ServiceAccount token, and with resource limits. User input reaches init containers through

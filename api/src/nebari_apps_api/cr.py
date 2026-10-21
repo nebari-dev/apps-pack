@@ -9,7 +9,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from .k8s import GROUP, VERSION
-from .models import AppCreate, AppOut, AppPatch, AppStatus
+from .models import AppCreate, AppOut, AppPatch, AppStatus, Role
 
 API_VERSION = f"{GROUP}/{VERSION}"
 
@@ -56,6 +56,7 @@ def to_cr(req: AppCreate, owner: str) -> dict[str, Any]:
             "public": req.access.public,
             "groups": req.access.groups,
             "users": req.access.users,
+            "managers": req.access.managers.model_dump() if req.access.managers else None,
             "subdomain": req.access.subdomain,
         },
     }
@@ -113,7 +114,7 @@ def apply_patch(cr: dict[str, Any], patch: AppPatch) -> dict[str, Any]:
     return cr
 
 
-def from_cr(cr: dict[str, Any]) -> AppOut:
+def from_cr(cr: dict[str, Any], role: Role = "") -> AppOut:
     meta = cr.get("metadata", {})
     spec = cr.get("spec", {})
     status = cr.get("status", {})
@@ -129,6 +130,7 @@ def from_cr(cr: dict[str, Any]) -> AppOut:
         runtime=spec.get("runtime"),
         access=spec.get("access"),
         landingPage=spec.get("landingPage"),
+        role=role,
         status=AppStatus.model_validate(
             {
                 "phase": status.get("phase", "Pending"),

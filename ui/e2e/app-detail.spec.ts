@@ -23,6 +23,9 @@ test.describe("app detail", () => {
     await openDocsSite(page);
 
     await expect(page.getByText("apps/docs-site · launched by alice")).toBeVisible();
+    await expect(page.getByTestId("managers")).toHaveText(
+      "Managed by alice (owner) · users: dave · groups: docs-team · admins · You can manage this app as an admin.",
+    );
     await expect(
       page.getByRole("link", { name: "https://docs-site.apps.example.com" }),
     ).toBeVisible();

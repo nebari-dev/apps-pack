@@ -15,6 +15,7 @@ from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from .config import settings
+from .models import Role
 
 _bearer = HTTPBearer(auto_error=False)
 
@@ -47,15 +48,52 @@ def app_owner(cr: dict[str, Any]) -> str:
     return str(((cr.get("metadata") or {}).get("labels") or {}).get("apps.nebari.dev/owner", ""))
 
 
-def can_access(user: User, cr: dict[str, Any]) -> bool:
-    """Owner-or-admin: the single authorization rule for every App route.
-
-    Apps without an owner (created with kubectl) are admin-only.
-    """
-    if is_admin(user):
-        return True
+def is_owner(user: User, cr: dict[str, Any]) -> bool:
     owner = app_owner(cr)
     return bool(owner) and owner == user.username
+
+
+def app_managers(cr: dict[str, Any]) -> dict[str, list[str]]:
+    """spec.access.managers as {"users": [...], "groups": [...]}, empty lists when unset."""
+    managers = (((cr.get("spec") or {}).get("access") or {}).get("managers")) or {}
+    return {key: [str(v) for v in managers.get(key) or []] for key in ("users", "groups")}
+
+
+def is_manager(user: User, cr: dict[str, Any]) -> bool:
+    """Listed in spec.access.managers by username (case-insensitive, like
+    access.users) or through a group in the caller's verified token (a leading
+    "/" ignored on both sides, like api.adminGroups).
+    """
+    managers = app_managers(cr)
+    name = user.username.lower()
+    if name and any(u.lower() == name for u in managers["users"]):
+        return True
+    groups = {g.lstrip("/") for g in user.groups}
+    return any(g.lstrip("/") in groups for g in managers["groups"])
+
+
+def app_role(user: User, cr: dict[str, Any]) -> Role:
+    """The caller's relationship to an App, strongest first: "" means none."""
+    if is_owner(user, cr):
+        return "owner"
+    if is_manager(user, cr):
+        return "manager"
+    if is_admin(user):
+        return "admin"
+    return ""
+
+
+def can_access(user: User, cr: dict[str, Any]) -> bool:
+    """Owner, manager or admin: the authorization rule for every App route.
+
+    Apps without an owner (created with kubectl) are admin-and-manager-only.
+    """
+    return app_role(user, cr) != ""
+
+
+def can_change_managers(user: User, cr: dict[str, Any]) -> bool:
+    """Only the owner and admins may change who manages an App."""
+    return is_owner(user, cr) or is_admin(user)
 
 
 def check_client(claims: dict[str, Any], allowed: list[str] | None) -> None:

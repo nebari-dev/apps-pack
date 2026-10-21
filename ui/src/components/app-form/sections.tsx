@@ -17,6 +17,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import type { App } from "@/lib/types";
 import {
   type AppKind,
+  canEditManagers,
   describeValueFrom,
   type Field,
   type FormAction,
@@ -750,6 +751,63 @@ export function AccessSection({ form }: { form: FormContext }) {
             </div>
           )}
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Who besides the owner may manage the app; only the owner or an admin may change it. */
+export function ManagersSection({ form }: { form: FormContext }) {
+  const { managerUsers, managerGroups } = form.state;
+  const { set, isEdit, initial } = form;
+  const editable = canEditManagers(isEdit, initial);
+  const describedBy = editable ? "managers-help" : "managers-help managers-locked";
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Managers</CardTitle>
+        <CardDescription>
+          Managers can edit, start, stop, restart and delete this app and read its logs, like its
+          owner, but cannot change this list. Admins can always manage it. This does not change who
+          can open the app.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="managerUsers">Manager users</Label>
+          <Input
+            id="managerUsers"
+            placeholder="comma-separated usernames"
+            aria-describedby={describedBy}
+            value={managerUsers}
+            disabled={!editable}
+            onChange={(e) => set("managerUsers", e.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="managerGroups">Manager groups</Label>
+          <Input
+            id="managerGroups"
+            placeholder="comma-separated"
+            aria-describedby={describedBy}
+            value={managerGroups}
+            disabled={!editable}
+            onChange={(e) => set("managerGroups", e.target.value)}
+          />
+        </div>
+        <p id="managers-help" className="text-muted-foreground-strong text-sm">
+          Keycloak usernames and groups. Group membership is read from each person's sign-in token,
+          so a change to their groups applies when it refreshes.
+        </p>
+        {editable ? null : (
+          <p
+            id="managers-locked"
+            className="flex items-center gap-1.5 text-muted-foreground-strong text-sm"
+          >
+            <Lock aria-hidden="true" className="size-3.5 shrink-0" />
+            Only the owner or an admin can change who manages this app.
+          </p>
+        )}
       </CardContent>
     </Card>
   );

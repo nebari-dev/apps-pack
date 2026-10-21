@@ -5,6 +5,13 @@
 export type AppAccess = {
   /** Groups are the Keycloak/OIDC groups allowed to open a private app. */
   groups?: string[];
+  /** Managers may manage the app (edit, start, stop, restart, delete, read logs and metrics) through apps-api, the UI and the MCP server, like its owner. */
+  managers?: {
+    /** Groups are Keycloak/OIDC groups whose members may manage the app (a leading "/" is ignored, as for api.adminGroups). */
+    groups?: string[];
+    /** Users are Keycloak usernames (preferred_username, case-insensitive). */
+    users?: string[];
+  };
   /** Public disables authentication entirely (anonymous access). */
   public?: boolean;
   /** Subdomain under the cluster domain: https://<subdomain>.<clusterDomain>. */

@@ -49,6 +49,10 @@ export interface FormState {
   isPublic: boolean;
   groups: string;
   users: string;
+  /** access.managers.users, comma-separated. */
+  managerUsers: string;
+  /** access.managers.groups, comma-separated. */
+  managerGroups: string;
   subdomain: string;
   onLandingPage: boolean;
   /** Fields the user has left (blurred); their problems are shown. */
@@ -127,6 +131,8 @@ export function initialState(initial: App | undefined, isEdit: boolean): FormSta
     isPublic: initial?.access?.public ?? false,
     groups: (initial?.access?.groups ?? []).join(", "),
     users: (initial?.access?.users ?? []).join(", "),
+    managerUsers: (initial?.access?.managers?.users ?? []).join(", "),
+    managerGroups: (initial?.access?.managers?.groups ?? []).join(", "),
     subdomain: initial?.access?.subdomain ?? "",
     // The landing-page switch is read-only for now (LANDING_PAGE_LOCKED): it
     // shows the App's current value, a new app is registered off, and an
@@ -250,6 +256,20 @@ function buildSource(s: FormState): AppSource | undefined {
  */
 export const LANDING_PAGE_LOCKED = true;
 
+/**
+ * Whether the caller may change who manages the App: anyone launching one,
+ * and on an edit its owner or an admin (managers may not).
+ */
+export function canEditManagers(isEdit: boolean, initial: App | undefined): boolean {
+  return !isEdit || initial?.role !== "manager";
+}
+
+function buildManagers(s: FormState) {
+  const users = splitList(s.managerUsers);
+  const groups = splitList(s.managerGroups);
+  return users.length || groups.length ? { users, groups } : undefined;
+}
+
 /** "a, b ,c," -> ["a", "b", "c"]: the comma-separated groups and users fields. */
 export function splitList(raw: string): string[] {
   return raw
@@ -294,6 +314,11 @@ export function buildPayload(
         subdomain: initial?.access?.subdomain ?? s.subdomain,
       },
     };
+    // A manager cannot change the list, so their edit leaves it out (the API
+    // keeps the stored value); for the owner or an admin, null clears it.
+    const managers = buildManagers(s);
+    if (body.access && canEditManagers(isEdit, initial) && (managers || initial?.access?.managers))
+      body.access.managers = managers ?? null;
     // An omitted landingPage keeps the stored value; while the switch is
     // locked the form never changes it.
     if (!LANDING_PAGE_LOCKED) body.landingPage = { enabled: s.onLandingPage };
@@ -314,6 +339,7 @@ export function buildPayload(
       groups: splitList(s.groups),
       users: splitList(s.users),
       subdomain: s.subdomain,
+      ...(buildManagers(s) ? { managers: buildManagers(s) } : {}),
     },
     // Locked: registered off explicitly, so a cluster default of "on" does
     // not list it either. Unlocked, the tile is opt-in (unset = cluster

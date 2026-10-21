@@ -52,6 +52,9 @@ access:
   public: false                # true = anonymous; false = Keycloak SSO at the gateway
   groups: ["analytics"]        # allowed groups (enforced in the app pod; 403 for others)
   users: ["alice"]             # allowed usernames, in addition to the groups
+  managers:                    # optional: who else may manage (edit, stop, delete) the app;
+    users: ["bob"]             # not who may open it. Only the owner or an admin can change it
+    groups: ["data-team"]
   subdomain: docs-site         # URL: http(s)://<subdomain>.<appsDomain>
 
 landingPage:                   # optional
@@ -75,6 +78,7 @@ landingPage:                   # optional
 | `runtime.keepAlive` | `keep_alive` |
 | `runtime.idleTimeoutMinutes` | `idle_timeout_minutes` (omit when the manifest omits it) |
 | `access.public` / `access.groups` / `access.users` | `public` / `groups` / `users` |
+| `access.managers.users` / `access.managers.groups` | `manager_users` / `manager_groups` (omit both when the manifest has no `managers`, so a re-launch keeps the current list) |
 | `access.subdomain` | `subdomain` |
 | `landingPage.enabled` | `landing_page` (omit when the manifest omits it) |
 
