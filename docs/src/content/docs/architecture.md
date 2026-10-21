@@ -34,7 +34,7 @@ For each `App`, the operator runs an ordered, idempotent pipeline:
    `RuntimeDefault`): nginx serving the app's content, with git sources cloned by a
    non-root init container. Static apps run an operator-written nginx config (a
    `<app>-server` ConfigMap mounted over `/etc/nginx/conf.d`) that adds security headers.
-   An App restricted to groups or users also gets the `authz` sidecar (next section), and so
+   An App restricted to groups also gets the `authz` sidecar (next section), and so
    does an App that can idle, where the sidecar records activity. An `image` App runs the
    given image as the `app` container instead, always behind the sidecar, which keeps 8080 as
    the one port the Service and NetworkPolicy target while the image listens on its own port. Before the Deployment is
@@ -109,15 +109,15 @@ Apps never contain auth code. A private app's `NebariApp` creates an Envoy Gatew
 `access.public: true` skips the policy entirely. This keeps user workloads honest — there is
 no token to mishandle inside an app pod.
 
-The gateway only signs users in; it has no group or user rule
+The gateway only signs users in; it has no group rule
 ([nebari-operator#153](https://github.com/nebari-dev/nebari-operator/issues/153)). So when a
-private App lists `access.groups` or `access.users`, the operator enforces them in the pod:
+private App lists `access.groups`, the operator enforces them in the pod:
 the `NebariApp` sets `forwardAccessToken: true`, and the Deployment gets the **apps-authz**
 sidecar on port 8080 in front of the app container (moved to 8081). The sidecar verifies
 the forwarded Keycloak access token against the realm's keys and lets in a member of any
-listed group or a listed user; everyone else gets `403`. `access.groups` also goes to the
-`NebariApp` as `auth.groups` (landing-page tile visibility); `access.users` does not, since
-`NebariApp` has no per-user field. See [Access control](/launching-apps/#access-control).
+listed group; everyone else gets `403`. Access is by group only: Apps have no per-user
+allow list. `access.groups` also goes to the `NebariApp` as `auth.groups` (landing-page tile
+visibility). See [Access control](/launching-apps/#access-control).
 
 ## Secrets
 

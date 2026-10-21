@@ -108,7 +108,6 @@ def to_cr(req: AppCreate, owner: str) -> dict[str, Any]:
         "access": {
             "public": req.access.public,
             "groups": req.access.groups,
-            "users": req.access.users,
             "managers": req.access.managers.model_dump() if req.access.managers else None,
             "subdomain": req.access.subdomain,
         },

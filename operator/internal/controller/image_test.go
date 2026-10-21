@@ -126,7 +126,7 @@ func TestReconcileImageApp(t *testing.T) {
 
 func TestImageAppRestrictedAndDigest(t *testing.T) {
 	digest := "sha256:" + strings.Repeat("b", 64)
-	app := restrictedApp(imageApp("apps", "nginx@"+digest), []string{"analysts"}, nil)
+	app := restrictedApp(imageApp("apps", "nginx@"+digest), []string{"analysts"})
 	app.Spec.Source.Image.RunAsUser = ptr.To(int64(1000))
 	r, c, _ := imageReconciler(t, managedNamespace("apps"), app)
 	reconcile(t, r, app)

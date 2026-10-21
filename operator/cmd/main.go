@@ -53,7 +53,7 @@ func main() {
 	flag.StringVar(&cfg.PythonImage, "python-image", envOr("PYTHON_IMAGE", "ghcr.io/prefix-dev/pixi:0.68.1-noble"),
 		"Image running Python/pixi apps (runtime.pixiTask); must provide pixi and run as non-root.")
 	flag.StringVar(&cfg.AuthzImage, "authz-image", envOr("AUTHZ_IMAGE", ""),
-		"apps-authz sidecar image, added to Apps that restrict access.groups or access.users (required for those Apps).")
+		"apps-authz sidecar image, added to Apps that restrict access.groups (required for those Apps).")
 	var authzPullPolicy string
 	flag.StringVar(&authzPullPolicy, "authz-image-pull-policy", envOr("AUTHZ_IMAGE_PULL_POLICY", ""),
 		"Pull policy for the authz sidecar image (Always|IfNotPresent|Never; empty: the Kubernetes default).")

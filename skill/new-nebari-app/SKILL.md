@@ -14,7 +14,7 @@ and maps the manifest onto the `nebari-apps` MCP server's `launch_app` tool so
 - **Python app (pixi)**: a source tree with a `pixi.toml`; the platform runs
   `pixi install` then `pixi run <task>` (set in `runtime.pixiTask`), and the task must
   start a server on **0.0.0.0:$PORT** (`PORT` is injected: 8080, or 8081 when the app
-  lists allowed groups or users).
+  lists allowed groups or can idle).
 
 A third kind needs no scaffolding: an app that already ships as a **container image**. When
 `describe_cluster` lists `image` in `sourceTypes`, write a manifest with `source.type: image`

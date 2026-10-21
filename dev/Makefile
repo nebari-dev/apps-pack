@@ -53,7 +53,7 @@ UI_IMG         := apps-ui:dev
 MCP_IMG        := apps-mcp:dev
 AUTHZ_IMG      := apps-authz:dev
 # In-cluster Keycloak from the nebari-operator dev scripts: the authz sidecar
-# of apps that list access.groups/users fetches the realm's keys from it.
+# of apps that list access.groups fetches the realm's keys from it.
 KEYCLOAK_INTERNAL_URL := http://keycloak-keycloakx-http.keycloak.svc.cluster.local:8080
 APP_NAMESPACE  := apps
 

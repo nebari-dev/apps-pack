@@ -59,7 +59,7 @@ type OperatorConfig struct {
 	StaticResources corev1.ResourceRequirements
 	PythonResources corev1.ResourceRequirements
 	// AuthzImage is the apps-authz sidecar added in front of Apps that
-	// restrict access to groups or users (authz.go).
+	// restrict access to groups (authz.go).
 	AuthzImage string
 	// AuthzImagePullPolicy is the sidecar's pull policy (empty: the
 	// Kubernetes default).

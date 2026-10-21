@@ -123,20 +123,18 @@ func TestNebariAppContractPrivateApp(t *testing.T) {
 	}
 }
 
-// access.users is enforced only by the sidecar: the token is forwarded, but
-// NebariApp has no per-user field, so neither users nor groups are emitted.
-func TestNebariAppContractUsersOnly(t *testing.T) {
+// A group-restricted App forwards the token for the sidecar and never emits
+// an auth.users field.
+func TestNebariAppContractGroupsOnly(t *testing.T) {
 	app := inlineApp("team-a")
-	app.Spec.Access = appsv1alpha1.AppAccess{Users: []string{"alice"}, Subdomain: "docs-site"}
+	app.Spec.Access = appsv1alpha1.AppAccess{Groups: []string{"analysts"}, Subdomain: "docs-site"}
 
 	auth, _, _ := unstructured.NestedMap(testReconciler().buildNebariApp(app).Object, "spec", "auth")
 	if auth["enabled"] != true || auth["forwardAccessToken"] != true || auth["enforceAtGateway"] != true {
 		t.Errorf("auth = %+v, want sign-in with the token forwarded", auth)
 	}
-	for _, k := range []string{"users", "groups"} {
-		if _, has := auth[k]; has {
-			t.Errorf("auth.%s should not be emitted for a users-only App", k)
-		}
+	if _, has := auth["users"]; has {
+		t.Error("auth.users should never be emitted")
 	}
 }
 

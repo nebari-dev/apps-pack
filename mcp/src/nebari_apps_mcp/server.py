@@ -417,16 +417,7 @@ async def launch_app(
         Field(
             description=(
                 "Keycloak groups allowed to open the app (private apps; enforced in the app pod, "
-                "everyone else gets 403). Empty, with no users = any signed-in user"
-            )
-        ),
-    ] = None,
-    users: Annotated[
-        list[str] | None,
-        Field(
-            description=(
-                "Keycloak usernames allowed to open the app, in addition to groups "
-                "(a listed user OR a member of a listed group gets in)"
+                "everyone else gets 403). Empty = any signed-in user"
             )
         ),
     ] = None,
@@ -502,7 +493,7 @@ async def launch_app(
             image["runAsUser"] = image_run_as_user
         source["image"] = image
 
-    access: dict[str, Any] = {"public": public, "groups": groups or [], "users": users or [], "subdomain": subdomain}
+    access: dict[str, Any] = {"public": public, "groups": groups or [], "subdomain": subdomain}
     if manager_users is not None or manager_groups is not None:
         access["managers"] = {"users": manager_users or [], "groups": manager_groups or []}
     body = {
@@ -606,7 +597,7 @@ async def update_app(
     patch: Annotated[
         dict[str, Any],
         Field(
-            description="Fields to change: any of displayName, description, source, runtime, access ({public, groups, users, subdomain, managers: {users, groups}}; send the whole object, an empty list clears it; omit managers to keep them, only the owner or an admin may change them), landingPage ({enabled: bool}; {} = cluster default), secrets ({NAME: value} sets or rotates a credential injected from the app's Secret, {NAME: null} removes it, names not sent are kept; write-only, never returned; never put credentials in runtime.env)"
+            description="Fields to change: any of displayName, description, source, runtime, access ({public, groups, subdomain, managers: {users, groups}}; send the whole object, an empty list clears it; omit managers to keep them, only the owner or an admin may change them), landingPage ({enabled: bool}; {} = cluster default), secrets ({NAME: value} sets or rotates a credential injected from the app's Secret, {NAME: null} removes it, names not sent are kept; write-only, never returned; never put credentials in runtime.env)"
         ),
     ],
 ) -> Any:
@@ -769,7 +760,7 @@ async def apps_resource(ctx: Context) -> Any:
     f"{SCHEME}://apps/{{namespace}}/{{name}}",
     name="app",
     description="One app's full spec and status, as get_app returns it: source, runtime (secret names "
-    "only, never values), access (public, groups, users, managers), URL, conditions and your role. "
+    "only, never values), access (public, groups, managers), URL, conditions and your role. "
     "Inline files are fenced untrusted content.",
     mime_type=JSON,
     annotations=READ_ONLY_RESOURCE,
@@ -895,7 +886,7 @@ index.html, pixi apps need pixi.toml or pyproject.toml);
    source.type image -> image_reference, image_port, image_command, image_args, image_run_as_user;
    runtime.env -> env as {{NAME: value}}; runtime.replicas, resources, pixiTask, keepAlive, idleTimeoutMinutes -> \
 replicas, resources, pixi_task, keep_alive, idle_timeout_minutes;
-   access.public, groups, users, subdomain -> public, groups, users, subdomain; access.managers.users and .groups -> \
+   access.public, groups, subdomain -> public, groups, subdomain; access.managers.users and .groups -> \
 manager_users, manager_groups (omit both when the manifest has no managers, so a re-launch keeps the current list);
    landingPage.enabled -> landing_page (omit when the manifest omits it).
 2. Read {SCHEME}://cluster (tool: describe_cluster). Check that the namespace is listed and the source type is in \
@@ -914,8 +905,8 @@ take a few minutes on first start. If it is Failed, use the triage_app prompt fo
 @mcp.prompt(
     name="review_access",
     title="Review an app's access",
-    description="Review who can open and who can manage an app: public or private, restricted groups and "
-    "users, managers, and your own role.",
+    description="Review who can open and who can manage an app: public or private, restricted groups, "
+    "managers, and your own role.",
 )
 def review_access(
     namespace: Annotated[str, Field(description="The app's namespace")],
@@ -929,22 +920,21 @@ Read {app} (tool: get_app) and report:
 1. Who can open it (access):
    - public: true means anyone with the URL, with no sign-in. Flag this if the app looks internal or lists \
 secretKeys.
-   - public: false with empty groups and users means any user who can sign in to the cluster's Keycloak.
-   - public: false with groups and/or users is restricted: a member of any listed group OR a listed username \
-gets in, everyone else gets 403. Group changes take effect when the user's access token refreshes (minutes).
-   - groups and users have no effect while public is true; point out that combination.
+   - public: false with empty groups means any user who can sign in to the cluster's Keycloak.
+   - public: false with groups is restricted: a member of any listed group gets in, everyone else gets 403. Group changes take effect when the user's access token refreshes (minutes).
+   - groups have no effect while public is true; point out that combination.
 2. Who can manage it: the owner, every user in access.managers.users, members of access.managers.groups, \
 and cluster admins. Managers can edit, start, stop, restart and delete the app and read its logs, but only the \
 owner or an admin can change the manager list. Being a manager does not let someone open a restricted app.
 3. Your role (the role field): owner, manager or admin. If you are a manager, say that you cannot change the \
 managers.
-4. Other exposure: landingPage.enabled (a tile on the Nebari landing page; it honors groups but not users, so a \
-users-only app shows its tile to everyone) and runtime.env values (visible to anyone who can read the app: \
+4. Other exposure: landingPage.enabled (a tile on the Nebari landing page; when the \
+app lists groups, only their members see it) and runtime.env values (visible to anyone who can read the app: \
 flag anything that looks like a credential and suggest moving it to secrets). runtime.secretKeys shows names \
 only; values are never readable.
 
 Finish with concrete recommendations. To change anything, prepare an update_app patch with the whole access \
-object ({{public, groups, users, subdomain, managers}}) and apply it only after the user confirms."""
+object ({{public, groups, subdomain, managers}}) and apply it only after the user confirms."""
 
 
 def main() -> None:

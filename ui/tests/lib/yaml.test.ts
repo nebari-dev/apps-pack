@@ -25,8 +25,6 @@ describe("toYaml", () => {
         "    public: false",
         "    groups:",
         "      - analytics",
-        "    users:",
-        "      - grace",
         "    managers:",
         "      users:",
         "        - dave",

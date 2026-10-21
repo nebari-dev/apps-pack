@@ -137,7 +137,6 @@ func testConfig(r *realm) Config {
 		ClientID:     clientID,
 		Groups:       []string{"analysts", "admin"},
 		GroupsClaim:  "groups",
-		UsersClaim:   "preferred_username",
 	}
 }
 
@@ -227,31 +226,6 @@ func TestVerify(t *testing.T) {
 		{name: "not a JWT",
 			token: func() string { return "not.a.jwt" }},
 
-		// AUTHZ_USERS: OR semantics with the groups.
-		{name: "listed user with no groups claim", allowed: true,
-			cfg:   func(c *Config) { c.Users = []string{"ada"} },
-			token: func() string { return r.mint(t, with(base, map[string]any{"groups": nil})) }},
-		{name: "listed user outside every group", allowed: true,
-			cfg:   func(c *Config) { c.Users = []string{"grace", "ada"} },
-			token: func() string { return r.mint(t, with(base, map[string]any{"groups": []string{"test-group"}})) }},
-		{name: "users only, case-insensitive", allowed: true,
-			cfg:   func(c *Config) { c.Groups = nil; c.Users = []string{" Ada "} },
-			token: func() string { return r.mint(t, with(base, map[string]any{"preferred_username": "ADA"})) }},
-		{name: "users only, member of a group is not enough",
-			cfg:   func(c *Config) { c.Groups = nil; c.Users = []string{"grace"} },
-			token: func() string { return r.mint(t, base) }},
-		{name: "unlisted user and non-member",
-			cfg:   func(c *Config) { c.Users = []string{"grace"} },
-			token: func() string { return r.mint(t, with(base, map[string]any{"groups": []string{"test-group"}})) }},
-		{name: "listed user, no username claim",
-			cfg:   func(c *Config) { c.Groups = nil; c.Users = []string{"ada"} },
-			token: func() string { return r.mint(t, with(base, map[string]any{"preferred_username": nil})) }},
-		{name: "listed user, username claim of the wrong type",
-			cfg:   func(c *Config) { c.Groups = nil; c.Users = []string{"ada"} },
-			token: func() string { return r.mint(t, with(base, map[string]any{"preferred_username": []string{"ada"}})) }},
-		{name: "custom username claim", allowed: true,
-			cfg:   func(c *Config) { c.Groups = nil; c.Users = []string{"ada@example.com"}; c.UsersClaim = "email" },
-			token: func() string { return r.mint(t, base) }},
 		{name: "custom groups claim", allowed: true,
 			cfg:   func(c *Config) { c.GroupsClaim = "teams" },
 			token: func() string { return r.mint(t, with(base, map[string]any{"groups": nil, "teams": []string{"admin"}})) }},
@@ -383,23 +357,6 @@ func TestHandler(t *testing.T) {
 				t.Errorf("X-Forwarded-Proto/Host not preserved: %v", resp.Header)
 			}
 		})
-	}
-}
-
-func TestHandlerForbiddenBodyHidesUsernames(t *testing.T) {
-	r := newRealm(t)
-	gate, _ := newGate(t, r, newApp(t).URL, func(c *Config) { c.Users = []string{"grace"} })
-	tok := r.mint(t, with(keycloakClaims(time.Now()), map[string]any{"groups": []string{"test-group"}}))
-	req, _ := http.NewRequest(http.MethodGet, gate.URL, nil)
-	req.Header.Set("Authorization", "Bearer "+tok)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != http.StatusForbidden || strings.Contains(string(body), "grace") || strings.Contains(string(body), "analysts") {
-		t.Fatalf("status %d body %q: want a generic 403", resp.StatusCode, body)
 	}
 }
 
@@ -590,26 +547,18 @@ func TestFromEnv(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Listen != ":8080" || cfg.HealthListen != ":8082" || cfg.GroupsClaim != "groups" || cfg.UsersClaim != "preferred_username" {
+	if cfg.Listen != ":8080" || cfg.HealthListen != ":8082" || cfg.GroupsClaim != "groups" {
 		t.Errorf("defaults: %+v", cfg)
 	}
 	if len(cfg.Issuers) != 2 || cfg.Issuers[1] != publicIssuer || len(cfg.Groups) != 2 || cfg.Groups[1] != "admin" {
 		t.Errorf("lists: %+v", cfg)
 	}
 
-	usersOnly := maps.Clone(full)
-	delete(usersOnly, "AUTHZ_GROUPS")
-	usersOnly["AUTHZ_USERS"] = "ada,grace"
-	usersOnly["AUTHZ_USERS_CLAIM"] = "email"
-	if cfg, err := FromEnv(env(usersOnly)); err != nil || len(cfg.Users) != 2 || cfg.UsersClaim != "email" {
-		t.Errorf("users only: %+v %v", cfg, err)
-	}
-
 	cases := map[string]struct {
 		edit map[string]string
 		want string
 	}{
-		"nothing to allow":  {map[string]string{"AUTHZ_GROUPS": " , "}, "AUTHZ_GROUPS or AUTHZ_USERS is required"},
+		"nothing to allow":  {map[string]string{"AUTHZ_GROUPS": " , "}, "AUTHZ_GROUPS is required"},
 		"no upstream":       {map[string]string{"AUTHZ_UPSTREAM": ""}, "AUTHZ_UPSTREAM is required"},
 		"bad upstream":      {map[string]string{"AUTHZ_UPSTREAM": "127.0.0.1:8081"}, "AUTHZ_UPSTREAM"},
 		"no issuers":        {map[string]string{"AUTHZ_ISSUERS": ""}, "AUTHZ_ISSUERS is required"},
@@ -709,15 +658,12 @@ func TestFromEnvPassthrough(t *testing.T) {
 	if err != nil || !cfg.Passthrough {
 		t.Fatalf("passthrough needs only an upstream: %+v %v", cfg, err)
 	}
-	for _, v := range []string{"AUTHZ_GROUPS", "AUTHZ_USERS"} {
-		_, err := FromEnv(env(map[string]string{
-			"AUTHZ_UPSTREAM":    "http://127.0.0.1:8081",
-			"AUTHZ_PASSTHROUGH": "true",
-			v:                   "analysts",
-		}))
-		if err == nil || !strings.Contains(err.Error(), "cannot be combined") {
-			t.Errorf("passthrough with %s: %v", v, err)
-		}
+	if _, err := FromEnv(env(map[string]string{
+		"AUTHZ_UPSTREAM":    "http://127.0.0.1:8081",
+		"AUTHZ_PASSTHROUGH": "true",
+		"AUTHZ_GROUPS":      "analysts",
+	})); err == nil || !strings.Contains(err.Error(), "cannot be combined") {
+		t.Errorf("passthrough with AUTHZ_GROUPS: %v", err)
 	}
 	if _, err := FromEnv(env(map[string]string{"AUTHZ_PASSTHROUGH": "true"})); err == nil {
 		t.Error("passthrough without an upstream should fail")

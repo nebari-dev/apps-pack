@@ -115,23 +115,22 @@ async def test_launch_git_source(store):
     assert {"name": "LOG_LEVEL", "value": "debug"} in cr["spec"]["runtime"]["env"]
 
 
-async def test_launch_and_update_access_users(store):
-    await call("launch_app", {**LAUNCH_ARGS, "public": False, "groups": ["analysts"], "users": ["alice"]})
+async def test_launch_and_update_access_groups(store):
+    await call("launch_app", {**LAUNCH_ARGS, "public": False, "groups": ["analysts"]})
     access = store.apps[("apps", "docs-site")]["spec"]["access"]
     assert access["groups"] == ["analysts"]
-    assert access["users"] == ["alice"]
+    assert "users" not in access
 
     await call(
         "update_app",
         {
             "namespace": "apps",
             "name": "docs-site",
-            "patch": {"access": {"public": False, "users": ["bob"], "subdomain": "docs-site"}},
+            "patch": {"access": {"public": False, "groups": ["team"], "subdomain": "docs-site"}},
         },
     )
     access = store.apps[("apps", "docs-site")]["spec"]["access"]
-    assert access["users"] == ["bob"]
-    assert access["groups"] == ["analysts"]  # a field the patch did not send is kept
+    assert access["groups"] == ["team"]
 
 
 async def test_launch_and_update_managers(store):

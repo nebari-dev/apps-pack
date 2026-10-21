@@ -302,7 +302,7 @@ mcp:
 keycloak:
   # -- Browser-facing Keycloak base URL, e.g.
   # `https://keycloak.example.ai/auth`. Required when `api.auth.enabled`,
-  # and (or `internalUrl`) for apps that list `access.groups`/`access.users`.
+  # and (or `internalUrl`) for apps that list `access.groups`.
   url: ""
   # -- Keycloak realm.
   realm: nebari
@@ -362,7 +362,7 @@ gitImage: alpine/git:v2.47.2
 # `pixi` binary and run as a non-root user.
 pythonImage: ghcr.io/prefix-dev/pixi:0.68.1-noble
 
-# The apps-authz sidecar. Apps that list `access.groups` or `access.users`
+# The apps-authz sidecar. Apps that list `access.groups`
 # get it in front of the app container: it checks the access token the
 # gateway forwards against the Keycloak realm (`keycloak.url`, and
 # `keycloak.internalUrl` when set) and returns 403 to everyone else.

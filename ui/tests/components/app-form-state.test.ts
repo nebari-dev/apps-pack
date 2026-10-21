@@ -137,12 +137,12 @@ describe("splitList", () => {
 });
 
 describe("initialState", () => {
-  it("joins the App's groups and users for editing", () => {
+  it("joins the App's groups for editing", () => {
     const s = initialState(
-      { access: { public: false, groups: ["a", "b"], users: ["alice"], subdomain: "x" } } as App,
+      { access: { public: false, groups: ["a", "b"], subdomain: "x" } } as App,
       true,
     );
-    expect([s.groups, s.users]).toEqual(["a, b", "alice"]);
+    expect(s.groups).toBe("a, b");
   });
 });
 
@@ -154,14 +154,6 @@ describe("accessLine", () => {
     [
       { public: false, groups: ["a", "b"], subdomain: "x" },
       "Keycloak SSO at the gateway · restricted to groups: a, b",
-    ],
-    [
-      { public: false, groups: ["a"], users: ["alice"], subdomain: "x" },
-      "Keycloak SSO at the gateway · restricted to groups: a · users: alice",
-    ],
-    [
-      { public: false, users: ["alice", "bob"], subdomain: "x" },
-      "Keycloak SSO at the gateway · restricted to users: alice, bob",
     ],
   ])("describes %o", (access, want) => {
     expect(accessLine(app(access))).toBe(want);

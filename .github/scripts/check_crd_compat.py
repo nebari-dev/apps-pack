@@ -15,6 +15,9 @@ fail the check:
 Tightened validation (bounds, patterns, new CEL rules) is reported as a
 warning: Kubernetes validation ratcheting lets existing objects keep updating,
 but the change still belongs in the upgrade notes.
+
+APPROVED_REMOVALS lists one-off exceptions to the policy, each recorded in the
+App CRD reference and the upgrade notes. They are reported as warnings.
 """
 
 from __future__ import annotations
@@ -26,6 +29,12 @@ import yaml
 
 errors: list[str] = []
 warnings: list[str] = []
+
+# Fields removed from v1alpha1 by an explicit, documented exception (see
+# "Versioning and deprecation"). Entries can go once no base branch has the field.
+APPROVED_REMOVALS = {
+    "v1alpha1.spec.access.users",  # group-only access; see Upgrading
+}
 
 
 def compare(path: str, old: dict[str, Any], new: dict[str, Any]) -> None:
@@ -56,7 +65,10 @@ def compare(path: str, old: dict[str, Any], new: dict[str, Any]) -> None:
     old_props, new_props = old.get("properties", {}), new.get("properties", {})
     for name, schema in old_props.items():
         if name not in new_props:
-            errors.append(f"{path}.{name}: removed")
+            if f"{path}.{name}" in APPROVED_REMOVALS:
+                warnings.append(f"{path}.{name}: removed (approved exception)")
+            else:
+                errors.append(f"{path}.{name}: removed")
         else:
             compare(f"{path}.{name}", schema, new_props[name])
     newly_required = set(new.get("required", [])) - set(old.get("required", []))

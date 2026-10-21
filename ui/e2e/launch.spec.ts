@@ -29,7 +29,7 @@ test.describe("launch form", () => {
           namespace: "apps",
           displayName: "My Site",
           runtime: { replicas: 1, env: [], resources: null, pixiTask: "" },
-          access: { public: false, groups: [], users: [], subdomain: "my-site" },
+          access: { public: false, groups: [], subdomain: "my-site" },
           landingPage: { enabled: false },
           source: { type: "git", git: { url: "https://github.com/example/my-site", ref: "main" } },
         },
@@ -91,15 +91,14 @@ test.describe("launch form", () => {
     ]);
   });
 
-  test("restricts a private app to groups and users", async ({ page, api }) => {
+  test("restricts a private app to groups", async ({ page, api }) => {
     await openLaunchForm(page);
 
     await page.getByLabel("Name", { exact: true }).fill("team-site");
     await page.getByLabel("Display name").fill("Team Site");
     await page.getByRole("tab", { name: "Git" }).click();
     await page.getByLabel("Repository URL").fill("https://github.com/example/team-site");
-    await page.getByLabel("Allowed groups").fill("analysts, finance");
-    await page.getByLabel("Allowed users").fill("alice , bob,");
+    await page.getByLabel("Allowed groups").fill("analysts , finance,");
     await page.getByLabel("Manager users").fill("dave");
     await page.getByLabel("Manager groups").fill("web-team");
     // The landing-page option is locked: a note, not a switch.
@@ -109,9 +108,7 @@ test.describe("launch form", () => {
 
     await expect(page).toHaveURL("/apps/apps/team-site");
     await expect(
-      page.getByText(
-        "Keycloak SSO at the gateway · restricted to groups: analysts, finance · users: alice, bob",
-      ),
+      page.getByText("Keycloak SSO at the gateway · restricted to groups: analysts, finance"),
     ).toBeVisible();
     await expect(page.getByTestId("managers")).toHaveText(
       "Managed by users: dave · groups: web-team · admins",
@@ -124,7 +121,6 @@ test.describe("launch form", () => {
           access: {
             public: false,
             groups: ["analysts", "finance"],
-            users: ["alice", "bob"],
             managers: { users: ["dave"], groups: ["web-team"] },
             subdomain: "team-site",
           },
@@ -319,11 +315,11 @@ test.describe("launch form", () => {
       await page.keyboard.press("Tab");
       const id = await focused.getAttribute("id");
       if (id) visited.push(id);
-      if (id === "users") await page.keyboard.type("alice");
+      if (id === "groups") await page.keyboard.type("analysts");
     }
     await expect(launch).toBeFocused();
-    expect(visited).toEqual(expect.arrayContaining(["groups", "users", "subdomain"]));
-    expect(visited.indexOf("users")).toBe(visited.indexOf("groups") + 1);
+    expect(visited).toEqual(expect.arrayContaining(["groups", "subdomain"]));
+    expect(visited.indexOf("subdomain")).toBe(visited.indexOf("groups") + 1);
     await page.keyboard.press("Enter");
 
     await expect(page).toHaveURL("/apps/team-data/kb-site");
@@ -335,7 +331,7 @@ test.describe("launch form", () => {
           name: "kb-site",
           namespace: "team-data",
           displayName: "Keyboard Site",
-          access: { users: ["alice"] },
+          access: { groups: ["analysts"] },
           source: { type: "git", git: { url: "https://github.com/example/kb-site" } },
         },
       },

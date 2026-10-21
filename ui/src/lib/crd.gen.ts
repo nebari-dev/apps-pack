@@ -16,8 +16,6 @@ export type AppAccess = {
   public?: boolean;
   /** Subdomain under the cluster domain: https://<subdomain>.<clusterDomain>. */
   subdomain: string;
-  /** Users are Keycloak usernames (preferred_username, case-insensitive) allowed to open a private app, in addition to the members of groups. */
-  users?: string[];
 };
 
 export type AppCondition = {

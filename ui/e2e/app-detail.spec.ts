@@ -31,9 +31,7 @@ test.describe("app detail", () => {
     ).toBeVisible();
     await expect(page.getByText("of 1 ready", { exact: true })).toBeVisible();
     await expect(
-      page.getByText(
-        "Keycloak SSO at the gateway · restricted to groups: analytics · users: grace",
-      ),
+      page.getByText("Keycloak SSO at the gateway · restricted to groups: analytics"),
     ).toBeVisible();
     await expect(page.getByRole("link", { name: "Open" })).toHaveAttribute(
       "href",

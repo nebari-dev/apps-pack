@@ -56,7 +56,7 @@ wrong type fails the install.
 | gitImage | string | `"alpine/git:v2.47.2"` | Image used by init containers to fetch git sources. |
 | keycloak.internalUrl | string | `""` | Optional in-cluster Keycloak URL (split horizon) the API, the MCP server and the authz sidecar fetch JWKS from. The sidecar accepts tokens issued under either URL. |
 | keycloak.realm | string | `"nebari"` | Keycloak realm. |
-| keycloak.url | string | `""` | Browser-facing Keycloak base URL, e.g. `https://keycloak.example.ai/auth`. Required when `api.auth.enabled`, and (or `internalUrl`) for apps that list `access.groups`/`access.users`. |
+| keycloak.url | string | `""` | Browser-facing Keycloak base URL, e.g. `https://keycloak.example.ai/auth`. Required when `api.auth.enabled`, and (or `internalUrl`) for apps that list `access.groups`. |
 | mcp.enabled | bool | `true` | Deploy the MCP server. Agents connect at `https://<ui hostname>/mcp` (streamable HTTP); the UI's nginx proxies `/mcp` to it, so there is no separate hostname. When off, `/mcp` returns 404. |
 | mcp.extraEnv | list | `[]` | Extra environment variables for apps-mcp, after the chart's own (an entry with the same name wins). |
 | mcp.image.pullPolicy | string | `"IfNotPresent"` | Image pull policy. |

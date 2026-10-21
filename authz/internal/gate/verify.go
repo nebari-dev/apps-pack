@@ -38,8 +38,6 @@ type Verifier struct {
 	clientID    string
 	groups      map[string]bool
 	groupsClaim string
-	users       map[string]bool
-	usersClaim  string
 	now         func() time.Time
 }
 
@@ -50,15 +48,10 @@ func NewVerifier(cfg Config, keys oidc.KeySet) *Verifier {
 		clientID:    cfg.ClientID,
 		groups:      map[string]bool{},
 		groupsClaim: cfg.GroupsClaim,
-		users:       map[string]bool{},
-		usersClaim:  cfg.UsersClaim,
 		now:         time.Now,
 	}
 	for _, g := range cfg.Groups {
 		v.groups[normalizeGroup(g)] = true
-	}
-	for _, u := range cfg.Users {
-		v.users[normalizeUser(u)] = true
 	}
 	// go-oidc checks the signature and algorithm only; the claim checks
 	// below accept several issuers, use azp and allow clock skew both ways.
@@ -120,10 +113,10 @@ func (v *Verifier) Verify(ctx context.Context, raw string) error {
 		return deny("token was issued to another client")
 	}
 
-	if v.groupsAllow(c) || v.usersAllow(c) {
+	if v.groupsAllow(c) {
 		return nil
 	}
-	return deny("user is not in an allowed group or user list")
+	return deny("user is not in an allowed group")
 }
 
 // groupsAllow reports whether the groups claim (a string array, or a single
@@ -150,23 +143,7 @@ func (v *Verifier) groupsAllow(c map[string]json.RawMessage) bool {
 	return false
 }
 
-// usersAllow reports whether the username claim is an allowed user,
-// trimmed and case-insensitive (Keycloak lowercases usernames).
-func (v *Verifier) usersAllow(c map[string]json.RawMessage) bool {
-	raw, ok := c[v.usersClaim]
-	if !ok || len(v.users) == 0 {
-		return false
-	}
-	var name string
-	if err := json.Unmarshal(raw, &name); err != nil {
-		return false
-	}
-	name = normalizeUser(name)
-	return name != "" && v.users[name]
-}
-
 func normalizeGroup(g string) string { return strings.TrimPrefix(strings.TrimSpace(g), "/") }
-func normalizeUser(u string) string  { return strings.ToLower(strings.TrimSpace(u)) }
 
 // optional decodes claim name into dst when it is present.
 func optional(c map[string]json.RawMessage, name string, dst any) error {

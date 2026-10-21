@@ -69,7 +69,9 @@ helm rollback nebari-apps <REVISION> -n nebari-apps
 
 `helm rollback` restores the workloads, RBAC and values, but not the CRD. CRD changes
 within `v1alpha1` are additive ([versioning policy](/app-crd-reference/#versioning-and-deprecation),
-checked in CI), so the newer CRD keeps working with the older operator.
+checked in CI), so the newer CRD keeps working with the older operator. The exception is
+[group-only access](#upgrading-to-group-only-access), which removed `access.users`: rolling
+back does not restore the lists the newer CRD pruned.
 If Apps were lost, re-apply the backup:
 
 ```bash
@@ -79,6 +81,34 @@ kubectl apply -f apps-backup-<date>.yaml
 Status fields in the backup are ignored; the operator recomputes them.
 
 ## Version notes
+
+### Upgrading to group-only access
+
+**Breaking:** Apps restrict who may open them by Keycloak group only. `spec.access.users`
+(the per-user allow list) is removed from the CRD, the API, the MCP `launch_app` tool, the
+UI and the apps-authz sidecar (`AUTHZ_USERS`, `AUTHZ_USERS_CLAIM`).
+`spec.access.managers.users`, the users who may *manage* an App, is unchanged.
+
+- **An App that restricted only by users becomes open to every signed-in user.** The new
+  CRD's structural schema prunes `access.users` from stored Apps, so an App that listed
+  users and no groups is left with neither list: the operator drops its authz sidecar and
+  any user who can sign in to the realm gets in. An App that listed both keeps its groups,
+  and the people it let in only by username are refused (`403`).
+- **Before upgrading, find the Apps that list users:**
+
+  ```bash
+  kubectl get apps.apps.nebari.dev -A -o json | jq -r '.items[] | select(.spec.access.users // [] | length > 0) | "\(.metadata.namespace)/\(.metadata.name)"'
+  ```
+
+  For each one, put those users in a Keycloak group (an existing one, or a new group per
+  App) and add the group to the App's `access.groups` before you apply the new CRD. Group
+  membership reaches users' tokens on their next refresh (5 minutes by default). Take the
+  [backup](#before-you-upgrade) after this step too: a rollback does not bring the pruned
+  lists back, the backup does.
+- **Clients that still send `access.users`** get a `422` from the API (and from the upload
+  route's manifest) instead of an App that is silently open to more people. Update scripts,
+  `nebari-app.yaml` manifests and GitOps manifests to use groups; for GitOps and `kubectl`
+  the apiserver prunes the field without an error, so check those by hand.
 
 ### Upgrading to container images
 

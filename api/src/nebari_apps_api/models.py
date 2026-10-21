@@ -156,16 +156,26 @@ class AppManagers(BaseModel):
 
 
 class AppAccess(BaseModel):
+    # Unknown keys are ignored on reads: an App stored before the users list was
+    # removed from access may still carry it (the apiserver prunes it on the next write).
     public: bool = False
-    # A private app with groups or users is enforced in the app pod by the
-    # authz sidecar: a member of any group OR a listed username gets in,
-    # everyone else gets 403. Both empty: any signed-in user.
+    # A private app with groups is enforced in the app pod by the authz
+    # sidecar: a member of any group gets in, everyone else gets 403. Empty:
+    # any signed-in user.
     groups: list[str] = Field(default_factory=list)
-    users: list[str] = Field(default_factory=list)
     # Users and groups who may manage the App like its owner; only the owner
     # and admins may change this list.
     managers: AppManagers | None = None
     subdomain: str = Field(max_length=63, pattern=r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$")
+
+
+class AppAccessRequest(AppAccess):
+    """access in a create or patch body. Unknown keys are refused, so a client
+    still sending the removed users list gets a 422 instead of an App that is
+    silently open to more people than it asked for.
+    """
+
+    model_config = ConfigDict(extra="forbid")
 
 
 class AppLandingPage(BaseModel):
@@ -190,7 +200,7 @@ class AppCreate(BaseModel):
     thumbnail: str = ""
     source: AppSource
     runtime: AppRuntime = Field(default_factory=AppRuntime)
-    access: AppAccess
+    access: AppAccessRequest
     landingPage: AppLandingPage | None = None
     # Write-only secret values: stored in the App's Secret, never in the App
     # and never returned; runtime.secretKeys lists their names.
@@ -207,7 +217,7 @@ class AppPatch(BaseModel):
     thumbnail: str | None = None
     source: AppSource | None = None
     runtime: AppRuntime | None = None
-    access: AppAccess | None = None
+    access: AppAccessRequest | None = None
     landingPage: AppLandingPage | None = None
     # Set or rotate (a value) or remove (null) secret keys; keys not sent are
     # kept. Write-only, like AppCreate.secrets.

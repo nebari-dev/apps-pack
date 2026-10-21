@@ -13,7 +13,9 @@ from typing import Annotated, Any
 import httpx
 import structlog
 from fastapi import Body, Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
+from pydantic import ValidationError
 
 from . import __version__
 from . import cr as crmod
@@ -309,7 +311,11 @@ def create_app(store: AppStore | None = None) -> FastAPI:
         data_bytes = read_capped(file.file, settings.max_upload_bytes)
         files = files_from_upload(file.filename or "upload", data_bytes, pixi=pixi)
         data["source"] = {"type": "inline", "inline": {"files": files}}
-        req = AppCreate.model_validate(data)
+        try:
+            req = AppCreate.model_validate(data)
+        except ValidationError as exc:
+            # A 422 like a JSON body gets, not a 500.
+            raise RequestValidationError(exc.errors()) from exc
 
         return create_checked(store, user, req)
 
@@ -539,16 +545,15 @@ def create_app(store: AppStore | None = None) -> FastAPI:
 
 
 def _check_access(access: Any) -> None:
-    """Groups and users reach the authz sidecar as comma-separated lists, so
-    an entry may not be blank or contain a comma (the operator refuses such an
-    App; this says so up front).
+    """Groups reach the authz sidecar as a comma-separated list, so an entry
+    may not be blank or contain a comma (the operator refuses such an App;
+    this says so up front).
     """
     if access is None:
         return
-    for field in ("groups", "users"):
-        for entry in getattr(access, field):
-            if not entry.strip() or "," in entry:
-                raise HTTPException(422, f"access.{field}: entries must be non-empty and must not contain ','")
+    for entry in access.groups:
+        if not entry.strip() or "," in entry:
+            raise HTTPException(422, "access.groups: entries must be non-empty and must not contain ','")
     if access.managers is not None:
         for field in ("users", "groups"):
             if any(not entry.strip() for entry in getattr(access.managers, field)):

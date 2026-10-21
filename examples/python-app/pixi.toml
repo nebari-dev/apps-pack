@@ -9,5 +9,5 @@ streamlit = ">=1.44"
 
 [tasks]
 # The platform runs `pixi run start` and expects a server on 0.0.0.0:$PORT
-# (8080, or 8081 when access.groups/users is set). Locally: PORT=8080 pixi run start
+# (8080, or 8081 when access.groups is set or the app can idle). Locally: PORT=8080 pixi run start
 start = "streamlit run app.py --server.address 0.0.0.0 --server.port $PORT --server.headless true"
