@@ -16,6 +16,32 @@ test.describe("apps list", () => {
     await expect(rows.filter({ hasText: "Broken App" })).toContainText("Failed");
   });
 
+  test("shows a table-shaped skeleton while the list loads, sized like the real rows", async ({
+    page,
+    api,
+  }) => {
+    // No attention banner, so nothing above the table moves when the list arrives.
+    api.apps = api.apps.filter((a) => a.status.phase === "Stopped");
+    api.restarts = {};
+    const release = api.hold(/^\/apps$/);
+    await page.goto("/apps");
+    await expect(page.getByRole("heading", { level: 1, name: "Apps" })).toBeVisible();
+    await expect(page.getByRole("status").filter({ hasText: "Loading apps" })).toBeAttached();
+    // The placeholder rows are hidden from assistive tech.
+    await expect(page.getByRole("row")).toHaveCount(0);
+    const skeleton = page.locator('[aria-busy="true"] table');
+    const header = await skeleton.locator("thead tr").boundingBox();
+    const row = await skeleton.locator("tbody tr").first().boundingBox();
+
+    release();
+    await expect(page.getByRole("link", { name: "Sales Dashboard" })).toBeVisible();
+    await expect(page.locator('[aria-busy="true"]')).toHaveCount(0);
+    expect(await page.locator("table thead tr").boundingBox()).toEqual(header);
+    const real = await page.locator("table tbody tr").first().boundingBox();
+    // Within a pixel: the last row drops its bottom border.
+    expect(Math.abs((real?.height ?? 0) - (row?.height ?? 0))).toBeLessThanOrEqual(1);
+  });
+
   test("puts the most severe app first and explains the failure", async ({ page }) => {
     await page.goto("/apps");
     const rows = page.getByRole("row");

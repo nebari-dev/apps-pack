@@ -11,6 +11,7 @@ import {
   type Sort,
   type SortCol,
 } from "@/components/apps-table";
+import { AppsTableSkeleton } from "@/components/loading-skeletons";
 import { Onboarding } from "@/components/onboarding";
 import { errorMessage, QueryError } from "@/components/query-error";
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -25,7 +26,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toast";
 import {
   appKey,
@@ -351,9 +351,7 @@ export function AppsPage() {
       ) : null}
 
       {apps.isLoading ? (
-        <div className="flex h-40 items-center justify-center">
-          <Spinner className="size-6" />
-        </div>
+        <AppsTableSkeleton />
       ) : apps.isError ? (
         <QueryError
           title="Could not load apps"

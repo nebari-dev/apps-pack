@@ -2,8 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { AppForm, type SubmitPayload } from "@/components/app-form";
+import { AppFormSkeleton } from "@/components/loading-skeletons";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toast";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { api } from "@/lib/api";
@@ -43,13 +43,7 @@ export function EditPage() {
       }),
   });
 
-  if (app.isLoading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Spinner className="size-6" />
-      </div>
-    );
-  }
+  if (app.isLoading) return <AppFormSkeleton />;
   if (app.isError || !app.data) {
     return (
       <Alert variant="destructive">

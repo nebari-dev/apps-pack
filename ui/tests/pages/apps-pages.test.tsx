@@ -418,6 +418,25 @@ describe("apps page", () => {
     expect(within(row).queryByRole("button", { name: "Start app" })).not.toBeInTheDocument();
   });
 
+  it("shows a table-shaped skeleton while the list loads, then the rows", async () => {
+    let resolve: (list: App[]) => void = () => {};
+    mocked.listApps.mockReturnValue(new Promise((r) => (resolve = r)));
+    const { container } = renderAt("/", <Route path="/" element={<AppsPage />} />);
+    // The heading is real from the start; only the table area is a placeholder.
+    expect(screen.getByRole("heading", { level: 1, name: "Apps" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Loading apps");
+    const busy = container.querySelector('[aria-busy="true"]');
+    expect(busy).toHaveAttribute("aria-hidden", "true");
+    expect(busy?.querySelectorAll("tbody tr").length).toBeGreaterThan(0);
+    // No rows are exposed to assistive tech while loading.
+    expect(screen.queryAllByRole("row")).toHaveLength(0);
+
+    resolve(LIST);
+    expect(await screen.findByRole("link", { name: "Alpha Docs" })).toBeInTheDocument();
+    expect(screen.queryByText("Loading apps")).toBeNull();
+    expect(container.querySelector('[aria-busy="true"]')).toBeNull();
+  });
+
   it("shows onboarding, without the filters, when there are no apps", async () => {
     mocked.listApps.mockResolvedValue([]);
     renderAt("/", <Route path="/" element={<AppsPage />} />);
@@ -760,6 +779,48 @@ describe("app detail page", () => {
     expect(yaml).toContain("  landingPage:\n    enabled: true");
     expect(yaml).not.toContain('"kind"');
     expect(panel).toHaveTextContent("apply with kubectl apply -f");
+  });
+
+  it("shows a page-shaped skeleton while the app loads", async () => {
+    mocked.getApp.mockReturnValue(new Promise(() => {}));
+    mocked.logs.mockReturnValue(new Promise(() => {}));
+    mocked.events.mockReturnValue(new Promise(() => {}));
+    mocked.metrics.mockReturnValue(new Promise(() => {}));
+    const { container } = renderAt(
+      "/apps/apps/docs",
+      <Route path="/apps/:namespace/:name" element={<AppDetailPage />} />,
+    );
+    expect(await screen.findByRole("status")).toHaveTextContent("Loading app");
+    expect(container.querySelector('[aria-busy="true"]')).toHaveAttribute("aria-hidden", "true");
+    expect(screen.queryByRole("heading")).toBeNull();
+  });
+
+  it("shows skeletons, not empty-state text, while logs, events and metrics load", async () => {
+    const user = userEvent.setup();
+    await renderDetail(app("docs"), "/apps/apps/docs", () => {
+      mocked.logs.mockReturnValue(new Promise(() => {}));
+      mocked.events.mockReturnValue(new Promise(() => {}));
+      mocked.metrics.mockReturnValue(new Promise(() => {}));
+    });
+    // CPU and memory do not claim "unavailable" before the metrics answer.
+    expect(screen.queryByText("Metrics unavailable")).toBeNull();
+    await user.click(screen.getByRole("tab", { name: "Logs" }));
+    const logsPanel = screen.getByRole("tabpanel", { name: "Logs" });
+    expect(within(logsPanel).getByRole("status")).toHaveTextContent("Loading logs");
+    expect(within(logsPanel).queryByRole("log")).toBeNull();
+    await user.click(screen.getByRole("tab", { name: "Events" }));
+    const eventsPanel = screen.getByRole("tabpanel", { name: "Events" });
+    expect(within(eventsPanel).getByRole("status")).toHaveTextContent("Loading events");
+    expect(within(eventsPanel).queryByText("No events.")).toBeNull();
+  });
+
+  it("says when an app has no log lines yet instead of loading forever", async () => {
+    const user = userEvent.setup();
+    await renderDetail(app("docs"), "/apps/apps/docs?tab=logs", () => {
+      mocked.logs.mockResolvedValue({ logs: "" });
+    });
+    await user.click(screen.getByRole("tab", { name: "Logs" }));
+    expect(await screen.findByRole("log")).toHaveTextContent("No log lines yet.");
   });
 
   it("explains a failed load", async () => {

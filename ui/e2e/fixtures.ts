@@ -40,6 +40,11 @@ export interface MockApi {
   restarts: Record<string, number>;
   /** Mutating requests, in the order they arrived. */
   requests: RecordedRequest[];
+  /**
+   * Holds GET requests whose path (after /api/v1) matches `path` until the
+   * returned function is called, so a test can see the page while it loads.
+   */
+  hold: (path: RegExp) => () => void;
 }
 
 export type Theme = "light" | "dark";
@@ -80,7 +85,7 @@ function created(body: Omit<AppCreate, "source"> & { source?: AppCreate["source"
   };
 }
 
-async function installApiRoutes(page: Page, api: MockApi) {
+async function installApiRoutes(page: Page, api: MockApi, held: Held[]) {
   await page.route("**/config.json", (route) => route.fulfill(json(200, BRANDING)));
 
   await page.route("**/api/**", async (route) => {
@@ -91,6 +96,8 @@ async function installApiRoutes(page: Page, api: MockApi) {
 
     if (method !== "GET") {
       api.requests.push({ method, path, body: requestBody(request) });
+    } else {
+      await Promise.all(held.filter((h) => h.path.test(path)).map((h) => h.released));
     }
 
     if (path === "/config") return route.fulfill(json(200, UI_CONFIG));
@@ -136,6 +143,12 @@ async function installApiRoutes(page: Page, api: MockApi) {
 
     return route.fulfill(json(404, { detail: `No e2e fixture for ${method} ${url.pathname}` }));
   });
+}
+
+/** A held path and the promise that resolves when the test releases it. */
+interface Held {
+  path: RegExp;
+  released: Promise<void>;
 }
 
 /**
@@ -206,6 +219,7 @@ export const test = base.extend<{
 
   api: [
     async ({ page, theme }, use) => {
+      const held: Held[] = [];
       const api: MockApi = {
         apps: structuredClone(DEFAULT_APPS),
         failList: null,
@@ -213,6 +227,11 @@ export const test = base.extend<{
         logs: LOGS,
         restarts: { ...RESTARTS },
         requests: [],
+        hold: (path) => {
+          let release = () => {};
+          held.push({ path, released: new Promise<void>((resolve) => (release = resolve)) });
+          return release;
+        },
       };
       // Saved before any script runs, as a returning user's preference would be,
       // so index.html's pre-paint bootstrap picks it up.
@@ -226,7 +245,7 @@ export const test = base.extend<{
         },
         [THEME_STORAGE_KEY, theme] as const,
       );
-      await installApiRoutes(page, api);
+      await installApiRoutes(page, api, held);
       await use(api);
     },
     { auto: true },
