@@ -957,6 +957,22 @@
             "additionalProperties": false
           },
           "description": "Extra container env vars (Kubernetes EnvVar)."
+        },
+        "orgCABundle": {
+          "type": "object",
+          "properties": {
+            "configMapName": {
+              "type": "string",
+              "description": "ConfigMap in the release namespace holding a PEM CA bundle; empty disables it."
+            },
+            "key": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Key in the ConfigMap that holds the bundle."
+            }
+          },
+          "additionalProperties": false,
+          "description": "CA bundle apps-mcp trusts for outbound HTTPS (SSL_CERT_FILE)."
         }
       },
       "additionalProperties": false

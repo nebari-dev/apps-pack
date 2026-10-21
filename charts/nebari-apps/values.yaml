@@ -295,6 +295,16 @@ mcp:
   # -- Extra environment variables for apps-mcp, after the chart's own (an
   # entry with the same name wins).
   extraEnv: []
+  # A PEM CA bundle apps-mcp trusts for outbound HTTPS, for clusters whose
+  # Keycloak certificate (`keycloak.url`, which the login device flow calls)
+  # is signed by a private CA. The bundle replaces the image's trust store,
+  # so include the public roots too if anything else needs them.
+  orgCABundle:
+    # -- ConfigMap in the release namespace holding the bundle. Empty
+    # disables it and the image's default roots apply.
+    configMapName: ""
+    # -- Key in the ConfigMap that holds the bundle.
+    key: ca-bundle.crt
 
 # =============================================================================
 # Keycloak (used when api.auth.enabled)

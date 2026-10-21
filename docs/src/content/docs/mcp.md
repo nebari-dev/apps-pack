@@ -58,6 +58,11 @@ Enforcement is layered:
 On clusters with auth disabled, `authenticate` reports `not_required` and every tool works
 anonymously.
 
+The device flow calls Keycloak at its browser-facing URL (`keycloak.url`) from inside the
+cluster. If that certificate comes from a private CA, `authenticate` fails with
+`CERTIFICATE_VERIFY_FAILED` until the CA is trusted through
+[`mcp.orgCABundle`](/configuration/#apps-mcp).
+
 ## Tools
 
 | Tool | Purpose |
