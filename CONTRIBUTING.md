@@ -77,7 +77,7 @@ fixtures (`ui/e2e/fixtures.ts`, App data in `ui/e2e/data.ts`), so no cluster is 
 covers the apps list (the home page) with its Needs attention banner, Open links, and loading,
 empty and error states (while a request is held open, the page's static chrome, such as the
 heading, buttons, search, table headers and tabs, must already be real, with skeletons only where
-the data goes), launching an app (validation included), an app's detail and logs, and
+the data goes), launching an app (validation included), an app's detail and logs, the Settings page, and
 keyboard-only use of the launch form, the app actions and the account menu. `ui/e2e/motion.spec.ts`
 checks the motion: a page eases in after a navigation but not on the first paint, rows that
 replace a skeleton fade in, dialogs use the theme's duration token, and none of it runs under

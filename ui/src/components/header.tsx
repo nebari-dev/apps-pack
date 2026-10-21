@@ -1,6 +1,7 @@
 import { Menu as MenuPrimitive } from "@base-ui/react/menu";
-import { ChevronDown, LogOut, Monitor, Moon, Sun } from "lucide-react";
+import { ChevronDown, LogOut, Monitor, Moon, Settings, Sun } from "lucide-react";
 import type { ReactNode } from "react";
+import { Link } from "react-router-dom";
 import nebariLogo from "@/assets/nebari-logo.svg";
 import nebariLogoDark from "@/assets/nebari-logo_dark.svg";
 import { Avatar, AvatarFallback } from "@/components/avatar";
@@ -14,7 +15,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MenuBarActions, MenuBarBrand, NavigationMenu } from "@/components/ui/navigation-menu";
 import { isThemeMode, type ThemeMode } from "@/hooks/use-theme-preference";
-import { getConfig } from "@/lib/auth";
 import { getBranding } from "@/lib/branding";
 import { cn } from "@/lib/utils";
 
@@ -53,7 +53,6 @@ export function Header({
   // the light one, then the built-in dark logo - mirroring nebari-landing.
   const { logoUrl, logoUrlDark, title } = getBranding();
   const brandedLogo = isDarkMode ? (logoUrlDark ?? logoUrl) : logoUrl;
-  const { version, build } = getConfig();
   const accountLabel = user?.name || user?.email || "Account";
 
   return (
@@ -122,25 +121,22 @@ export function Header({
                 </MenuPrimitive.RadioGroup>
               </div>
 
+              <DropdownMenuSeparator />
+
+              {/* The versions, account and cluster details live on the Settings page. */}
+              <DropdownMenuItem className="leading-5" render={<Link to="/settings" />}>
+                <Settings className="size-4 shrink-0" aria-hidden="true" />
+                Settings
+              </DropdownMenuItem>
+
               {user ? (
-                <>
-                  <DropdownMenuSeparator />
-
-                  <DropdownMenuItem
-                    className="leading-5 text-sign-out-foreground data-[highlighted]:text-sign-out-foreground"
-                    onClick={() => onSignOut?.()}
-                  >
-                    <LogOut className="size-4 shrink-0" aria-hidden="true" />
-                    Sign out
-                  </DropdownMenuItem>
-                </>
-              ) : null}
-
-              {version ? (
-                <p className="border-t px-1.5 pt-2 text-muted-foreground text-xs">
-                  Apps Pack v{version}
-                  {build && build !== version ? ` (${build})` : null}
-                </p>
+                <DropdownMenuItem
+                  className="leading-5 text-sign-out-foreground data-[highlighted]:text-sign-out-foreground"
+                  onClick={() => onSignOut?.()}
+                >
+                  <LogOut className="size-4 shrink-0" aria-hidden="true" />
+                  Sign out
+                </DropdownMenuItem>
               ) : null}
             </DropdownMenuContent>
           </DropdownMenuPortal>

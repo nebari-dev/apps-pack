@@ -11,12 +11,14 @@ import AxeBuilder from "@axe-core/playwright";
 import { test as base, expect, type Page, type Request } from "@playwright/test";
 import type { App, AppCreate } from "../src/lib/types";
 import {
+  API_VERSION,
   BRANDING,
   CAPABILITIES,
   clusterMetricsFor,
   DEFAULT_APPS,
   EVENTS,
   LOGS,
+  ME,
   RESTARTS,
   UI_CONFIG,
 } from "./data";
@@ -102,6 +104,8 @@ async function installApiRoutes(page: Page, api: MockApi, held: Held[]) {
 
     if (path === "/config") return route.fulfill(json(200, UI_CONFIG));
     if (path === "/capabilities") return route.fulfill(json(200, CAPABILITIES));
+    if (path === "/version") return route.fulfill(json(200, API_VERSION));
+    if (path === "/auth/me") return route.fulfill(json(200, ME));
     if (path === "/analytics/metrics") {
       if (api.failMetrics) return route.fulfill(json(api.failMetrics.status, api.failMetrics));
       return route.fulfill(json(200, clusterMetricsFor(api.apps, api.restarts)));

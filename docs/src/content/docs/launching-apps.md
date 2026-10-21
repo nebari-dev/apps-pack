@@ -64,6 +64,20 @@ stop/start/edit and a **More actions** menu with restart, copy URL and delete. W
 is `Failed` or a condition is not ready, an alert under the header names the failing
 condition and its reason, with **View logs** and **Restart**.
 
+**Settings** (in the account menu, next to **Sign out**) is a read-only page in four
+sections:
+
+- **About** — the UI's and the API's version and build, links to these docs and the
+  changelog, and **Report a bug**, which opens a GitHub issue with both versions filled in.
+- **Your account** — your username, email and groups, and whether you are an admin. Your
+  groups decide which restricted apps you can open (see [Access control](#access-control))
+  and which apps you can manage (see [Managers](#managers)).
+- **Cluster** — the apps domain, the namespaces you can launch into, the default idle
+  timeout (see [Idle apps](#idle-apps)), the source types on offer, and the registries
+  container images may come from (or that image apps are off).
+- **Connect an agent** — this cluster's MCP server URL and a ready-to-paste
+  `claude mcp add` command, each with a copy button (see [From an agent](#from-an-agent-mcp)).
+
 ## Uploading files
 
 Uploads accept a **zip archive** or a **single `.html` file**:
@@ -235,7 +249,8 @@ The namespace must carry the `nebari.dev/managed=true` label. See the
 Coding agents (Claude Code, Codex, or any MCP client) can launch and manage apps with
 natural language through the **apps-mcp** server — `launch_app` is idempotent on
 (namespace, name), so re-launching updates instead of failing. See the
-[MCP server](/mcp/) page for connection and authentication details.
+[MCP server](/mcp/) page for connection and authentication details; the UI's **Settings**
+page shows the server URL and the `claude mcp add` command for your cluster, ready to copy.
 
 ## Secrets
 

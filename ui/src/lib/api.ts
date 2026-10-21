@@ -1,5 +1,6 @@
 import { apiFetch } from "./auth";
 import type {
+  ApiVersion,
   App,
   AppCreate,
   AppEvent,
@@ -7,6 +8,7 @@ import type {
   AppPatch,
   Capabilities,
   ClusterMetrics,
+  Me,
 } from "./types";
 
 const BASE = "/api/v1";
@@ -17,6 +19,8 @@ async function getJSON<T>(path: string): Promise<T> {
 }
 
 export const api = {
+  version: () => getJSON<ApiVersion>("/version"),
+  me: () => getJSON<Me>("/auth/me"),
   capabilities: () => getJSON<Capabilities>("/capabilities"),
   clusterMetrics: () => getJSON<ClusterMetrics>("/analytics/metrics"),
 
