@@ -321,34 +321,142 @@ func TestIdleCycle(t *testing.T) {
 	}
 }
 
-func TestIdleCheckFailureCountsAsActivity(t *testing.T) {
+// A failed check keeps the App up without pretending it saw a request:
+// lastActivityTime stays as it was, the check runs again a poll interval
+// later, and once the pod answers again the App idles on its real activity.
+func TestIdleCheckFailureHoldsTheApp(t *testing.T) {
 	f := newFakePodActivity(t)
 	app := inlineApp("team-a")
 	app.Spec.Runtime.IdleTimeoutMinutes = ptr.To(int32(5))
 	r, c, now := idleReconciler(t, f, managedNamespace("team-a"), app)
 	reconcile(t, r, app)
+	start := *now
 	setDeployment(t, c, app, deployStatus{replicas: 1, updated: 1, ready: 1})
 	setRoutingReady(t, c, app, true)
 	readyPod(t, c, app)
 	f.fail.Store(true)
 
 	*now = now.Add(time.Hour)
-	reconcile(t, r, app)
+	res := reconcileResult(t, r, app)
 	got := wantPhase(t, c, app, appsv1alpha1.AppPhaseRunning)
 	if f.hits.Load() == 0 {
 		t.Fatal("the pod was never asked")
 	}
-	if !got.Status.LastActivityTime.Time.Equal(*now) {
-		t.Errorf("an unreadable pod counts as active now: %v", got.Status.LastActivityTime)
+	if deploymentReplicas(t, c, app) != 1 {
+		t.Error("a failed check must not idle the App")
+	}
+	if !got.Status.LastActivityTime.Time.Equal(start) {
+		t.Errorf("a failed check is not a request: lastActivityTime = %v, want %v", got.Status.LastActivityTime, start)
+	}
+	if want := 5 * time.Minute / 6; res.RequeueAfter != want {
+		t.Errorf("RequeueAfter = %v, want the poll interval %v", res.RequeueAfter, want)
 	}
 
-	// A pod that claims a request in the future is clamped to now.
+	// The pod answers again: its last request was long ago, so the App idles.
 	f.fail.Store(false)
+	f.last.Store(start.Unix())
+	*now = now.Add(res.RequeueAfter)
+	reconcile(t, r, app)
+	wantPhase(t, c, app, appsv1alpha1.AppPhaseIdle)
+	if deploymentReplicas(t, c, app) != 0 {
+		t.Error("the App should idle once the check works again")
+	}
+}
+
+func TestFutureActivityClampsToNow(t *testing.T) {
+	f := newFakePodActivity(t)
+	app := inlineApp("team-a")
+	r, c, now := idleReconciler(t, f, managedNamespace("team-a"), app)
+	reconcile(t, r, app)
+	setDeployment(t, c, app, deployStatus{replicas: 1, updated: 1, ready: 1})
+	readyPod(t, c, app)
 	f.last.Store(now.Add(24 * time.Hour).Unix())
 	*now = now.Add(time.Minute)
 	reconcile(t, r, app)
 	if got := getApp(t, c, app.Name, app.Namespace); !got.Status.LastActivityTime.Time.Equal(*now) {
 		t.Errorf("future activity should clamp to now: %v", got.Status.LastActivityTime)
+	}
+}
+
+// terminatingPod marks the App's pod as being deleted, still Ready, as it is
+// for a moment after the Deployment is scaled to zero.
+func terminatingPod(t *testing.T, c client.Client, app *appsv1alpha1.App) {
+	t.Helper()
+	ctx := context.Background()
+	pod := &corev1.Pod{}
+	if err := c.Get(ctx, types.NamespacedName{Name: childName(app) + "-abc", Namespace: app.Namespace}, pod); err != nil {
+		t.Fatal(err)
+	}
+	pod.Finalizers = []string{"test.nebari.dev/hold"}
+	if err := c.Update(ctx, pod); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Delete(ctx, pod); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Right after the scale-down the Deployment still reports its ready replica
+// and the pod is terminating: the next reconcile (triggered by that very
+// scale-down) must not read "no ready pod" as activity and scale back up.
+func TestIdleAppStaysIdleWhileItsPodsTerminate(t *testing.T) {
+	for _, phaseRecorded := range []bool{true, false} {
+		t.Run(fmt.Sprintf("phaseRecorded=%v", phaseRecorded), func(t *testing.T) {
+			f := newFakePodActivity(t)
+			app := inlineApp("team-a")
+			app.Spec.Runtime.IdleTimeoutMinutes = ptr.To(int32(5))
+			r, c, now := idleReconciler(t, f, managedNamespace("team-a"), app)
+			reconcile(t, r, app)
+			setDeployment(t, c, app, deployStatus{replicas: 1, updated: 1, ready: 1})
+			setRoutingReady(t, c, app, true)
+			readyPod(t, c, app)
+			f.last.Store(now.Unix())
+
+			*now = now.Add(5*time.Minute + time.Second)
+			reconcile(t, r, app)
+			got := wantPhase(t, c, app, appsv1alpha1.AppPhaseIdle)
+			idleSince := got.Status.LastActivityTime.Time
+			if deploymentReplicas(t, c, app) != 0 {
+				t.Fatal("the App should have idled")
+			}
+			if !phaseRecorded {
+				// The idling reconcile scaled the Deployment but failed before
+				// it recorded the phase (a conflict on the NebariApp).
+				got.Status.Phase = appsv1alpha1.AppPhaseRunning
+				if err := c.Status().Update(context.Background(), got); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			terminatingPod(t, c, app)
+			f.fail.Store(true) // a terminating pod's sidecar is gone
+			hits := f.hits.Load()
+			*now = now.Add(time.Second)
+			res := reconcileResult(t, r, app)
+			got = wantPhase(t, c, app, appsv1alpha1.AppPhaseIdle)
+			if deploymentReplicas(t, c, app) != 0 {
+				t.Error("the App was scaled back up while its pod terminated")
+			}
+			if !got.Status.LastActivityTime.Time.Equal(idleSince) {
+				t.Errorf("lastActivityTime = %v, want it left at %v", got.Status.LastActivityTime, idleSince)
+			}
+			if f.hits.Load() != hits {
+				t.Error("an idle App's terminating pods should not be asked")
+			}
+			if res.RequeueAfter != 0 {
+				t.Errorf("an idle App waits for a request, not a poll: RequeueAfter = %v", res.RequeueAfter)
+			}
+
+			// A request still wakes it.
+			got.Annotations = map[string]string{appsv1alpha1.WakeAnnotation: now.Format(time.RFC3339)}
+			if err := c.Update(context.Background(), got); err != nil {
+				t.Fatal(err)
+			}
+			reconcile(t, r, app)
+			if deploymentReplicas(t, c, app) != 1 {
+				t.Error("a woken App should scale back up")
+			}
+		})
 	}
 }
 
