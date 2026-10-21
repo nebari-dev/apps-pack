@@ -135,6 +135,20 @@ export interface UiConfig {
   build?: string;
 }
 
+/** GET /api/v1/version: the API's release and image build. */
+export interface ApiVersion {
+  version: string;
+  build: string;
+}
+
+/** GET /api/v1/auth/me: who the API sees, and whether it treats them as an admin. */
+export interface Me {
+  username: string;
+  email: string;
+  groups: string[];
+  admin: boolean;
+}
+
 export interface AppEvent {
   type: string;
   reason: string;

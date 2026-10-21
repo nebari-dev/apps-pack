@@ -45,16 +45,18 @@ const loadAppDetail = () => import("@/pages/app-detail");
 const loadApps = () => import("@/pages/apps");
 const loadEdit = () => import("@/pages/edit");
 const loadLaunch = () => import("@/pages/launch");
+const loadSettings = () => import("@/pages/settings");
 const AppDetailPage = page(loadAppDetail, "AppDetailPage");
 const AppsPage = page(loadApps, "AppsPage");
 const EditPage = page(loadEdit, "EditPage");
 const LaunchPage = page(loadLaunch, "LaunchPage");
+const SettingsPage = page(loadSettings, "SettingsPage");
 
 // Navigation keeps the current page up while the next one's code loads (see
 // Layout). Fetch the other pages' chunks once the browser is idle, so that
 // wait is near zero. Best-effort: a failed prefetch is retried on navigation.
 function prefetchPages() {
-  for (const load of [loadApps, loadAppDetail, loadEdit, loadLaunch]) {
+  for (const load of [loadApps, loadAppDetail, loadEdit, loadLaunch, loadSettings]) {
     load().catch(() => {});
   }
 }
@@ -102,6 +104,7 @@ createRoot(container).render(
               <Route path="apps/:namespace/:name" element={<AppDetailPage />} />
               <Route path="apps/:namespace/:name/edit" element={<EditPage />} />
               <Route path="launch" element={<LaunchPage />} />
+              <Route path="settings" element={<SettingsPage />} />
               <Route path="*" element={<NotFoundPage />} />
             </Route>
           </Routes>

@@ -12,6 +12,9 @@ business logic of its own, so agent launches behave exactly like UI launches.
 
 ## Connecting
 
+The UI's **Settings** page (account menu → **Settings**, under **Connect an agent**) shows
+your cluster's MCP URL and this command with copy buttons.
+
 ```bash
 # Claude Code
 claude mcp add --transport http nebari-apps https://apps.example.ai/mcp

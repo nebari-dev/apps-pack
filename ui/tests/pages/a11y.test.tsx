@@ -67,6 +67,8 @@ vi.mock("@/lib/api", () => ({
     metrics: vi.fn(async () => ({ available: true, pods: [] })),
     logs: vi.fn(async () => ({ logs: "hello" })),
     events: vi.fn(async () => []),
+    version: vi.fn(async () => ({ version: "0.4.0", build: "sha-api1234" })),
+    me: vi.fn(async () => ({ username: "alice", email: "", groups: ["analytics"], admin: false })),
   },
 }));
 
@@ -74,6 +76,7 @@ const { AppDetailPage } = await import("@/pages/app-detail");
 const { AppsPage } = await import("@/pages/apps");
 const { EditPage } = await import("@/pages/edit");
 const { LaunchPage } = await import("@/pages/launch");
+const { SettingsPage } = await import("@/pages/settings");
 
 // name, URL, route path, page, h1, and text that shows the page's data has loaded.
 const PAGES: [string, string, string, ReactElement, string, string?][] = [
@@ -93,6 +96,7 @@ const PAGES: [string, string, string, ReactElement, string, string?][] = [
     "Edit app",
   ],
   ["launch", "/launch", "launch", <LaunchPage key="l" />, "Launch an app"],
+  ["settings", "/settings", "settings", <SettingsPage key="s" />, "Settings", "sha-api1234"],
 ];
 
 afterEach(() => {

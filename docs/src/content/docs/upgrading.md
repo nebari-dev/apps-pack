@@ -55,7 +55,8 @@ kubectl get apps -A        # every App should return to Running
 curl -s https://apps.<cluster-domain>/api/v1/version
 ```
 
-The account menu in the UI shows the same version.
+The UI's **Settings** page (account menu → **Settings**) shows the same version, next to the
+UI's own.
 
 ## Roll back
 

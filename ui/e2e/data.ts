@@ -3,7 +3,15 @@
  * types (src/lib/types.ts, over the generated crd.gen.ts), so a change to those
  * types fails `tsc -b` here as well as in the app.
  */
-import type { App, AppEvent, Capabilities, ClusterMetrics, UiConfig } from "../src/lib/types";
+import type {
+  ApiVersion,
+  App,
+  AppEvent,
+  Capabilities,
+  ClusterMetrics,
+  Me,
+  UiConfig,
+} from "../src/lib/types";
 
 export const APPS_DOMAIN = "apps.example.com";
 export const NAMESPACES = ["apps", "team-data"];
@@ -32,7 +40,19 @@ export const CAPABILITIES: Capabilities = {
   appsDomain: APPS_DOMAIN,
   sourceTypes: ["git", "inline", "pvc", "image"],
   namespaces: NAMESPACES,
+  idleTimeoutMinutes: 30,
   imageRegistries: ["ghcr.io/example"],
+};
+
+/** GET /api/v1/version. */
+export const API_VERSION: ApiVersion = { version: "0.0.0-e2e", build: "sha-e2eapi" };
+
+/** GET /api/v1/auth/me with auth disabled: the anonymous caller, an admin. */
+export const ME: Me = {
+  username: "anonymous",
+  email: "",
+  groups: ["analytics", "docs-team"],
+  admin: true,
 };
 
 const condition = (type: string, status: "True" | "False", reason: string, message = "") => ({

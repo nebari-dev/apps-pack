@@ -1,9 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { Header } from "@/components/header";
+import * as auth from "@/lib/auth";
 
 function renderWithRouter(ui: ReactElement) {
   return render(<MemoryRouter>{ui}</MemoryRouter>);
@@ -91,5 +92,54 @@ describe("Header", () => {
     await user.click(await screen.findByRole("menuitem", { name: /sign out/i }));
 
     expect(onSignOut).toHaveBeenCalledOnce();
+  });
+
+  it("has a Settings item next to Sign out that opens the Settings page", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/apps"]}>
+        <Header user={{ name: "John Doe" }} />
+        <Routes>
+          <Route path="/apps" element={<p>apps page</p>} />
+          <Route path="/settings" element={<p>settings page</p>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole("button", { name: /account menu/i }));
+    const items = (await screen.findAllByRole("menuitem")).map((item) => item.textContent);
+    expect(items).toEqual(["Settings", "Sign out"]);
+
+    await user.click(screen.getByRole("menuitem", { name: "Settings" }));
+    expect(await screen.findByText("settings page")).toBeInTheDocument();
+  });
+
+  it("offers Settings when authentication is disabled", async () => {
+    const user = userEvent.setup();
+
+    renderWithRouter(<Header user={null} />);
+
+    await user.click(screen.getByRole("button", { name: /account menu/i }));
+    expect(await screen.findByRole("menuitem", { name: "Settings" })).toBeInTheDocument();
+  });
+
+  it("no longer shows the version in the menu", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(auth, "getConfig").mockReturnValue({
+      authEnabled: false,
+      keycloak: { url: "", realm: "", clientId: "" },
+      appsDomain: "",
+      version: "9.9.9",
+      build: "sha-menu",
+    });
+
+    renderWithRouter(<Header user={{ name: "John Doe" }} />);
+
+    await user.click(screen.getByRole("button", { name: /account menu/i }));
+    const menu = await screen.findByRole("menu");
+    expect(menu).not.toHaveTextContent("9.9.9");
+    expect(menu).not.toHaveTextContent("sha-menu");
+    vi.restoreAllMocks();
   });
 });

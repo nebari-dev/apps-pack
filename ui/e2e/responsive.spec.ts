@@ -17,6 +17,7 @@ const PAGES: { path: string; heading: string; ready?: string }[] = [
     ready: "WorkloadReady failed: CrashLoopBackOff",
   },
   { path: "/apps/apps/docs-site/edit", heading: "Edit app" },
+  { path: "/settings", heading: "Settings", ready: "sha-e2eapi" },
   { path: "/no-such-page", heading: "Page not found" },
 ];
 

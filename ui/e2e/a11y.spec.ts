@@ -25,13 +25,15 @@ const PAGES: { name: string; path: string; heading: string; ready?: string }[] =
     ready: "WorkloadReady failed: CrashLoopBackOff",
   },
   { name: "edit form", path: "/apps/apps/docs-site/edit", heading: "Edit app" },
+  { name: "settings", path: "/settings", heading: "Settings", ready: "sha-e2eapi" },
   { name: "not found", path: "/no-such-page", heading: "Page not found" },
 ];
 
 // Pages whose data loads behind skeletons: `hold` is the API request held
 // open, `label` the status announced while it is, `chrome` the static parts
 // that render for real before any data, and `loaded` a role that shows the
-// real content replaced the placeholders.
+// real content replaced the placeholders (a role, or text when the data has
+// no role of its own).
 type Role = Parameters<Page["getByRole"]>;
 const LOADING: {
   name: string;
@@ -39,7 +41,7 @@ const LOADING: {
   hold: RegExp;
   label: string;
   chrome: Role[];
-  loaded: Role;
+  loaded: Role | string;
 }[] = [
   {
     name: "apps list",
@@ -78,6 +80,22 @@ const LOADING: {
     ],
     loaded: ["textbox", { name: "Display name" }],
   },
+  {
+    name: "settings",
+    path: "/settings",
+    hold: /^\/(version|auth\/me|capabilities)$/,
+    label: "Loading settings",
+    chrome: [
+      ["heading", { level: 1, name: "Settings" }],
+      ["heading", { level: 2, name: "About" }],
+      ["heading", { level: 2, name: "Your account" }],
+      ["heading", { level: 2, name: "Cluster" }],
+      ["heading", { level: 2, name: "Connect an agent" }],
+      ["link", { name: /Report a bug/ }],
+      ["button", { name: "Copy MCP server URL" }],
+    ],
+    loaded: "sha-e2eapi",
+  },
 ];
 
 for (const theme of ["light", "dark"] satisfies Theme[]) {
@@ -115,7 +133,9 @@ for (const theme of ["light", "dark"] satisfies Theme[]) {
         await expectNoCriticalOrSeriousA11yViolations(page);
 
         release();
-        await expect(page.getByRole(...loaded).first()).toBeVisible();
+        const real =
+          typeof loaded === "string" ? page.getByText(loaded) : page.getByRole(...loaded);
+        await expect(real.first()).toBeVisible();
         await expect(skeletons).toHaveCount(0);
       });
     }
