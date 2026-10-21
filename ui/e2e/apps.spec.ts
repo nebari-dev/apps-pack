@@ -2,8 +2,14 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 
 test.describe("apps list", () => {
-  test("lists every app with its status", async ({ page }) => {
+  test("the old /apps address redirects to the home page", async ({ page }) => {
     await page.goto("/apps");
+    await expect(page).toHaveURL("/");
+    await expect(page.getByRole("heading", { level: 1, name: "Apps" })).toBeVisible();
+  });
+
+  test("lists every app with its status", async ({ page }) => {
+    await page.goto("/");
     await expect(page.getByRole("heading", { level: 1, name: "Apps" })).toBeVisible();
 
     const rows = page.getByRole("row");
@@ -24,7 +30,7 @@ test.describe("apps list", () => {
     api.apps = api.apps.filter((a) => a.status.phase === "Stopped");
     api.restarts = {};
     const release = api.hold(/^\/apps$/);
-    await page.goto("/apps");
+    await page.goto("/");
     await expect(page.getByRole("heading", { level: 1, name: "Apps" })).toBeVisible();
     await expect(page.getByRole("status").filter({ hasText: "Loading apps" })).toBeAttached();
     // Static chrome is real: Launch, search, the All chip (without a count) and headers.
@@ -52,7 +58,7 @@ test.describe("apps list", () => {
   });
 
   test("puts the most severe app first and explains the failure", async ({ page }) => {
-    await page.goto("/apps");
+    await page.goto("/");
     const rows = page.getByRole("row");
     await expect(rows.nth(1)).toContainText("Broken App");
     await expect(rows.nth(2)).toContainText("Docs Site");
@@ -72,17 +78,17 @@ test.describe("apps list", () => {
   });
 
   test("opens an app by clicking anywhere in its row", async ({ page }) => {
-    await page.goto("/apps");
+    await page.goto("/");
     const sales = page.getByRole("row").filter({ hasText: "Sales Dashboard" });
     await sales.getByText("bob", { exact: true }).click();
     await expect(page).toHaveURL("/apps/team-data/sales-dashboard");
   });
 
   test("offers only the bulk actions that apply to the selection", async ({ page, api }) => {
-    await page.goto("/apps");
+    await page.goto("/");
     const sales = page.getByRole("row").filter({ hasText: "Sales Dashboard" });
     await sales.getByRole("checkbox").click();
-    await expect(page).toHaveURL("/apps");
+    await expect(page).toHaveURL("/");
     const start = page.getByRole("button", { name: "Start", exact: true });
     const stop = page.getByRole("button", { name: "Stop", exact: true });
     await expect(start).toBeVisible();
@@ -99,7 +105,7 @@ test.describe("apps list", () => {
   });
 
   test("focuses the search with / and clears an empty result", async ({ page }) => {
-    await page.goto("/apps");
+    await page.goto("/");
     await expect(page.getByRole("link", { name: "Docs Site", exact: true })).toBeVisible();
     const search = page.getByPlaceholder("Search by name, source, status…");
     await page.keyboard.press("/");
@@ -112,7 +118,7 @@ test.describe("apps list", () => {
   });
 
   test("filters by search and by status", async ({ page }) => {
-    await page.goto("/apps");
+    await page.goto("/");
     const rows = page.getByRole("row");
     await expect(rows).toHaveCount(4);
 
@@ -132,7 +138,7 @@ test.describe("apps list", () => {
   });
 
   test("opens an app's page and moves focus to its heading", async ({ page }) => {
-    await page.goto("/apps");
+    await page.goto("/");
     await page.getByRole("link", { name: "Docs Site", exact: true }).click();
 
     await expect(page).toHaveURL("/apps/apps/docs-site");
@@ -142,7 +148,7 @@ test.describe("apps list", () => {
   });
 
   test("stops and starts apps from their row", async ({ page, api }) => {
-    await page.goto("/apps");
+    await page.goto("/");
     const docs = page
       .getByRole("row")
       .filter({ has: page.getByRole("link", { name: "Docs Site", exact: true }) });
@@ -161,7 +167,7 @@ test.describe("apps list", () => {
 
   test("shows onboarding when there are no apps", async ({ page, api }) => {
     api.apps = [];
-    await page.goto("/apps");
+    await page.goto("/");
 
     await expect(page.getByRole("heading", { name: "No apps yet" })).toBeVisible();
     await expect(page.getByRole("table")).toHaveCount(0);
@@ -171,7 +177,7 @@ test.describe("apps list", () => {
 
   test("shows the API's error, not an empty list, and recovers on retry", async ({ page, api }) => {
     api.failList = { status: 503, detail: "apps-api is unavailable" };
-    await page.goto("/apps");
+    await page.goto("/");
 
     const alert = page.getByRole("alert").filter({ hasText: "Could not load apps" });
     await expect(alert).toContainText("apps-api is unavailable");
@@ -186,7 +192,7 @@ test.describe("apps list", () => {
 test.describe("apps as the home page", () => {
   test("/ lands on the apps list, with no Dashboard or Metrics page", async ({ page }) => {
     await page.goto("/");
-    await expect(page).toHaveURL("/apps");
+    await expect(page).toHaveURL("/");
     await expect(page.getByRole("heading", { level: 1, name: "Apps" })).toBeVisible();
     await expect(page.getByText("Web applications running on this Nebari cluster.")).toBeVisible();
     await expect(page.getByRole("link", { name: "Launch app" })).toBeVisible();
@@ -207,7 +213,7 @@ test.describe("apps as the home page", () => {
   });
 
   test("hides the Mine chip when auth is off", async ({ page }) => {
-    await page.goto("/apps");
+    await page.goto("/");
     await expect(page.getByRole("link", { name: "Docs Site", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: /^Mine/ })).toHaveCount(0);
   });
@@ -217,7 +223,7 @@ test.describe("needs attention", () => {
   const banner = (page: Page) => page.locator("[data-slot=alert]").filter({ hasText: "need" });
 
   test("counts failed and restarting apps and filters the list to them", async ({ page }) => {
-    await page.goto("/apps");
+    await page.goto("/");
     await expect(banner(page)).toContainText("2 apps need attention");
     await expect(banner(page)).toContainText("1 failed, 1 restarting");
 
@@ -244,7 +250,7 @@ test.describe("needs attention", () => {
   test("is absent when nothing fails or restarts", async ({ page, api }) => {
     api.apps = api.apps.filter((a) => a.status.phase !== "Failed");
     api.restarts = {};
-    await page.goto("/apps");
+    await page.goto("/");
     await expect(page.getByRole("link", { name: "Docs Site", exact: true })).toBeVisible();
     await expect(page.locator("[data-slot=alert]")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /^Needs attention/ })).toHaveCount(0);
@@ -255,7 +261,7 @@ test.describe("needs attention", () => {
     api,
   }) => {
     api.failMetrics = { status: 503, detail: "metrics unavailable" };
-    await page.goto("/apps");
+    await page.goto("/");
     await expect(banner(page)).toContainText("1 app needs attention");
     await expect(banner(page)).toContainText("Restart counts are unavailable");
 
@@ -269,7 +275,7 @@ test.describe("needs attention", () => {
 
 test.describe("open action", () => {
   test("opens a running app's URL in a new tab, and only a running app's", async ({ page }) => {
-    await page.goto("/apps");
+    await page.goto("/");
     const row = (name: string) =>
       page.getByRole("row").filter({ has: page.getByRole("link", { name, exact: true }) });
     const open = row("Docs Site").getByRole("link", { name: "Open Docs Site" });

@@ -134,7 +134,7 @@ export function AppDetailPage() {
   }, [sample]);
 
   const { start, stop, restart, remove } = useAppActions({
-    onDeleted: () => void navigate("/apps"),
+    onDeleted: () => void navigate("/"),
   });
 
   // Motion: values that replaced a skeleton fade in, a status the App moved
@@ -207,7 +207,7 @@ export function AppDetailPage() {
           )}
           <div className="min-w-0 flex-1">
             <Link
-              to="/apps"
+              to="/"
               className="mb-1 inline-flex items-center gap-1 text-muted-foreground text-sm hover:text-foreground"
             >
               <ArrowLeft className="size-3.5" /> Apps

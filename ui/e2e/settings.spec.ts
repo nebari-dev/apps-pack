@@ -7,7 +7,7 @@ import { APPS_DOMAIN, BRANDING, UI_BUILD, UI_CONFIG, UI_VERSION } from "./data";
 import { expect, test } from "./fixtures";
 
 test("the account menu opens Settings, and no longer shows the version", async ({ page }) => {
-  await page.goto("/apps");
+  await page.goto("/");
   // The first page after a load keeps the browser's focus; wait for it.
   await expect(page.getByRole("heading", { level: 1, name: "Apps" })).toBeVisible();
   await page.getByRole("button", { name: "Account menu" }).click();
@@ -23,7 +23,7 @@ test("the account menu opens Settings, and no longer shows the version", async (
 });
 
 test("Settings is reachable from the account menu with the keyboard", async ({ page }) => {
-  await page.goto("/apps");
+  await page.goto("/");
   await expect(page.getByRole("heading", { level: 1, name: "Apps" })).toBeVisible();
   await page.getByRole("button", { name: "Account menu" }).focus();
   await page.keyboard.press("Enter");

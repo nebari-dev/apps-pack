@@ -15,7 +15,7 @@ test.describe("with motion allowed", () => {
   test("the first page paints without an entrance; a navigated-to page eases in", async ({
     page,
   }) => {
-    await page.goto("/apps");
+    await page.goto("/");
     await expect(page.getByRole("link", { name: "Docs Site", exact: true })).toBeVisible();
     expect(await animationName(routed(page))).toBe("none");
 
@@ -26,7 +26,7 @@ test.describe("with motion allowed", () => {
 
   test("rows that replace the skeleton crossfade in", async ({ page, api }) => {
     const release = api.hold(/^\/apps$/);
-    await page.goto("/apps");
+    await page.goto("/");
     await expect(page.locator('[data-slot="skeleton"]').first()).toBeVisible();
     release();
     await expect(page.getByRole("link", { name: "Docs Site", exact: true })).toBeVisible();
@@ -51,7 +51,7 @@ test.describe("with prefers-reduced-motion: reduce", () => {
 
   test("pages, data and skeletons do not animate", async ({ page, api }) => {
     const release = api.hold(/^\/apps$/);
-    await page.goto("/apps");
+    await page.goto("/");
     const skeleton = page.locator('[data-slot="skeleton"]').first();
     await expect(skeleton).toBeVisible();
     expect(await animationName(skeleton)).toBe("none");

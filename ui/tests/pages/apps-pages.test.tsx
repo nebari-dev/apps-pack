@@ -67,7 +67,7 @@ function renderAt(path: string, routes: ReactElement) {
       <MemoryRouter initialEntries={[path]}>
         <Routes>
           {routes}
-          <Route path="/apps" element={<p>apps list</p>} />
+          <Route path="/" element={<p>apps list</p>} />
         </Routes>
       </MemoryRouter>
       <Toaster />
@@ -808,7 +808,7 @@ describe("app detail page", () => {
     );
     expect(await screen.findByRole("status")).toHaveTextContent("Loading app");
     // Static chrome: back link, Edit, card titles and the tabs.
-    expect(screen.getByRole("link", { name: "Apps" })).toHaveAttribute("href", "/apps");
+    expect(screen.getByRole("link", { name: "Apps" })).toHaveAttribute("href", "/");
     expect(screen.getByRole("link", { name: "Edit" })).toHaveAttribute(
       "href",
       "/apps/apps/docs/edit",
