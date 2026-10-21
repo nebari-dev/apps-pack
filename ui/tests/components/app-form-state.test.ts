@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { initialState, reducer, slugify, splitList, validate } from "@/components/app-form/state";
+import {
+  buildPayload,
+  initialState,
+  parseIdleTimeout,
+  reducer,
+  slugify,
+  splitList,
+  validate,
+} from "@/components/app-form/state";
 import { accessLine } from "@/lib/access";
 import type { App } from "@/lib/types";
 
@@ -65,6 +73,59 @@ describe("validate", () => {
       "pixiTask",
       "gitUrl",
     ]);
+  });
+});
+
+describe("idle settings", () => {
+  const base = {
+    ...initialState(undefined, false),
+    nameInput: "docs",
+    displayName: "Docs",
+    namespace: "apps",
+    subdomain: "docs",
+    sourceTab: "git" as const,
+    gitUrl: "https://github.com/x/y",
+  };
+
+  it("parses whole minutes within the CRD's bounds", () => {
+    expect(parseIdleTimeout(" 30 ")).toBe(30);
+    expect(parseIdleTimeout("5")).toBe(5);
+    for (const bad of ["4", "43201", "1.5", "-10", "abc", ""])
+      expect(parseIdleTimeout(bad)).toBeNull();
+  });
+
+  it("flags a bad idle timeout unless keepAlive makes it moot", () => {
+    expect(validate({ ...base, idleTimeout: "2" }, false).map((p) => p.field)).toEqual([
+      "idleTimeout",
+    ]);
+    expect(validate({ ...base, idleTimeout: "2", keepAlive: true }, false)).toEqual([]);
+    expect(validate({ ...base, idleTimeout: "" }, false)).toEqual([]);
+  });
+
+  it("launches with only what is set", () => {
+    const plain = buildPayload(base, false, undefined);
+    expect(plain?.kind === "create" && plain.body.runtime).not.toHaveProperty("keepAlive");
+    expect(plain?.kind === "create" && plain.body.runtime).not.toHaveProperty("idleTimeoutMinutes");
+    const set = buildPayload({ ...base, keepAlive: true, idleTimeout: "45" }, false, undefined);
+    expect(set?.kind === "create" && set.body.runtime).toMatchObject({
+      keepAlive: true,
+      idleTimeoutMinutes: 45,
+    });
+  });
+
+  it("edits send both, so clearing them reaches the App", () => {
+    const initial = {
+      name: "docs",
+      runtime: { keepAlive: true, idleTimeoutMinutes: 60 },
+      access: { public: false, subdomain: "docs" },
+    } as App;
+    const s = initialState(initial, true);
+    expect([s.keepAlive, s.idleTimeout]).toEqual([true, "60"]);
+    const cleared = buildPayload({ ...s, keepAlive: false, idleTimeout: "" }, true, initial);
+    expect(cleared?.kind === "patch" && cleared.body.runtime).toMatchObject({
+      keepAlive: false,
+      idleTimeoutMinutes: null,
+    });
   });
 });
 

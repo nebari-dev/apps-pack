@@ -184,8 +184,9 @@ async def list_apps(
     ctx: Context,
     namespace: Annotated[str, Field(description="Filter to one namespace; empty = all visible namespaces")] = "",
 ) -> Any:
-    """List launched apps with their source type, phase (Pending|Deploying|Running|Failed|Stopped),
-    URL, and owner.
+    """List launched apps with their source type, phase (Pending|Deploying|Running|Failed|Stopped|Idle),
+    URL, and owner. Idle = scaled to zero after its idle timeout; the next visit to its URL
+    (or start_app) wakes it.
     """
     try:
         async with await _api(ctx) as api:
@@ -257,13 +258,27 @@ async def launch_app(
     pixi_task: Annotated[
         str,
         Field(
-            description="Run the app as a Python/pixi service: the pixi task to execute (e.g. 'start'). The task must start a server on 0.0.0.0:$PORT (8080, or 8081 when groups or users restrict the app). Empty = static app served by nginx"
+            description="Run the app as a Python/pixi service: the pixi task to execute (e.g. 'start'). The task must start a server on 0.0.0.0:$PORT (the operator sets it: 8080, or 8081 when the sidecar fronts the app). Empty = static app served by nginx"
         ),
     ] = "",
     landing_page: Annotated[
         bool | None,
         Field(
             description="Show the app as a tile on the Nebari landing page. Omit to use the cluster default (off unless the operator enables it); the app is reachable at its URL either way"
+        ),
+    ] = None,
+    keep_alive: Annotated[
+        bool,
+        Field(
+            description="true = never scale the app to zero when idle (for apps that must answer at once or do background work)"
+        ),
+    ] = False,
+    idle_timeout_minutes: Annotated[
+        int | None,
+        Field(
+            description="Scale the app to zero after this many minutes without a request (phase Idle); the next visit wakes it. Omit for the cluster default (describe_cluster idleTimeoutMinutes; 0 = apps stay up). Ignored with keep_alive",
+            ge=5,
+            le=43200,
         ),
     ] = None,
 ) -> dict[str, Any]:
@@ -292,6 +307,8 @@ async def launch_app(
             "env": [{"name": k, "value": v} for k, v in (env or {}).items()],
             "pixiTask": pixi_task,
             **({"resources": resources} if resources else {}),
+            **({"keepAlive": True} if keep_alive else {}),
+            **({"idleTimeoutMinutes": idle_timeout_minutes} if idle_timeout_minutes is not None else {}),
         },
         "access": {"public": public, "groups": groups or [], "users": users or [], "subdomain": subdomain},
     }
@@ -404,7 +421,7 @@ async def stop_app(ctx: Context, namespace: str, name: str) -> Any:
 
 @mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False})
 async def start_app(ctx: Context, namespace: str, name: str) -> Any:
-    """Scale a stopped app back up to one replica."""
+    """Scale a stopped app back up to one replica, or wake an Idle app (it keeps its replicas)."""
     try:
         async with await _api(ctx) as api:
             return fence_app(await api.post(f"/apps/{namespace}/{name}/start"))

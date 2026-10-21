@@ -29,3 +29,8 @@ api:
 apps:
   landingPage:
     enabled: false
+  # Scale apps nobody has visited for this many minutes to zero; the next
+  # request wakes them. 0 keeps apps running (Apps can still opt in with
+  # runtime.idleTimeoutMinutes, or out with runtime.keepAlive: true).
+  idle:
+    timeoutMinutes: 0

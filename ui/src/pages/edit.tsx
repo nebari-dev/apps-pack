@@ -76,6 +76,7 @@ export function EditPage() {
         mode="edit"
         namespaces={capabilities.data?.namespaces ?? [namespace]}
         appsDomain={appsDomain}
+        idleDefaultMinutes={capabilities.data?.idleTimeoutMinutes ?? 0}
         appsScheme={appsScheme}
         initial={app.data}
         submitting={save.isPending}

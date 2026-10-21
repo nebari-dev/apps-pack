@@ -46,7 +46,7 @@ import { cn } from "@/lib/utils";
 
 const errMessage = errorMessage;
 
-const PHASES = ["Running", "Deploying", "Pending", "Stopped", "Failed"] as const;
+const PHASES = ["Running", "Deploying", "Pending", "Idle", "Stopped", "Failed"] as const;
 
 /** Status filter value for Failed apps plus apps whose containers restarted. */
 const ATTENTION = "attention";

@@ -26,7 +26,7 @@ const (
 // and storage for ordinary sites.
 //
 // listen is the nginx listen address: the app port, or loopback on the
-// internal port when the authz sidecar fronts the app (so nothing reaches
+// internal port when the sidecar fronts the app (so nothing reaches
 // nginx without passing the sidecar).
 func staticServerConf(listen string) string {
 	return fmt.Sprintf(`# Written by apps-operator; changes are overwritten.
@@ -50,8 +50,8 @@ server {
 }
 
 // staticListen is where a static App's nginx listens.
-func staticListen(app *appsv1alpha1.App) string {
-	if restricted(app) {
+func (c OperatorConfig) staticListen(app *appsv1alpha1.App) string {
+	if c.hasSidecar(app) {
 		return fmt.Sprintf("127.0.0.1:%d", AppInternalPort)
 	}
 	return fmt.Sprintf("%d", AppPort)
@@ -59,7 +59,7 @@ func staticListen(app *appsv1alpha1.App) string {
 
 // buildServerConfigMap holds staticServerConf for a static App's pods.
 // Returns nil for pixi apps, which serve themselves.
-func buildServerConfigMap(app *appsv1alpha1.App) *corev1.ConfigMap {
+func (c OperatorConfig) buildServerConfigMap(app *appsv1alpha1.App) *corev1.ConfigMap {
 	if app.Spec.Runtime.PixiTask != "" {
 		return nil
 	}
@@ -69,13 +69,13 @@ func buildServerConfigMap(app *appsv1alpha1.App) *corev1.ConfigMap {
 			Namespace: app.Namespace,
 			Labels:    appLabels(app),
 		},
-		Data: map[string]string{"default.conf": staticServerConf(staticListen(app))},
+		Data: map[string]string{"default.conf": staticServerConf(c.staticListen(app))},
 	}
 }
 
 // serverConfChecksum rolls static pods when an operator upgrade (or a
 // change to the App's access) changes the server config.
-func serverConfChecksum(app *appsv1alpha1.App) string {
-	sum := sha256.Sum256([]byte(staticServerConf(staticListen(app))))
+func (c OperatorConfig) serverConfChecksum(app *appsv1alpha1.App) string {
+	sum := sha256.Sum256([]byte(staticServerConf(c.staticListen(app))))
 	return hex.EncodeToString(sum[:])
 }

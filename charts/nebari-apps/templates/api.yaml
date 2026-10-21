@@ -129,6 +129,8 @@ spec:
           env:
             - name: APPS_DOMAIN
               value: {{ include "nebari-apps.appsDomain" . }}
+            - name: IDLE_TIMEOUT_MINUTES
+              value: {{ .Values.apps.idle.timeoutMinutes | quote }}
             {{- with .Values.api.allowedNamespaces }}
             - name: APPS_NAMESPACES
               value: {{ join "," . | quote }}

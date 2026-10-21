@@ -8,8 +8,11 @@ export type AppAction = "start" | "stop" | "restart" | "delete";
 
 export const appLabel = (app: App) => app.displayName || app.name;
 export const appKey = (app: App) => `${app.namespace}/${app.name}`;
+/** Scaled to zero by the operator after its idle timeout; a visit or Start wakes it. */
+export const isIdle = (app: App) => app.status.phase === "Idle";
+/** Stopped by its owner (replicas: 0). An idle App also has no replicas, but is not stopped. */
 export const isStopped = (app: App) =>
-  (app.status.replicas?.desired ?? app.runtime?.replicas ?? 1) === 0;
+  !isIdle(app) && (app.status.replicas?.desired ?? app.runtime?.replicas ?? 1) === 0;
 
 /** Calls the API for one action on one App. */
 export function runAppAction(action: AppAction, app: App): Promise<unknown> {

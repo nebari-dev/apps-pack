@@ -50,6 +50,9 @@ spec:
             {{- if .Values.apps.landingPage.enabled }}
             - --landing-page
             {{- end }}
+            - --idle-timeout-minutes={{ .Values.apps.idle.timeoutMinutes }}
+            - --activator-service={{ include "nebari-apps.fullname" . }}-activator
+            - --activator-namespace={{ .Release.Namespace }}
             {{- if .Values.operator.leaderElection }}
             - --leader-elect
             {{- end }}
@@ -63,6 +66,10 @@ spec:
               protocol: TCP
             - name: metrics
               containerPort: 8443
+              protocol: TCP
+            # The page idle Apps serve while they start (the activator Service).
+            - name: activator
+              containerPort: 8090
               protocol: TCP
           livenessProbe:
             httpGet:
@@ -83,3 +90,25 @@ spec:
             readOnlyRootFilesystem: true
           resources:
             {{- toYaml .Values.operator.resources | nindent 12 }}
+---
+# Idle Apps' NebariApps route here (a cross-namespace backendRef the
+# operator allows with a ReferenceGrant of the same name). Every operator
+# replica answers, leader or not.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "nebari-apps.fullname" . }}-activator
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "nebari-apps.labels" . | nindent 4 }}
+    app.kubernetes.io/component: operator
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "nebari-apps.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: operator
+  ports:
+    - name: http
+      port: 8080
+      targetPort: activator
+      protocol: TCP

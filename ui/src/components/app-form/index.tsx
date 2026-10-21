@@ -27,6 +27,8 @@ export interface AppFormProps {
   namespaces: string[];
   appsDomain: string;
   appsScheme: string;
+  /** Cluster default idle timeout in minutes (from /capabilities); 0 = off. */
+  idleDefaultMinutes?: number;
   initial?: App;
   submitting: boolean;
   onSubmit: (payload: SubmitPayload) => void;
@@ -47,6 +49,7 @@ export function AppForm({
   namespaces,
   appsDomain,
   appsScheme,
+  idleDefaultMinutes = 0,
   initial,
   submitting,
   onSubmit,
@@ -110,6 +113,7 @@ export function AppForm({
     initial,
     namespaces,
     appsDomain,
+    idleDefaultMinutes,
   };
   const subdomain = isEdit ? initial?.access?.subdomain : state.subdomain;
   return (

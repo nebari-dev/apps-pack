@@ -52,6 +52,7 @@ export function LaunchPage() {
         mode="create"
         namespaces={namespaces}
         appsDomain={appsDomain}
+        idleDefaultMinutes={capabilities.data?.idleTimeoutMinutes ?? 0}
         appsScheme={appsScheme}
         submitting={launch.isPending}
         onSubmit={(payload) => launch.mutate(payload)}

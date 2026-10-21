@@ -72,9 +72,21 @@ type AppRuntime struct {
 	// +optional
 	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
 
-	// KeepAlive prevents idle scale-down when scale-to-zero is enabled.
+	// KeepAlive exempts the app from scale-to-zero: it keeps running however
+	// long it goes without requests, whatever idleTimeoutMinutes or the
+	// cluster default (the operator's --idle-timeout-minutes) say.
 	// +optional
 	KeepAlive bool `json:"keepAlive,omitempty"`
+
+	// IdleTimeoutMinutes scales the app to zero after this many minutes
+	// without a request (phase Idle); the next request to its URL wakes it.
+	// Unset means the cluster default (the operator's --idle-timeout-minutes,
+	// chart apps.idle.timeoutMinutes; 0 there leaves apps running). Ignored
+	// when keepAlive is true or replicas is 0.
+	// +kubebuilder:validation:Minimum=5
+	// +kubebuilder:validation:Maximum=43200
+	// +optional
+	IdleTimeoutMinutes *int32 `json:"idleTimeoutMinutes,omitempty"`
 
 	// +kubebuilder:default=1
 	// +kubebuilder:validation:Minimum=0
@@ -163,8 +175,10 @@ type AppSpec struct {
 	Access AppAccess `json:"access"`
 }
 
-// AppPhase is a coarse summary of app state.
-// +kubebuilder:validation:Enum=Pending;Deploying;Running;Failed;Stopped
+// AppPhase is a coarse summary of app state. Idle means the operator scaled
+// the app to zero after its idle timeout; unlike Stopped (replicas: 0 in the
+// spec), the next request to its URL starts it again.
+// +kubebuilder:validation:Enum=Pending;Deploying;Running;Failed;Stopped;Idle
 type AppPhase string
 
 const (
@@ -173,7 +187,13 @@ const (
 	AppPhaseRunning   AppPhase = "Running"
 	AppPhaseFailed    AppPhase = "Failed"
 	AppPhaseStopped   AppPhase = "Stopped"
+	AppPhaseIdle      AppPhase = "Idle"
 )
+
+// WakeAnnotation on an App asks the operator to wake it from Idle: its value
+// is an RFC 3339 time that counts as a request. The activator (the page an
+// idle App's URL serves) and apps-api's start route set it.
+const WakeAnnotation = "apps.nebari.dev/wake-requested-at"
 
 // Condition types published on App.status.conditions.
 const (
@@ -209,6 +229,13 @@ type AppStatus struct {
 	// Message is a human-readable summary of the current state.
 	// +optional
 	Message string `json:"message,omitempty"`
+
+	// LastActivityTime is when the app last served a request, as far as the
+	// operator knows (it polls the app pod's sidecar every few minutes).
+	// Set only for apps that idle; the app goes Idle once it is older than
+	// the idle timeout.
+	// +optional
+	LastActivityTime *metav1.Time `json:"lastActivityTime,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -216,6 +243,7 @@ type AppStatus struct {
 // +kubebuilder:printcolumn:name="Source",type=string,JSONPath=`.spec.source.type`
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
 // +kubebuilder:printcolumn:name="URL",type=string,JSONPath=`.status.url`
+// +kubebuilder:printcolumn:name="Last Active",type=date,JSONPath=`.status.lastActivityTime`,priority=1
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
 // App is a web application launched and managed on a Nebari cluster.

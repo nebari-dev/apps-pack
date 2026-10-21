@@ -327,7 +327,8 @@ jobs:
         run: |
           set -u
           for bad in api.replicaCont=2 gateway=privat tls.enabled=yes \
-              ui.branding.banners.top.txt=CUI 'operator.extraEnv[0].value=x' keycloak.url=keycloak.example.ai; do
+              ui.branding.banners.top.txt=CUI 'operator.extraEnv[0].value=x' keycloak.url=keycloak.example.ai \
+              apps.idle.timeoutMinutes=3; do
             if helm template test charts/nebari-apps -f examples/nebari-values.yaml --set "$bad" > /dev/null 2>&1; then
               echo "::error::values.schema.json accepted --set $bad"; exit 1
             fi

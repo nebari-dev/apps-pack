@@ -124,9 +124,16 @@ describe("AppForm (create)", () => {
     const details = summary.closest("details") as HTMLDetailsElement;
     expect(details).not.toHaveAttribute("open");
     expect(details).toHaveTextContent(
-      "Python apps must serve on 0.0.0.0:$PORT (8080, or 8081 when groups or users restrict the app).",
+      "Python apps must serve on 0.0.0.0:$PORT (8080, or 8081 when groups or users restrict the app or it can idle).",
     );
-    for (const label of ["Replicas", "CPU request", "Memory request", "CPU limit", "Memory limit"])
+    for (const label of [
+      "Replicas",
+      "CPU request",
+      "Memory request",
+      "CPU limit",
+      "Memory limit",
+      "Idle timeout (minutes)",
+    ])
       expect(details).toContainElement(screen.getByLabelText(label));
     // Environment variables stay outside it.
     expect(details).not.toContainElement(screen.getByRole("button", { name: /Add variable/ }));

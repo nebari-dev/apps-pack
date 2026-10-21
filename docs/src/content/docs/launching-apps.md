@@ -35,8 +35,9 @@ Open `https://apps.<cluster-domain>`:
 2. **Source** — **Upload** (a `.zip` of your app, or a single `.html` file for static
    sites), **Git**, or **Volume (PVC)**.
 3. **Runtime** — environment variables. **Advanced** holds replicas, the Small/Medium/Large
-   presets, CPU/memory requests and limits, and the port rule for Python apps; an edit opens
-   it when the app already has non-default replicas or resources.
+   presets, CPU/memory requests and limits, **Keep running when idle** (`keepAlive`) and the
+   **idle timeout** (see [Idle apps](#idle-apps)), and the port rule for Python apps; an edit
+   opens it when the app already has non-default replicas, resources or idle settings.
 4. **Access** — public toggle, allowed groups and users, and the subdomain, which follows
    the name (lowercased, other characters turned into hyphens) until you edit it. The
    landing-page option is locked off for now (see [Landing page](#landing-page)).
@@ -109,8 +110,8 @@ The contract:
   `pixi install` (with `--locked` when a `pixi.lock` is present) and then
   `pixi run <task>`.
 - The task must start a server listening on **0.0.0.0:$PORT**; `PORT` and `HOME=/app`
-  are injected. `PORT` is 8080, or 8081 when the app lists groups or users (the authz
-  sidecar takes 8080), so read it rather than hard-coding a port. pixi task strings
+  are injected. `PORT` is 8080, or 8081 when the authz sidecar takes 8080 (the app lists
+  groups or users, or it can [idle](#idle-apps)), so read it rather than hard-coding a port. pixi task strings
   support `$PORT` but not `${PORT:-8080}`; run `PORT=8080 pixi run start` locally.
   Routing, TLS, and SSO are identical to static apps.
 - First start resolves and downloads the environment, so cold starts take longer —
@@ -223,12 +224,29 @@ users, so the form registers new apps with `enabled: false` and an edit keeps wh
 App already has. Register a tile through the API, the MCP tool or `kubectl` if you need
 one.
 
+## Idle apps
+
+When the cluster sets `apps.idle.timeoutMinutes`, or an App sets
+`runtime.idleTimeoutMinutes`, an App that goes that long without a request is scaled to zero
+and shows as **Idle** in the Apps list, on its detail page and in `kubectl get apps`. Nothing is
+lost: its URL still works. The first visit shows a "starting" page that reloads itself, and the
+app is back once a pod is ready (seconds for a static app, longer for a Python app). Opening it
+from the Apps list, **Wake** on its detail page, `start_app` over MCP or
+`POST .../apps/{ns}/{name}/start` wake it too.
+
+To keep an app always up (it must answer at once, or it works in the background without
+visitors), turn on **Keep running when idle** in the form, or set `runtime.keepAlive: true`.
+**Stop** is different from idle: a stopped app (`replicas: 0`) stays down until someone starts
+it. See [Scale to zero](/app-crd-reference/#scale-to-zero) for how it works.
+
 ## Day-2 operations
 
 | Action | UI | API | kubectl |
 |---|---|---|---|
 | Stop (scale to 0) | detail page → Stop | `POST .../apps/{ns}/{name}/stop` | set `spec.runtime.replicas: 0` |
 | Start | detail page → Start | `POST .../apps/{ns}/{name}/start` | set `spec.runtime.replicas: 1` |
+| Wake an idle app | open its URL, or detail page → Wake | `POST .../apps/{ns}/{name}/start` | open its URL, or annotate `apps.nebari.dev/wake-requested-at=<RFC 3339 now>` |
+| Keep an app up | Edit → Advanced → Keep running when idle | `PATCH` `{"runtime": {"keepAlive": true}}` | set `spec.runtime.keepAlive: true` |
 | Update | detail page → Edit | `PATCH .../apps/{ns}/{name}` | edit the CR |
 | Restart (roll pods) | detail page → More actions → Restart | `POST .../apps/{ns}/{name}/restart` | `kubectl rollout restart deploy/app-<name>` |
 | Logs | detail page → Logs | `GET .../apps/{ns}/{name}/logs` | `kubectl logs -l apps.nebari.dev/app=<name>` |

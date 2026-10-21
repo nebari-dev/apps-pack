@@ -27,13 +27,14 @@ only `clusterDomain` and `keycloak.url` need changing.
 |---|---|---|
 | `apps.defaultResources.static` / `.python` | 50m/64Mi → 500m/256Mi; 250m/512Mi → 2/2Gi | Requests/limits filled in for any cpu/memory value an App's `runtime.resources` leaves unset (static apps vs `runtime.pixiTask` apps). |
 | `apps.limitRange.enabled` | `false` | Render a `LimitRange` (`default`, `defaultRequest`, `max`) into every `api.allowedNamespaces` namespace. The namespaces must exist. |
-| `apps.networkPolicy.enabled` | `false` | Render a `NetworkPolicy` for launched app pods in every `api.allowedNamespaces` namespace: ingress only from `gatewayNamespace` on port 8080; egress only to DNS and to the internet minus `blockedCIDRs` (private, CGNAT and link-local ranges by default), so app code cannot reach cluster-internal services. Needs a CNI that enforces NetworkPolicy. |
+| `apps.idle.timeoutMinutes` | `0` | Cluster default for [scale to zero](/app-crd-reference/#scale-to-zero): an App that goes this many minutes without a request is scaled to zero (phase `Idle`) and wakes on the next request to its URL. `0` keeps apps running unless they set `runtime.idleTimeoutMinutes`; otherwise `5`–`43200`. Apps opt out with `runtime.keepAlive: true`. Apps that can idle run the authz sidecar (`authz.resources`) in passthrough mode, which records their activity. |
+| `apps.networkPolicy.enabled` | `false` | Render a `NetworkPolicy` for launched app pods in every `api.allowedNamespaces` namespace: ingress only from `gatewayNamespace` on port 8080, plus from the operator pods on port 8082 (the sidecar's health port, which the idle check reads); egress only to DNS and to the internet minus `blockedCIDRs` (private, CGNAT and link-local ranges by default), so app code cannot reach cluster-internal services. Needs a CNI that enforces NetworkPolicy. |
 | `apps.landingPage.enabled` | `false` | Cluster default for registering launched apps as tiles on the Nebari landing page. Off: an app appears only if it sets `spec.landingPage.enabled: true`. On: every app gets a tile unless it sets `enabled: false`. Apps are reachable at their URL and listed in the Apps UI either way. |
 | `staticImage` | `nginxinc/nginx-unprivileged:1.27-alpine` | Serves static app content; must listen on 8080 as non-root. The operator mounts its nginx server config (security headers, `try_files`) over `/etc/nginx/conf.d`, so a replacement image should be nginx-based or ignore that directory. |
 | `gitImage` | `alpine/git:v2.47.2` | Init-container image that clones `git` sources. |
 | `pythonImage` | `ghcr.io/prefix-dev/pixi:0.68.1-noble` | Runs Python/pixi apps (`runtime.pixiTask`); must provide `pixi` and run as non-root. |
-| `authz.image.repository` / `tag` / `pullPolicy` | `ghcr.io/nebari-dev/apps-pack/apps-authz` / appVersion / `IfNotPresent` | The sidecar the operator adds to apps that list `access.groups` or `access.users`: it takes port 8080, checks the forwarded access token and returns `403` to everyone else (see [Access control](/launching-apps/#access-control)). |
-| `authz.resources` | `10m`/`32Mi` requests, `100m`/`64Mi` limits | The sidecar's requests/limits, on top of the app container's, in every restricted app pod. |
+| `authz.image.repository` / `tag` / `pullPolicy` | `ghcr.io/nebari-dev/apps-pack/apps-authz` / appVersion / `IfNotPresent` | The sidecar the operator adds to apps that list `access.groups` or `access.users`: it takes port 8080, checks the forwarded access token and returns `403` to everyone else (see [Access control](/launching-apps/#access-control)). Apps that can idle get it too; without groups or users it runs in passthrough mode and only records when the app last served a request. |
+| `authz.resources` | `10m`/`32Mi` requests, `100m`/`64Mi` limits | The sidecar's requests/limits, on top of the app container's, in every pod that runs it. |
 
 ## apps-operator
 
@@ -46,9 +47,22 @@ only `clusterDomain` and `keycloak.url` need changing.
 
 The operator reads its configuration from flags the chart renders
 (`--apps-domain`, `--gateway`, `--static-image`, `--git-image`, `--python-image`,
-`--tls-disabled`, `--landing-page`, `--leader-elect`); each flag also accepts the matching
+`--tls-disabled`, `--landing-page`, `--leader-elect`, `--idle-timeout-minutes`,
+`--activator-service`, `--activator-namespace`); each flag also accepts the matching
 environment variable (`APPS_DOMAIN`, `GATEWAY`, `STATIC_IMAGE`, `GIT_IMAGE`, `PYTHON_IMAGE`,
-`TLS_DISABLED`, `LANDING_PAGE`).
+`TLS_DISABLED`, `LANDING_PAGE`, `IDLE_TIMEOUT_MINUTES`, `ACTIVATOR_SERVICE`, and
+`POD_NAMESPACE` for the activator's namespace).
+
+Every operator replica also serves the **activator** on port 8090 (`--activator-bind-address`),
+behind the `<release>-activator` Service: the page an idle App's URL shows while it starts (see
+[Scale to zero](/app-crd-reference/#scale-to-zero)). Idle Apps' `NebariApp`s route to that
+Service across namespaces, which Gateway API allows through a `ReferenceGrant` named
+`<release>-activator` in the release namespace. The operator creates it, adds each App
+namespace the first time an App there idles, and owns it by the Service, so uninstalling the
+chart removes it. For this the operator has two permissions beyond its reconcile set:
+`get`/`list` on pods cluster-wide (read-only and uncached, to find an App's ready pods and ask
+their sidecar for activity) and `get`/`create`/`update` on `referencegrants` in the release
+namespace.
 
 ## apps-api
 
@@ -204,6 +218,7 @@ The pack integrates with the platform through two kinds of `NebariApp`
 |---|---|---|
 | `hostname` | `<spec.access.subdomain>.<appsDomain>` | App + chart |
 | `service.name` / `port` | `app-<name>` / `8080` | operator |
+| `service.namespace` | unset; the release namespace (with `service.name` `<release>-activator`) while the App is `Idle` or waking | operator — routes to the activator ([Scale to zero](/app-crd-reference/#scale-to-zero)); needs the `ReferenceGrant` above |
 | `routing.routes` | one `PathPrefix /` route | fixed |
 | `routing.tls.enabled` | `tls.enabled` | chart |
 | `gateway` | `gateway` | chart |

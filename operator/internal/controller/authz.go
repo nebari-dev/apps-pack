@@ -49,9 +49,16 @@ func restricted(app *appsv1alpha1.App) bool {
 	return !a.Public && (len(a.Groups) > 0 || len(a.Users) > 0)
 }
 
+// hasSidecar reports whether the App's pod runs the apps-authz sidecar:
+// restricted Apps (it enforces groups and users) and Apps that can idle
+// (in passthrough mode it only records activity for the idle check).
+func (c OperatorConfig) hasSidecar(app *appsv1alpha1.App) bool {
+	return restricted(app) || c.idleTimeout(app) > 0
+}
+
 // appContainerPort is the port the app container listens on.
-func appContainerPort(app *appsv1alpha1.App) int32 {
-	if restricted(app) {
+func (c OperatorConfig) appContainerPort(app *appsv1alpha1.App) int32 {
+	if c.hasSidecar(app) {
 		return AppInternalPort
 	}
 	return AppPort
@@ -127,7 +134,9 @@ func (c OperatorConfig) checkAuthz(app *appsv1alpha1.App) error {
 // addAuthzSidecar moves the app container to AppInternalPort, points its
 // probes at the sidecar's /upstreamz (which dials the app on loopback, so an
 // app listening only on 127.0.0.1 still passes) and appends the sidecar,
-// which takes the "http" port the Service targets.
+// which takes the "http" port the Service targets. For an unrestricted App
+// (one that is here only because it can idle) the sidecar runs in
+// passthrough mode: it checks no tokens and only records activity.
 func (r *AppReconciler) addAuthzSidecar(app *appsv1alpha1.App, pod *corev1.PodSpec) {
 	main := &pod.Containers[0]
 	main.Ports = []corev1.ContainerPort{{
@@ -154,15 +163,21 @@ func (r *AppReconciler) addAuthzSidecar(app *appsv1alpha1.App, pod *corev1.PodSp
 		{Name: "AUTHZ_LISTEN", Value: fmt.Sprintf(":%d", AppPort)},
 		{Name: "AUTHZ_HEALTH_LISTEN", Value: fmt.Sprintf(":%d", authzHealthPort)},
 		{Name: "AUTHZ_UPSTREAM", Value: fmt.Sprintf("http://127.0.0.1:%d", AppInternalPort)},
-		{Name: "AUTHZ_ISSUERS", Value: strings.Join(r.Config.authzIssuers(), ",")},
-		{Name: "AUTHZ_JWKS_URL", Value: r.Config.authzJWKSURL()},
-		{Name: "AUTHZ_CLIENT_ID", Value: oidcClientID(app)},
 	}
-	if g := app.Spec.Access.Groups; len(g) > 0 {
-		env = append(env, corev1.EnvVar{Name: "AUTHZ_GROUPS", Value: strings.Join(g, ",")})
-	}
-	if u := app.Spec.Access.Users; len(u) > 0 {
-		env = append(env, corev1.EnvVar{Name: "AUTHZ_USERS", Value: strings.Join(u, ",")})
+	if restricted(app) {
+		env = append(env,
+			corev1.EnvVar{Name: "AUTHZ_ISSUERS", Value: strings.Join(r.Config.authzIssuers(), ",")},
+			corev1.EnvVar{Name: "AUTHZ_JWKS_URL", Value: r.Config.authzJWKSURL()},
+			corev1.EnvVar{Name: "AUTHZ_CLIENT_ID", Value: oidcClientID(app)},
+		)
+		if g := app.Spec.Access.Groups; len(g) > 0 {
+			env = append(env, corev1.EnvVar{Name: "AUTHZ_GROUPS", Value: strings.Join(g, ",")})
+		}
+		if u := app.Spec.Access.Users; len(u) > 0 {
+			env = append(env, corev1.EnvVar{Name: "AUTHZ_USERS", Value: strings.Join(u, ",")})
+		}
+	} else {
+		env = append(env, corev1.EnvVar{Name: "AUTHZ_PASSTHROUGH", Value: "true"})
 	}
 
 	pod.Containers = append(pod.Containers, corev1.Container{
@@ -176,7 +191,7 @@ func (r *AppReconciler) addAuthzSidecar(app *appsv1alpha1.App, pod *corev1.PodSp
 		Env:       env,
 		Resources: *r.Config.AuthzResources.DeepCopy(),
 		// Ready once the realm's signing keys are fetched, so a wrong
-		// Keycloak URL never takes traffic.
+		// Keycloak URL never takes traffic (at once in passthrough).
 		ReadinessProbe: &corev1.Probe{ProbeHandler: healthGet("/readyz"), PeriodSeconds: 5},
 		LivenessProbe:  &corev1.Probe{ProbeHandler: healthGet("/healthz"), PeriodSeconds: 10},
 		SecurityContext: &corev1.SecurityContext{

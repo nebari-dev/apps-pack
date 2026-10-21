@@ -72,6 +72,11 @@ class Settings:
     # for released charts), reported next to the version by /api/v1/version.
     build: str = field(default_factory=lambda: os.environ.get("APPS_BUILD", "unknown"))
 
+    # Cluster default idle timeout in minutes (mirrors the operator's
+    # --idle-timeout-minutes; 0 = apps never idle unless they set
+    # runtime.idleTimeoutMinutes). Reported by /capabilities for forms.
+    idle_timeout_minutes: int = field(default_factory=lambda: int(os.environ.get("IDLE_TIMEOUT_MINUTES", "0") or 0))
+
     # Serve apps over plain HTTP (mirrors the operator's --tls-disabled).
     tls_disabled: bool = field(default_factory=lambda: _env_bool("TLS_DISABLED", False))
 

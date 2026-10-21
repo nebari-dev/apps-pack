@@ -224,3 +224,31 @@ func TestNebariAppContractLandingPageClusterDefault(t *testing.T) {
 		t.Error("spec.landingPage.enabled=false should override the cluster default")
 	}
 }
+
+// An idle (or waking) App's NebariApp routes to the activator Service in the
+// operator's namespace through spec.service.namespace; everything else is
+// unchanged.
+func TestNebariAppContractIdleRoutesToActivator(t *testing.T) {
+	app := inlineApp("team-analytics")
+	r := testReconciler()
+	r.Config.ActivatorService = "nebari-apps-activator"
+	r.Config.ActivatorNamespace = "nebari-apps"
+	na := r.buildNebariApp(app)
+	before, _, _ := unstructured.NestedMap(na.Object, "spec", "auth")
+	r.Config.routeToActivator(na)
+
+	svc, _, _ := unstructured.NestedMap(na.Object, "spec", "service")
+	want := map[string]any{"name": "nebari-apps-activator", "namespace": "nebari-apps", "port": int64(ActivatorServicePort)}
+	if len(svc) != len(want) {
+		t.Fatalf("service = %+v, want %+v", svc, want)
+	}
+	for k, v := range want {
+		if svc[k] != v {
+			t.Errorf("service.%s = %v, want %v", k, svc[k], v)
+		}
+	}
+	after, _, _ := unstructured.NestedMap(na.Object, "spec", "auth")
+	if len(after) != len(before) || after["enabled"] != before["enabled"] {
+		t.Errorf("auth changed: %+v -> %+v", before, after)
+	}
+}

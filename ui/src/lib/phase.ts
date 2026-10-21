@@ -3,7 +3,14 @@
  * a failing app is never buried under healthy ones; any other phase (unknown
  * or empty) sorts after all of these.
  */
-export const PHASE_SEVERITY = ["Failed", "Deploying", "Pending", "Running", "Stopped"] as const;
+export const PHASE_SEVERITY = [
+  "Failed",
+  "Deploying",
+  "Pending",
+  "Running",
+  "Idle",
+  "Stopped",
+] as const;
 
 export type KnownPhase = (typeof PHASE_SEVERITY)[number];
 

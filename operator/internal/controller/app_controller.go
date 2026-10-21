@@ -3,7 +3,9 @@ package controller
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -13,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -69,6 +72,15 @@ type OperatorConfig struct {
 	// KeycloakRealm is the realm nebari-operator provisions clients in
 	// (default nebari).
 	KeycloakRealm string
+	// IdleTimeout is the cluster default for scaling an App to zero after
+	// it goes this long without a request (0: Apps never idle unless they
+	// set runtime.idleTimeoutMinutes). See idle.go.
+	IdleTimeout time.Duration
+	// ActivatorService and ActivatorNamespace name the Service in front of
+	// the operator's activator (activator.go), which idle Apps route to.
+	// Idling needs both, and AuthzImage.
+	ActivatorService   string
+	ActivatorNamespace string
 }
 
 // LandingPageEnabled reports whether an App should appear on the landing page:
@@ -93,6 +105,14 @@ type AppReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 	Config OperatorConfig
+	// APIReader reads pods and the ReferenceGrant without caching them
+	// cluster-wide (mgr.GetAPIReader()); nil uses the Client.
+	APIReader client.Reader
+	// HTTPClient polls app pods' activity (nil: http.DefaultClient);
+	// ActivityURL and Now are test hooks.
+	HTTPClient  *http.Client
+	ActivityURL func(podIP string) string
+	Now         func() time.Time
 }
 
 // +kubebuilder:rbac:groups=apps.nebari.dev,resources=apps,verbs=get;list;watch;create;update;patch;delete
@@ -102,6 +122,8 @@ type AppReconciler struct {
 // +kubebuilder:rbac:groups="",resources=services;configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=referencegrants,verbs=get;create;update
 // +kubebuilder:rbac:groups=reconcilers.nebari.dev,resources=nebariapps,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile drives an App through the validate → workload → service →
@@ -122,7 +144,7 @@ func (r *AppReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	orig := app.DeepCopy()
 	app.Status.ObservedGeneration = app.Generation
 
-	reconcileErr := r.reconcileApp(ctx, app)
+	requeue, reconcileErr := r.reconcileApp(ctx, app)
 	if reconcileErr != nil {
 		log.Error(reconcileErr, "reconcile failed")
 	}
@@ -130,24 +152,34 @@ func (r *AppReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	if err := r.updateStatus(ctx, orig, app); err != nil {
 		return ctrl.Result{}, err
 	}
-	return ctrl.Result{}, reconcileErr
+	if reconcileErr != nil {
+		return ctrl.Result{}, reconcileErr
+	}
+	// An App that can idle is checked again before its idle timeout runs out.
+	return ctrl.Result{RequeueAfter: requeue}, nil
 }
 
-func (r *AppReconciler) reconcileApp(ctx context.Context, app *appsv1alpha1.App) error {
+func (r *AppReconciler) reconcileApp(ctx context.Context, app *appsv1alpha1.App) (time.Duration, error) {
+	st, err := r.reconcileChildren(ctx, app)
+	return st.requeue, err
+}
+
+func (r *AppReconciler) reconcileChildren(ctx context.Context, app *appsv1alpha1.App) (idleState, error) {
 	// 1. Validate.
 	if err := r.validate(ctx, app); err != nil {
 		reason := "ValidationFailed"
 		if isSubdomainTaken(err) {
 			reason = "SubdomainTaken"
 			if rerr := r.releaseHostname(ctx, app); rerr != nil {
-				return fmt.Errorf("releasing hostname: %w", rerr)
+				return idleState{}, fmt.Errorf("releasing hostname: %w", rerr)
 			}
 		}
 		setCondition(app, appsv1alpha1.ConditionValidated, metav1.ConditionFalse, reason, err.Error())
 		app.Status.Phase = appsv1alpha1.AppPhaseFailed
 		app.Status.Message = err.Error()
+		app.Status.LastActivityTime = nil
 		// Invalid specs are terminal until the spec changes; don't requeue-error.
-		return nil
+		return idleState{}, nil
 	}
 	setCondition(app, appsv1alpha1.ConditionValidated, metav1.ConditionTrue, "ValidationSucceeded", "spec is valid")
 
@@ -157,26 +189,33 @@ func (r *AppReconciler) reconcileApp(ctx context.Context, app *appsv1alpha1.App)
 		if err := r.apply(ctx, app, cm, func(existing, desired client.Object) {
 			existing.(*corev1.ConfigMap).Data = desired.(*corev1.ConfigMap).Data
 		}); err != nil {
-			return fmt.Errorf("reconciling content ConfigMap: %w", err)
+			return idleState{}, fmt.Errorf("reconciling content ConfigMap: %w", err)
 		}
 	}
-	if cm := buildServerConfigMap(app); cm != nil {
+	if cm := r.Config.buildServerConfigMap(app); cm != nil {
 		if err := r.apply(ctx, app, cm, func(existing, desired client.Object) {
 			existing.(*corev1.ConfigMap).Data = desired.(*corev1.ConfigMap).Data
 		}); err != nil {
-			return fmt.Errorf("reconciling server ConfigMap: %w", err)
+			return idleState{}, fmt.Errorf("reconciling server ConfigMap: %w", err)
 		}
 	}
 
-	// 3. Workload.
+	// 3. Idle check, then the workload: an idle App runs no pods.
+	st, err := r.evaluateIdle(ctx, app)
+	if err != nil {
+		return idleState{}, err
+	}
 	deploy, err := r.buildDeployment(app)
 	if err != nil {
-		return err
+		return idleState{}, err
+	}
+	if st.idle {
+		deploy.Spec.Replicas = ptr.To(int32(0))
 	}
 	if err := r.apply(ctx, app, deploy, func(existing, desired client.Object) {
 		existing.(*appsv1.Deployment).Spec = desired.(*appsv1.Deployment).Spec
 	}); err != nil {
-		return fmt.Errorf("reconciling Deployment: %w", err)
+		return idleState{}, fmt.Errorf("reconciling Deployment: %w", err)
 	}
 
 	// 4. Service.
@@ -187,20 +226,27 @@ func (r *AppReconciler) reconcileApp(ctx context.Context, app *appsv1alpha1.App)
 		e.Spec.Ports = d.Spec.Ports
 		e.Spec.Type = d.Spec.Type
 	}); err != nil {
-		return fmt.Errorf("reconciling Service: %w", err)
+		return idleState{}, fmt.Errorf("reconciling Service: %w", err)
 	}
 
-	// 5. Routing/auth/landing via NebariApp.
+	// 5. Routing/auth/landing via NebariApp. An idle or waking App routes
+	// to the activator, which serves the starting page and wakes it.
 	nebariApp := r.buildNebariApp(app)
+	if st.viaActivator {
+		if err := r.ensureReferenceGrant(ctx, app.Namespace); err != nil {
+			return idleState{}, fmt.Errorf("granting routes in %s access to the activator: %w", app.Namespace, err)
+		}
+		r.Config.routeToActivator(nebariApp)
+	}
 	if err := r.apply(ctx, app, nebariApp, func(existing, desired client.Object) {
 		e, d := existing.(*unstructured.Unstructured), desired.(*unstructured.Unstructured)
 		e.Object["spec"] = d.Object["spec"]
 	}); err != nil {
-		return fmt.Errorf("reconciling NebariApp: %w", err)
+		return idleState{}, fmt.Errorf("reconciling NebariApp: %w", err)
 	}
 
 	// 6. Status aggregation.
-	return r.aggregateStatus(ctx, app)
+	return st, r.aggregateStatus(ctx, app, st)
 }
 
 // validate checks that the App can be reconciled at all.

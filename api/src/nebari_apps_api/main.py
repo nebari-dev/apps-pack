@@ -223,6 +223,7 @@ def create_app(store: AppStore | None = None) -> FastAPI:
             appsDomain=settings.apps_domain,
             sourceTypes=list(SOURCE_TYPES),
             namespaces=launchable_namespaces(store),
+            idleTimeoutMinutes=settings.idle_timeout_minutes,
         )
 
     @app.get(PREFIX + "/auth/me")
@@ -303,7 +304,19 @@ def create_app(store: AppStore | None = None) -> FastAPI:
 
     @app.post(PREFIX + "/apps/{namespace}/{name}/start", response_model=AppOut)
     def start_app(namespace: str, name: str, store: Store, user: Me) -> AppOut:
-        return _scale(store, user, namespace, name, 1)
+        """Start a stopped app (replicas 0 -> 1) or wake an Idle one: the wake
+        annotation counts as a request, so the operator scales it back up.
+        """
+
+        def change(existing: dict[str, Any]) -> dict[str, Any]:
+            runtime = existing.setdefault("spec", {}).setdefault("runtime", {})
+            if runtime.get("replicas", 1) == 0:
+                runtime["replicas"] = 1
+            annotations = existing.setdefault("metadata", {}).setdefault("annotations", {})
+            annotations[crmod.WAKE_ANNOTATION] = crmod.wake_timestamp()
+            return existing
+
+        return crmod.from_cr(update_app(store, user, namespace, name, change))
 
     @app.post(PREFIX + "/apps/{namespace}/{name}/restart", response_model=AppOut)
     def restart_app(namespace: str, name: str, store: Store, user: Me) -> AppOut:

@@ -21,6 +21,8 @@ import {
   type Field,
   type FormAction,
   type FormState,
+  IDLE_MAX,
+  IDLE_MIN,
   LANDING_PAGE_LOCKED,
   PRESETS,
   type Preset,
@@ -36,6 +38,7 @@ export const CONTROL_IDS: Record<Field, string> = {
   file: "file-upload",
   gitUrl: "gitUrl",
   pvcClaim: "pvcClaim",
+  idleTimeout: "idleTimeout",
   subdomain: "subdomain",
 };
 
@@ -59,6 +62,8 @@ export interface FormContext {
   initial?: App;
   namespaces: string[];
   appsDomain: string;
+  /** The cluster's default idle timeout in minutes; 0 = apps stay up unless they set one. */
+  idleDefaultMinutes: number;
 }
 
 /** The message under a control; its id is what the control's aria-describedby names. */
@@ -402,12 +407,67 @@ export function SourceSection({ form }: { form: FormContext }) {
   );
 }
 
-/** True when the App runs with anything but the defaults: one replica and no resources. */
+/** True when the App runs with anything but the defaults: one replica, no resources, cluster idling. */
 function hasCustomRuntime(app?: App): boolean {
   const runtime = app?.runtime;
   const res = runtime?.resources;
   const amounts = { ...res?.requests, ...res?.limits };
-  return (runtime?.replicas ?? 1) !== 1 || Object.keys(amounts).length > 0;
+  return (
+    (runtime?.replicas ?? 1) !== 1 ||
+    Object.keys(amounts).length > 0 ||
+    Boolean(runtime?.keepAlive) ||
+    runtime?.idleTimeoutMinutes != null
+  );
+}
+
+/** keepAlive and the idle timeout: when an unvisited app scales to zero. */
+function IdleFields({ form }: { form: FormContext }) {
+  const { keepAlive, idleTimeout } = form.state;
+  const { set, fieldProps, idleDefaultMinutes } = form;
+  const clusterDefault =
+    idleDefaultMinutes > 0
+      ? `${idleDefaultMinutes} min (cluster default)`
+      : "Off (cluster default)";
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p id="keepAlive-label" className="font-medium text-sm">
+            Keep running when idle
+          </p>
+          <p id="keepAlive-help" className="text-muted-foreground text-xs">
+            Never scale this app to zero. Use it for apps that must answer at once or work in the
+            background.
+          </p>
+        </div>
+        <Switch
+          checked={keepAlive}
+          onCheckedChange={(v) => set("keepAlive", v)}
+          aria-labelledby="keepAlive-label"
+          aria-describedby="keepAlive-help"
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="idleTimeout">Idle timeout (minutes)</Label>
+        <Input
+          id="idleTimeout"
+          inputMode="numeric"
+          className="max-w-xs"
+          placeholder={clusterDefault}
+          disabled={keepAlive}
+          {...fieldProps("idleTimeout", "idleTimeout-help")}
+          value={idleTimeout}
+          onChange={(e) => set("idleTimeout", e.target.value)}
+        />
+        <p id="idleTimeout-help" className="text-muted-foreground-strong text-sm">
+          After this long without a request the app scales to zero, and the next visit starts it
+          again (a few seconds, longer for Python apps). {IDLE_MIN} to {IDLE_MAX}; leave empty for
+          the cluster default.
+        </p>
+        <FieldError form={form} field="idleTimeout" />
+      </div>
+    </div>
+  );
 }
 
 /** Environment variables, with replicas, resources and the port rule under Advanced. */
@@ -562,9 +622,10 @@ export function RuntimeSection({ form }: { form: FormContext }) {
                 />
               </div>
             </div>
+            <IdleFields form={form} />
             <p className="text-muted-foreground-strong text-sm">
               Python apps must serve on <span className="font-mono">0.0.0.0:$PORT</span> (8080, or
-              8081 when groups or users restrict the app).
+              8081 when groups or users restrict the app or it can idle).
             </p>
           </div>
         </details>

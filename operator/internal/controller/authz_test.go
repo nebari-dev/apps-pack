@@ -79,7 +79,7 @@ func TestAuthzSidecarStaticApp(t *testing.T) {
 	if conf := cm.Data["default.conf"]; !strings.Contains(conf, "listen 127.0.0.1:8081;") {
 		t.Errorf("nginx should listen on loopback only:\n%s", conf)
 	}
-	if d.Spec.Template.Annotations["apps.nebari.dev/server-config-checksum"] != serverConfChecksum(app) {
+	if d.Spec.Template.Annotations["apps.nebari.dev/server-config-checksum"] != (OperatorConfig{}).serverConfChecksum(app) {
 		t.Error("server-config checksum does not follow the restricted config")
 	}
 
@@ -185,7 +185,7 @@ func TestUnrestrictedAppsHaveNoSidecar(t *testing.T) {
 			if len(pod.Containers) != 1 || pod.Containers[0].Ports[0].Name != "http" || pod.Containers[0].Ports[0].ContainerPort != AppPort {
 				t.Errorf("pod = %+v", pod.Containers)
 			}
-			if cm := buildServerConfigMap(app); cm != nil && !strings.Contains(cm.Data["default.conf"], "listen 8080;") {
+			if cm := r.Config.buildServerConfigMap(app); cm != nil && !strings.Contains(cm.Data["default.conf"], "listen 8080;") {
 				t.Error("nginx should listen on 8080")
 			}
 			auth, _, _ := unstructured.NestedMap(r.buildNebariApp(app).Object, "spec", "auth")

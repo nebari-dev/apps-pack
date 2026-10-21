@@ -40,7 +40,9 @@ export type AppReplicas = {
 
 export type AppRuntime = {
   env?: EnvVar[];
-  /** KeepAlive prevents idle scale-down when scale-to-zero is enabled. */
+  /** IdleTimeoutMinutes scales the app to zero after this many minutes without a request (phase Idle); the next request to its URL wakes it. */
+  idleTimeoutMinutes?: number;
+  /** KeepAlive exempts the app from scale-to-zero: it keeps running however long it goes without requests, whatever idleTimeoutMinutes or the cluster default (the operator's --idle-timeout-minutes) say. */
   keepAlive?: boolean;
   /** PixiTask, when set, runs the app as a Python/pixi service instead of serving its source as static content: the operator installs the pixi environment from the app source and executes `pixi run <PixiTask>`. */
   pixiTask?: string;
@@ -79,11 +81,13 @@ export type AppSpec = {
 
 export type AppStatus = {
   conditions?: AppCondition[];
+  /** LastActivityTime is when the app last served a request, as far as the operator knows (it polls the app pod's sidecar every few minutes). */
+  lastActivityTime?: string;
   /** Message is a human-readable summary of the current state. */
   message?: string;
   observedGeneration?: number;
   /** AppPhase is a coarse summary of app state. */
-  phase?: "Pending" | "Deploying" | "Running" | "Failed" | "Stopped";
+  phase?: "Pending" | "Deploying" | "Running" | "Failed" | "Stopped" | "Idle";
   /** AppReplicas reports desired vs ready replica counts. */
   replicas?: AppReplicas;
   /** URL where the app is reachable once routing is ready. */

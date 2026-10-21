@@ -96,12 +96,16 @@ class AppRuntime(BaseModel):
     env: list[EnvVar] = Field(default_factory=list)
     resources: Resources | None = None
     replicas: int = Field(default=1, ge=0, le=10)
-    # Reserved for scale-to-zero idle reaping (not implemented); kept so an
-    # App that sets it does not lose it on an edit.
+    # Exempts the app from scale-to-zero: it keeps running without requests.
     keepAlive: bool | None = None
+    # Minutes without a request before the operator scales the app to zero
+    # (phase Idle); unset uses the cluster default (chart
+    # apps.idle.timeoutMinutes). Ignored when keepAlive is true.
+    idleTimeoutMinutes: int | None = Field(default=None, ge=5, le=43200)
     # When set, the app runs as a Python/pixi service: the operator installs
     # the pixi environment and executes `pixi run <pixiTask>`. The task must
-    # start a server on $PORT (8080, or 8081 behind the authz sidecar).
+    # start a server on $PORT (8080, or 8081 when the sidecar fronts it:
+    # restricted apps and apps that can idle).
     pixiTask: str = Field(default="", max_length=64)
 
 
@@ -169,11 +173,14 @@ class AppCondition(BaseModel):
 
 
 class AppStatus(BaseModel):
+    # Pending | Deploying | Running | Failed | Stopped | Idle
     phase: str = "Pending"
     url: str = ""
     replicas: AppReplicas | None = None
     conditions: list[AppCondition] = Field(default_factory=list)
     message: str = ""
+    # When the app last served a request (apps that can idle only).
+    lastActivityTime: str = ""
 
 
 class AppOut(BaseModel):
@@ -236,6 +243,8 @@ class Capabilities(BaseModel):
     appsDomain: str = ""
     sourceTypes: list[str] = Field(default_factory=list)
     namespaces: list[str] = Field(default_factory=list)
+    # Cluster default idle timeout (0: apps stay up unless they set one).
+    idleTimeoutMinutes: int = 0
 
 
 class AnalyticsSummary(BaseModel):

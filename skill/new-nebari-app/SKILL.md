@@ -71,6 +71,8 @@ When the user asks to launch an app directory, read its `nebari-app.yaml` and dr
 4. Poll `get_app_status` until `phase` is `Running` (typically seconds for static apps;
    pixi apps resolve their environment on first start and can take a few minutes). If it
    lands in `Failed`, read `get_app_logs` and the status message, fix, re-launch.
+   `Idle` is not a failure: the app was scaled to zero after its idle timeout and its URL
+   wakes it (or call `start_app`).
 5. Report the app's `url` back to the user.
 
 ## Conventions (do not deviate)

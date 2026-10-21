@@ -11,7 +11,7 @@ A quick health check of the whole pack:
 
 ```bash
 kubectl -n nebari-apps get deploy,pods -l app.kubernetes.io/instance=nebari-apps
-kubectl get apps -A -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name,PHASE:.status.phase,MESSAGE:.status.message
+kubectl get apps -A -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name,PHASE:.status.phase,LAST:.status.lastActivityTime,MESSAGE:.status.message
 curl -s https://apps.<cluster-domain>/api/v1/version
 ```
 
@@ -33,7 +33,7 @@ With `telemetry.prometheusRule.enabled` the chart renders these alerts (see
 ## The operator is not reconciling
 
 Symptoms: new Apps stay without a phase, edits do not roll pods, `Stopped` Apps keep
-running.
+running, `Idle` Apps never wake (their URL keeps showing the starting page).
 
 ```bash
 kubectl -n nebari-apps get deploy nebari-apps-operator
@@ -83,6 +83,43 @@ kubectl -n nebari-operator-system logs deploy/nebari-operator-controller-manager
   Keycloak is up and that the nebari-operator's admin credentials are valid.
 - **Every App at once.** The shared Gateway (`gateway`) or the nebari-operator itself is
   down; fix that, and the NebariApps recover without touching the Apps.
+
+## Idle Apps do not idle or do not wake
+
+`Idle` is a normal phase: the App went its idle timeout (`runtime.idleTimeoutMinutes`, else
+`apps.idle.timeoutMinutes`) without a request and is scaled to zero. The next request to its
+URL starts it. See [Scale to zero](/app-crd-reference/#scale-to-zero).
+
+```bash
+kubectl get apps -A -o wide        # PHASE and LAST ACTIVE
+kubectl -n <ns> get app <name> -o jsonpath='{.metadata.annotations.apps\.nebari\.dev/wake-requested-at}{"\n"}'
+kubectl -n nebari-apps get svc,endpoints nebari-apps-activator
+kubectl -n nebari-apps get referencegrant nebari-apps-activator -o yaml
+kubectl -n nebari-apps logs deploy/nebari-apps-operator --since=30m | grep -E 'idle check failed|activator'
+```
+
+- **An App never idles.** Check that it can idle at all: `keepAlive` unset, `replicas` above 0,
+  a timeout above 0, and the pod has the `authz` container. Then look for `idle check failed`
+  in the operator log: the operator could not read the sidecar's activity (port 8082 on the pod
+  IP) and counted the App as active. A NetworkPolicy that blocks the operator's namespace from
+  port 8082 is the usual cause; the chart's own policy allows it. Something polling the app
+  (an uptime check, a browser tab that refreshes) is activity too.
+- **The URL returns `503` "no healthy upstream" or `500` while the App is `Idle`.** Routing to
+  the activator is broken. The `nebari-apps-activator` Service needs endpoints (the operator
+  pods, port 8090), and the `ReferenceGrant` of the same name needs an entry for the App's
+  namespace: without it the gateway refuses the cross-namespace backend (the `HTTPRoute`'s
+  `ResolvedRefs` condition is `False`). The operator recreates both entries on the next
+  reconcile; restart it if they are missing.
+- **The starting page shows but the App stays `Idle`.** The activator could not stamp the wake
+  annotation (look for `waking app failed` in the operator log; usually RBAC from a mismatched
+  chart and image). Starting the App from the UI or `POST /api/v1/apps/<ns>/<name>/start` sets
+  the same annotation.
+- **The App wakes but the page never leaves the starting screen.** The App is `Deploying` with
+  no ready pod: troubleshoot it like any App that does not start ([Troubleshooting](/troubleshooting/)).
+  A Python app reinstalls its environment on every cold start, which can take minutes.
+- **Turn idling off quickly.** Set `apps.idle.timeoutMinutes=0` and upgrade: Apps without their
+  own `idleTimeoutMinutes` wake and keep running (their pods roll once to drop the sidecar).
+  For one App, set `runtime.keepAlive: true`.
 
 ## The API is down or returns errors
 

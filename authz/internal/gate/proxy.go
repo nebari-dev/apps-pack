@@ -13,9 +13,12 @@ import (
 )
 
 // Handler checks every request's bearer token and proxies the allowed ones
-// to the upstream app with the Authorization header intact.
+// to the upstream app with the Authorization header intact. In passthrough
+// mode (no verifier) it proxies every request unchecked.
 type Handler struct {
 	verifier *Verifier
+	// Activity, when set, records each request that reaches the app.
+	Activity *Activity
 	proxy    *httputil.ReverseProxy
 	log      *slog.Logger
 	// forbidden is the 403 body: it names the groups when only groups are
@@ -23,7 +26,8 @@ type Handler struct {
 	forbidden string
 }
 
-// NewHandler proxies to cfg.Upstream through transport.
+// NewHandler proxies to cfg.Upstream through transport. v may be nil only
+// when cfg.Passthrough is set.
 func NewHandler(cfg Config, v *Verifier, transport http.RoundTripper, log *slog.Logger) *Handler {
 	upstream := cfg.Upstream
 	proxy := &httputil.ReverseProxy{
@@ -65,6 +69,10 @@ func NewHandler(cfg Config, v *Verifier, transport http.RoundTripper, log *slog.
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if h.verifier == nil {
+		h.forward(w, r)
+		return
+	}
 	authz := r.Header.Get("Authorization")
 	if authz == "" {
 		// Distinct from a denial: the gateway forwarded no token at all,
@@ -84,6 +92,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.forbid(w, r, err.Error())
 		return
 	}
+	h.forward(w, r)
+}
+
+// forward proxies an allowed request, recording it as activity: denied
+// requests never keep an idle App awake.
+func (h *Handler) forward(w http.ResponseWriter, r *http.Request) {
+	if h.Activity != nil {
+		h.Activity.begin()
+		defer h.Activity.end()
+	}
 	h.proxy.ServeHTTP(w, r)
 }
 
@@ -93,13 +111,15 @@ func (h *Handler) forbid(w http.ResponseWriter, r *http.Request, reason string) 
 }
 
 // Health serves the token-free probe endpoints: /healthz (the process is
-// up), /readyz (the realm's key set has been fetched at least once) and
+// up), /readyz (the realm's key set has been fetched at least once),
 // /upstreamz (the app container accepts connections; the app container's
-// own probes use it, so the app can listen on loopback only).
+// own probes use it, so the app can listen on loopback only) and /activity
+// (when the app last served a request, for the operator's idle check).
 type Health struct {
 	Ready    func() bool
 	Upstream string // host:port
 	Dial     func(ctx context.Context, network, addr string) (net.Conn, error)
+	Activity *Activity
 }
 
 func (h *Health) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -122,6 +142,12 @@ func (h *Health) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		_ = conn.Close()
 		_, _ = fmt.Fprintln(w, "ok")
+	case "/activity":
+		if h.Activity == nil {
+			http.NotFound(w, r)
+			return
+		}
+		h.Activity.serve(w)
 	default:
 		http.NotFound(w, r)
 	}

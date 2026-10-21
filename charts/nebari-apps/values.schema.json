@@ -39,6 +39,25 @@
           },
           "additionalProperties": false
         },
+        "idle": {
+          "type": "object",
+          "properties": {
+            "timeoutMinutes": {
+              "type": "integer",
+              "description": "Cluster default idle timeout in minutes (0 = off, else 5 to 43200).",
+              "anyOf": [
+                {
+                  "const": 0
+                },
+                {
+                  "minimum": 5,
+                  "maximum": 43200
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
         "defaultResources": {
           "type": "object",
           "properties": {

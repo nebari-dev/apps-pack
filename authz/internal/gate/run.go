@@ -15,9 +15,7 @@ import (
 // both down gracefully.
 func Run(ctx context.Context, cfg Config, log *slog.Logger) error {
 	dialer := &net.Dialer{Timeout: 5 * time.Second, KeepAlive: 30 * time.Second}
-	jwksClient := &http.Client{Timeout: 10 * time.Second}
-	keys := oidc.NewRemoteKeySet(oidc.ClientContext(ctx, jwksClient), cfg.JWKSURL)
-	verifier := NewVerifier(cfg, keys)
+	activity := NewActivity(time.Now)
 
 	upstream := &http.Transport{
 		DialContext:         dialer.DialContext,
@@ -30,8 +28,20 @@ func Run(ctx context.Context, cfg Config, log *slog.Logger) error {
 		ExpectContinueTimeout: time.Second,
 	}
 
-	watch := &KeyWatch{URL: cfg.JWKSURL, Client: jwksClient, Every: 2 * time.Second, Log: log}
-	go watch.Run(ctx)
+	// Passthrough (an unrestricted App the operator may idle) checks no
+	// tokens: it only records activity, so it is ready at once.
+	var verifier *Verifier
+	ready := func() bool { return true }
+	if !cfg.Passthrough {
+		jwksClient := &http.Client{Timeout: 10 * time.Second}
+		keys := oidc.NewRemoteKeySet(oidc.ClientContext(ctx, jwksClient), cfg.JWKSURL)
+		verifier = NewVerifier(cfg, keys)
+		watch := &KeyWatch{URL: cfg.JWKSURL, Client: jwksClient, Every: 2 * time.Second, Log: log}
+		go watch.Run(ctx)
+		ready = watch.Ready
+	}
+	handler := NewHandler(cfg, verifier, upstream, log)
+	handler.Activity = activity
 
 	// No ReadTimeout/WriteTimeout: they would cut WebSockets and streamed
 	// responses. ReadHeaderTimeout bounds slow clients; IdleTimeout reaps
@@ -39,13 +49,13 @@ func Run(ctx context.Context, cfg Config, log *slog.Logger) error {
 	servers := []*http.Server{
 		{
 			Addr:              cfg.Listen,
-			Handler:           NewHandler(cfg, verifier, upstream, log),
+			Handler:           handler,
 			ReadHeaderTimeout: 10 * time.Second,
 			IdleTimeout:       120 * time.Second,
 		},
 		{
 			Addr:              cfg.HealthListen,
-			Handler:           &Health{Ready: watch.Ready, Upstream: cfg.Upstream.Host, Dial: dialer.DialContext},
+			Handler:           &Health{Ready: ready, Upstream: cfg.Upstream.Host, Dial: dialer.DialContext, Activity: activity},
 			ReadHeaderTimeout: 5 * time.Second,
 			IdleTimeout:       30 * time.Second,
 		},

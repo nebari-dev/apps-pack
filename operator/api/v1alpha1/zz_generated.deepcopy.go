@@ -140,6 +140,11 @@ func (in *AppRuntime) DeepCopyInto(out *AppRuntime) {
 		}
 	}
 	in.Resources.DeepCopyInto(&out.Resources)
+	if in.IdleTimeoutMinutes != nil {
+		in, out := &in.IdleTimeoutMinutes, &out.IdleTimeoutMinutes
+		*out = new(int32)
+		**out = **in
+	}
 	if in.Replicas != nil {
 		in, out := &in.Replicas, &out.Replicas
 		*out = new(int32)
@@ -224,6 +229,10 @@ func (in *AppStatus) DeepCopyInto(out *AppStatus) {
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
+	}
+	if in.LastActivityTime != nil {
+		in, out := &in.LastActivityTime, &out.LastActivityTime
+		*out = (*in).DeepCopy()
 	}
 }
 

@@ -6,6 +6,7 @@ import {
   Copy,
   Download,
   ExternalLink,
+  Moon,
   MoreHorizontal,
   Pause,
   Pencil,
@@ -45,7 +46,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toast";
-import { useAppActions } from "@/hooks/use-app-actions";
+import { isIdle, isStopped, useAppActions } from "@/hooks/use-app-actions";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { accessLine } from "@/lib/access";
 import { api } from "@/lib/api";
@@ -91,7 +92,8 @@ export function AppDetailPage() {
     refetchInterval: (q) => pollFor([q.state.data?.status.phase], 5_000, 30_000),
   });
   const phase = app.data?.status.phase;
-  const phaseStopped = phase === "Stopped";
+  // Stopped and idle apps have no pods: nothing to follow or measure.
+  const phaseStopped = phase === "Stopped" || phase === "Idle";
   const logs = useQuery({
     queryKey: ["logs", namespace, name],
     queryFn: () => api.logs(namespace, name, 500),
@@ -141,15 +143,17 @@ export function AppDetailPage() {
   }
 
   const a = app.data;
-  const stopped = (a.status.replicas?.desired ?? a.runtime?.replicas ?? 1) === 0;
+  const stopped = isStopped(a);
+  const idle = isIdle(a);
   // Only offer the app's URL while it can actually serve: stopped or
-  // still-deploying apps would just show a gateway error.
-  const ready = a.status.phase === "Running";
+  // still-deploying apps would just show a gateway error. An idle app's URL
+  // wakes it and shows a starting page meanwhile.
+  const ready = a.status.phase === "Running" || idle;
   const manifest = toManifest(a);
   const failure = failureOf(a);
   // A stopped or failed app has no pods to measure: say so instead of
   // drawing empty CPU and memory cards.
-  const showUsage = a.status.phase !== "Stopped" && a.status.phase !== "Failed";
+  const showUsage = a.status.phase !== "Stopped" && a.status.phase !== "Failed" && !idle;
   const url = a.status.url;
   const copyUrl = async () => {
     if (!url) return;
@@ -214,6 +218,11 @@ export function AppDetailPage() {
               }
             />
           ) : null}
+          {idle ? (
+            <Button variant="outline" loading={start.isPending} onClick={() => start.mutate(a)}>
+              <Play /> Wake
+            </Button>
+          ) : null}
           {stopped ? (
             <Button variant="outline" loading={start.isPending} onClick={() => start.mutate(a)}>
               <Play /> Start
@@ -241,13 +250,13 @@ export function AppDetailPage() {
             </DropdownMenuTrigger>
             <DropdownMenuPortal>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem disabled={stopped} onClick={() => restart.mutate(a)}>
+                <DropdownMenuItem disabled={stopped || idle} onClick={() => restart.mutate(a)}>
                   <RotateCw aria-hidden="true" className="size-4 shrink-0" />
                   <span className="flex flex-col">
                     Restart
-                    {stopped ? (
+                    {stopped || idle ? (
                       <span className="text-muted-foreground text-xs">
-                        Start the app to restart it
+                        {idle ? "Wake the app to restart it" : "Start the app to restart it"}
                       </span>
                     ) : null}
                   </span>
@@ -270,6 +279,20 @@ export function AppDetailPage() {
           </DropdownMenu>
         </div>
       </div>
+
+      {idle ? (
+        <Alert>
+          <Moon aria-hidden="true" />
+          <AlertTitle>Idle</AlertTitle>
+          <AlertDescription>
+            Scaled to zero after going its idle timeout without a request.
+            {a.status.lastActivityTime ? (
+              <> Last request {relativeTime(a.status.lastActivityTime)}.</>
+            ) : null}{" "}
+            Opening the app or Wake starts it again; the first visit waits while it starts.
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       {failure ? (
         <Alert variant="destructive" role="alert" className="has-data-[slot=alert-action]:pr-2">
