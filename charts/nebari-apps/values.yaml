@@ -115,7 +115,7 @@ apps:
 operator:
   image:
     # -- Operator image repository.
-    repository: ghcr.io/nebari-dev/apps-pack/apps-operator
+    repository: ghcr.io/nebari-dev/apps-pack/operator
     # -- Image tag. Empty defaults to the chart's appVersion.
     tag: ""
     # -- Image pull policy.
@@ -142,7 +142,7 @@ api:
   enabled: true
   image:
     # -- apps-api image repository.
-    repository: ghcr.io/nebari-dev/apps-pack/apps-api
+    repository: ghcr.io/nebari-dev/apps-pack/api
     # -- Image tag. Empty defaults to the chart's appVersion.
     tag: ""
     # -- Image pull policy.
@@ -185,7 +185,7 @@ ui:
   enabled: true
   image:
     # -- apps-ui image repository.
-    repository: ghcr.io/nebari-dev/apps-pack/apps-ui
+    repository: ghcr.io/nebari-dev/apps-pack/ui
     # -- Image tag. Empty defaults to the chart's appVersion.
     tag: ""
     # -- Image pull policy.
@@ -281,7 +281,7 @@ mcp:
   enabled: true
   image:
     # -- apps-mcp image repository.
-    repository: ghcr.io/nebari-dev/apps-pack/apps-mcp
+    repository: ghcr.io/nebari-dev/apps-pack/mcp
     # -- Image tag. Empty defaults to the chart's appVersion.
     tag: ""
     # -- Image pull policy.
@@ -393,7 +393,7 @@ pythonImage: ghcr.io/prefix-dev/pixi:0.68.1-noble
 authz:
   image:
     # -- apps-authz image repository.
-    repository: ghcr.io/nebari-dev/apps-pack/apps-authz
+    repository: ghcr.io/nebari-dev/apps-pack/authz
     # -- Image tag. Empty defaults to the chart's appVersion.
     tag: ""
     # -- Image pull policy.

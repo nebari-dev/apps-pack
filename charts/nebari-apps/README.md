@@ -29,7 +29,7 @@ wrong type fails the install.
 | api.enabled | bool | `true` | Deploy apps-api (the REST API behind the UI and MCP server). |
 | api.extraEnv | list | `[]` | Extra environment variables for apps-api, after the chart's own (an entry with the same name wins). |
 | api.image.pullPolicy | string | `"IfNotPresent"` | Image pull policy. |
-| api.image.repository | string | `"ghcr.io/nebari-dev/apps-pack/apps-api"` | apps-api image repository. |
+| api.image.repository | string | `"ghcr.io/nebari-dev/apps-pack/api"` | apps-api image repository. |
 | api.image.tag | string | `""` | Image tag. Empty defaults to the chart's appVersion. |
 | api.replicaCount | int | `1` | apps-api replicas. |
 | api.resources | object | `{"limits":{"cpu":"500m","memory":"256Mi"},"requests":{"cpu":"500m","memory":"256Mi"}}` | Container resources. Requests equal limits, so the pod is Guaranteed. |
@@ -47,7 +47,7 @@ wrong type fails the install.
 | apps.networkPolicy.gatewayNamespace | string | `"envoy-gateway-system"` | Namespace of the Envoy gateway pods allowed to reach app pods. |
 | appsDomain | string | `""` | Domain apps are exposed under: `https://<subdomain>.<appsDomain>`. Empty defaults to `apps.<clusterDomain>`, e.g. `my-app.apps.example.ai`. |
 | authz.image.pullPolicy | string | `"IfNotPresent"` | Image pull policy. |
-| authz.image.repository | string | `"ghcr.io/nebari-dev/apps-pack/apps-authz"` | apps-authz image repository. |
+| authz.image.repository | string | `"ghcr.io/nebari-dev/apps-pack/authz"` | apps-authz image repository. |
 | authz.image.tag | string | `""` | Image tag. Empty defaults to the chart's appVersion. |
 | authz.resources | object | `{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}}` | Sidecar resources, per app pod that runs it (on top of the app container's own). |
 | clusterDomain | string | `""` | Required. The cluster's base domain; there is no sensible default. |
@@ -60,7 +60,7 @@ wrong type fails the install.
 | mcp.enabled | bool | `true` | Deploy the MCP server. Agents connect at `https://<ui hostname>/mcp` (streamable HTTP); the UI's nginx proxies `/mcp` to it, so there is no separate hostname. When off, `/mcp` returns 404. |
 | mcp.extraEnv | list | `[]` | Extra environment variables for apps-mcp, after the chart's own (an entry with the same name wins). |
 | mcp.image.pullPolicy | string | `"IfNotPresent"` | Image pull policy. |
-| mcp.image.repository | string | `"ghcr.io/nebari-dev/apps-pack/apps-mcp"` | apps-mcp image repository. |
+| mcp.image.repository | string | `"ghcr.io/nebari-dev/apps-pack/mcp"` | apps-mcp image repository. |
 | mcp.image.tag | string | `""` | Image tag. Empty defaults to the chart's appVersion. |
 | mcp.oauth.callbackPort | int | `33418` | Port of the MCP client's OAuth callback (`--callback-port` in Claude Code); must match the client's redirect URI. |
 | mcp.oauth.clientId | string | `""` | Client id of a public Keycloak client (standard flow, PKCE S256) with the redirect URI `http://localhost:<callbackPort>/callback`. Its tokens are accepted by apps-api and apps-mcp, and the UI's Settings page puts it in the `claude mcp add` command. Empty: MCP clients must bring their own way to a token. |
@@ -71,7 +71,7 @@ wrong type fails the install.
 | nameOverride | string | `""` | Override the chart name used in resource names. |
 | operator.extraEnv | list | `[]` | Extra environment variables for the operator container. |
 | operator.image.pullPolicy | string | `"IfNotPresent"` | Image pull policy. |
-| operator.image.repository | string | `"ghcr.io/nebari-dev/apps-pack/apps-operator"` | Operator image repository. |
+| operator.image.repository | string | `"ghcr.io/nebari-dev/apps-pack/operator"` | Operator image repository. |
 | operator.image.tag | string | `""` | Image tag. Empty defaults to the chart's appVersion. |
 | operator.leaderElection | bool | `true` | Elect a leader so only one replica reconciles at a time. |
 | operator.replicaCount | int | `1` | Operator replicas (one leads when `leaderElection` is on). |
@@ -97,7 +97,7 @@ wrong type fails the install.
 | ui.extraEnv | list | `[]` | Extra environment variables for the UI's nginx container. |
 | ui.hostname | string | `""` | Hostname for the UI. Empty defaults to the apps domain itself, so the UI lives at `https://apps.<clusterDomain>` and launched apps at `https://<name>.apps.<clusterDomain>`. |
 | ui.image.pullPolicy | string | `"IfNotPresent"` | Image pull policy. |
-| ui.image.repository | string | `"ghcr.io/nebari-dev/apps-pack/apps-ui"` | apps-ui image repository. |
+| ui.image.repository | string | `"ghcr.io/nebari-dev/apps-pack/ui"` | apps-ui image repository. |
 | ui.image.tag | string | `""` | Image tag. Empty defaults to the chart's appVersion. |
 | ui.landingPage.category | string | `"Platform"` | Landing-page group the tile appears in. |
 | ui.landingPage.description | string | `"Launch and manage web applications on this cluster."` | Tile blurb. |
