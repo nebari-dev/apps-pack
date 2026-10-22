@@ -38,8 +38,8 @@ open http://docs-site.apps.nebari.test    # the example app
    install Envoy Gateway, cert-manager, Keycloak (realm `nebari`, login
    `admin` / `nebari-admin`), and the nebari-operator itself. Pins the gateway Service to
    fixed NodePorts and creates the `apps` namespace labeled `nebari.dev/managed=true`.
-3. **`images`** — builds `apps-operator:dev`, `apps-api:dev`, `apps-ui:dev`, and
-   `apps-mcp:dev` and loads them into the kind cluster.
+3. **`images`** — builds `apps-operator:dev`, `apps-api:dev`, `apps-ui:dev`,
+   `apps-mcp:dev` and `apps-authz:dev` and loads them into the kind cluster.
 4. **`deploy`** — installs the chart with `clusterDomain=nebari.test` and
    **`tls.enabled=false`** (plain HTTP — no certificate warnings locally).
 5. Applies the inline example App and waits for `Running`.

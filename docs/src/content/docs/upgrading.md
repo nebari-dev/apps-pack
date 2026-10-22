@@ -150,6 +150,25 @@ configures only apps-api and apps-mcp.
   next to an older apps-operator, so a restricted App never runs open; upgrade the chart and
   images together.
 
+### Upgrading to MCP OAuth
+
+**Breaking:** MCP clients sign in themselves with standard
+[MCP authorization](/mcp/#authentication): apps-mcp is an OAuth 2.0 protected resource with
+the Keycloak realm as its authorization server, and it verifies the bearer token on every
+request. The `authenticate` tool, the per-session device-flow token cache and
+`MCP_SESSION_TTL_SECONDS` are removed.
+
+- **Create the sign-in client before you upgrade.** On a cluster with auth on, MCP clients
+  need a public Keycloak client with a loopback redirect URI, which the pack cannot
+  provision. A cluster admin creates it once ([The sign-in client](/mcp/#the-sign-in-client))
+  and sets `mcp.oauth.clientId` (and `mcp.oauth.callbackPort` if it is not `33418`). Until
+  then MCP clients cannot sign in on their own.
+- **Users reconnect their agents.** Re-add the server with the command on the UI's
+  **Settings** page (`claude mcp add … --client-id <id> --callback-port <port>`), then run
+  `/mcp` in Claude Code, select it and choose **Authenticate**. Agents that called the
+  `authenticate` tool no longer find it.
+- **Drop `MCP_SESSION_TTL_SECONDS`** from `mcp.extraEnv` if you set it; it is ignored.
+
 ### Upgrading to group-only access
 
 **Breaking:** Apps restrict who may open them by Keycloak group only. `spec.access.users`
