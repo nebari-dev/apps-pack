@@ -2,7 +2,7 @@
 
 ![Version: 0.1.0](https://img.shields.io/badge/Version-0.1.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.1.0](https://img.shields.io/badge/AppVersion-0.1.0-informational?style=flat-square)
 
-Nebari Apps Pack - launch, manage, and observe static web applications on a Nebari cluster. Installs the App CRD and the apps-operator that reconciles Apps into Deployments, Services, and NebariApps.
+Nebari Apps Pack - launch and manage web apps on a Nebari cluster behind Keycloak SSO: static sites, Python apps run by a pixi task, and prebuilt container images. Installs the App CRD, the operator that reconciles Apps into workloads and NebariApps, and the REST API, web UI and MCP server for coding agents.
 
 Installation, the Argo CD Application, upgrades and every setting in context are covered in the
 [Apps Pack docs](https://packs.nebari.dev/apps-pack/). This page is generated from the `# --`
