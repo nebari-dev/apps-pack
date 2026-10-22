@@ -1,10 +1,11 @@
 apiVersion: v2
 name: nebari-apps
 description: >-
-  Nebari Apps Pack - launch, manage, and observe static web
-  applications on a Nebari cluster. Installs the App CRD and the
-  apps-operator that reconciles Apps into Deployments, Services, and
-  NebariApps.
+  Nebari Apps Pack - launch and manage web apps on a Nebari cluster
+  behind Keycloak SSO: static sites, Python apps run by a pixi task,
+  and prebuilt container images. Installs the App CRD, the operator
+  that reconciles Apps into workloads and NebariApps, and the REST
+  API, web UI and MCP server for coding agents.
 type: application
 version: 0.1.0
 appVersion: "0.1.0"
