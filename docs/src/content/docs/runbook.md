@@ -81,8 +81,36 @@ kubectl -n nebari-operator-system logs deploy/nebari-operator-controller-manager
   run with `tls.enabled=false`.
 - **Auth not ready.** The nebari-operator could not create the Keycloak client. Check that
   Keycloak is up and that the nebari-operator's admin credentials are valid.
+- **`GroupsNotResolved`, `GroupsEmpty` or `GroupsClaimConflict`.** The App's
+  `access.groups` cannot be enforced as written (a path missing in Keycloak, entries that
+  name no group, or a groups mapper in the wrong form), so the gateway denies its users until
+  it is fixed. The App's `RoutingReady` message carries the reason; see
+  [Troubleshooting](/troubleshooting/).
 - **Every App at once.** The shared Gateway (`gateway`) or the nebari-operator itself is
   down; fix that, and the NebariApps recover without touching the Apps.
+
+## Group access
+
+`access.groups` are enforced at the gateway, by the group rule nebari-operator adds to each
+restricted App's SecurityPolicy (`%NEBARI_OPERATOR_VERSION%` or later). The apps-authz sidecar
+in app pods checks nothing.
+
+```bash
+kubectl -n <ns> get nebariapp app-<name> -o jsonpath='{.spec.auth.groups}{"\n"}'
+kubectl -n <ns> get securitypolicy app-<name>-security -o jsonpath='{.spec.authorization}{"\n"}'
+```
+
+- **A member gets `403`.** Compare the token's groups (full paths) with the policy's values:
+  `/finance` does not admit someone only in `/finance/analysts`. A user just added to a group
+  signs out and back in; one removed keeps access until their token expires (5 minutes by
+  default).
+- **Everyone signed in gets in.** No `authorization` in the policy: nebari-operator is older
+  than `%NEBARI_OPERATOR_VERSION%`, or the App lists no groups.
+- **Users of restricted Apps were all signed out at once.** Expected once after upgrading
+  nebari-operator: the access-token cookie of a group-enforcing App is renamed
+  (`nebari-at-<namespace>-<name>`). See [Upgrading](/upgrading/).
+- **Keep the gateway the only way in.** With the chart's `apps.networkPolicy.enabled` off,
+  other pods in the cluster can reach an app's Service without passing the group rule.
 
 ## Idle Apps do not idle or do not wake
 
@@ -122,7 +150,8 @@ kubectl -n nebari-apps logs deploy/nebari-apps-operator --since=30m | grep -E 'i
   no ready pod: troubleshoot it like any App that does not start ([Troubleshooting](/troubleshooting/)).
   A Python app reinstalls its environment on every cold start, which can take minutes.
 - **Turn idling off quickly.** Set `apps.idle.timeoutMinutes=0` and upgrade: Apps without their
-  own `idleTimeoutMinutes` wake and keep running (their pods roll once to drop the sidecar).
+  own `idleTimeoutMinutes` wake and keep running (their pods roll once to drop the sidecar,
+  except image Apps, which always run it).
   For one App, set `runtime.keepAlive: true`.
 
 ## The API is down or returns errors

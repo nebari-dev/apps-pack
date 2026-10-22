@@ -52,7 +52,7 @@ runtime:                       # optional
   # Python/pixi apps only: the pixi task that launches the app. When set, the
   # platform runs `pixi install` + `pixi run <task>` instead of serving the
   # source with nginx. The task must serve on 0.0.0.0:$PORT (PORT is injected:
-  # 8080, or 8081 when groups are set or the app can idle).
+  # 8080, or 8081 when the app can idle).
   pixiTask: start
   # Scale to zero after this many minutes without a request (5-43200); the next
   # visit wakes it. Omit for the cluster default (often off).
@@ -63,7 +63,9 @@ runtime:                       # optional
 
 access:
   public: false                # true = anonymous; false = Keycloak SSO at the gateway
-  groups: ["analytics"]        # allowed groups (enforced in the app pod; 403 for others).
+  groups: ["analytics"]        # allowed groups, full paths ("analytics" is "/analytics";
+                               # list subgroups as "/parent/child"). The gateway gives
+                               # every other signed-in user 403.
                                # Access is by group only: no per-user allow list
   managers:                    # optional: who else may manage (edit, stop, delete) the app;
     users: ["bob"]             # not who may open it. Only the owner or an admin can change it
@@ -141,7 +143,7 @@ content files and the manifest.
 copied into a writable workspace, `pixi install` resolves the environment (use a
 committed `pixi.lock` for reproducible, faster starts), and `pixi run <task>` launches
 the app. The task must start a server on **0.0.0.0:$PORT** — `PORT` is injected (8080, or
-8081 when `access.groups` or idling puts the authz sidecar on 8080), so use
+8081 when idling puts the authz sidecar on 8080), so use
 `--port $PORT` and run `PORT=8080 pixi run start` locally (pixi tasks do not support
 `${PORT:-8080}`). No Dockerfile needed.
 

@@ -35,13 +35,6 @@ spec:
             - --authz-image={{ include "nebari-apps.authzImage" . }}
             - --authz-image-pull-policy={{ .Values.authz.image.pullPolicy }}
             - {{ printf "--authz-resources=%s" (toJson .Values.authz.resources) | quote }}
-            - --keycloak-realm={{ .Values.keycloak.realm }}
-            {{- with .Values.keycloak.url }}
-            - --keycloak-url={{ . }}
-            {{- end }}
-            {{- with .Values.keycloak.internalUrl }}
-            - --keycloak-internal-url={{ . }}
-            {{- end }}
             - {{ printf "--default-static-resources=%s" (toJson .Values.apps.defaultResources.static) | quote }}
             - {{ printf "--default-python-resources=%s" (toJson .Values.apps.defaultResources.python) | quote }}
             {{- if not .Values.tls.enabled }}

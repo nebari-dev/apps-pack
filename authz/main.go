@@ -1,25 +1,18 @@
-// Command apps-authz is the sidecar the apps-operator puts in front of an
-// App's container when the App restricts who may open it. It is configured
-// only through environment variables:
+// Command apps-authz is the sidecar the apps-operator puts in front of the
+// app container of Apps that can idle and of image Apps. It proxies every
+// request to the app and reports, on the health port's /activity, when the
+// app last served one, which the operator reads to scale idle Apps to zero.
+// It checks no tokens: sign-in and access.groups are enforced at the gateway
+// (nebari-operator v0.2.0+). It is configured only through environment
+// variables:
 //
 //	AUTHZ_LISTEN         proxy address (default :8080)
-//	AUTHZ_HEALTH_LISTEN  /healthz, /readyz, /upstreamz, no token (default :8082)
+//	AUTHZ_HEALTH_LISTEN  /healthz, /readyz, /upstreamz, /activity (default :8082)
 //	AUTHZ_UPSTREAM       the app container, e.g. http://127.0.0.1:8081
-//	AUTHZ_ISSUERS        accepted iss values, comma-separated (public and in-cluster realm URL)
-//	AUTHZ_JWKS_URL       the realm's certs endpoint
-//	AUTHZ_CLIENT_ID      the gateway's OIDC client; must equal azp or appear in aud
-//	AUTHZ_GROUPS         allowed groups, comma-separated (required)
-//	AUTHZ_GROUPS_CLAIM   claim holding the user's groups (default groups)
-//	AUTHZ_PASSTHROUGH    true: check no tokens, only record activity (unrestricted Apps that may idle)
 //
-// A request passes when its bearer access token verifies (signature against
-// the realm's JWKS, exp/nbf, iss, client) and the user is in any allowed
-// group. AUTHZ_GROUPS is required unless AUTHZ_PASSTHROUGH is set. A request without an Authorization header gets 401 (the
-// gateway forwarded no token); every other refusal is 403.
-//
-// In passthrough mode every request is proxied unchecked. Either way the
-// health port's /activity reports when the app last served a request, which
-// the operator reads to scale idle Apps to zero.
+// It refuses to start when AUTHZ_GROUPS (or another setting of the enforcing
+// mode it no longer has) is set, so an App an older operator meant to restrict
+// never runs open.
 package main
 
 import (
@@ -42,8 +35,7 @@ func main() {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	log.Info("starting", "upstream", cfg.Upstream.String(), "issuers", cfg.Issuers,
-		"clientID", cfg.ClientID, "groups", len(cfg.Groups), "passthrough", cfg.Passthrough)
+	log.Info("starting", "upstream", cfg.Upstream.String())
 	if err := gate.Run(ctx, cfg, log); err != nil {
 		log.Error("server failed", "error", err.Error())
 		os.Exit(1)

@@ -199,5 +199,7 @@ def test_identity_and_groups_from_claims(jwks_client):
     body = resp.json()
     assert body["username"] == "alice"
     assert body["email"] == "a@example.test"
-    # Keycloak's full-path group names lose the leading slash; /admin makes an admin.
-    assert set(body["groups"]) == {"admin", "analytics"}
+    # Groups are reported as full paths (a bare name is the top-level group);
+    # /admin makes an admin.
+    assert body["groups"] == ["/admin", "/analytics"]
+    assert body["admin"] is True

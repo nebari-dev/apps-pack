@@ -1,3 +1,4 @@
+import { groupPath } from "@/lib/access";
 import type { App, AppCreate, AppPatch, AppSource, EnvVar, ResourceAmounts } from "@/lib/types";
 
 export const SUBDOMAIN_RE = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/;
@@ -102,6 +103,7 @@ export type Field =
   | "imageRunAsUser"
   | "idleTimeout"
   | "secrets"
+  | "groups"
   | "subdomain";
 
 export interface Problem {
@@ -259,6 +261,8 @@ export function validate(s: FormState, isEdit: boolean): Problem[] {
     );
   const secretProblem = validateSecrets(s);
   if (secretProblem) add("secrets", secretProblem);
+  if (!s.isPublic && splitList(s.groups).some((g) => !groupPath(g)))
+    add("groups", "Each group must name a Keycloak group, such as finance or /parent/child.");
   if (!isEdit) {
     if (!s.subdomain) add("subdomain", "Pick a subdomain.");
     else if (!SUBDOMAIN_RE.test(s.subdomain))

@@ -48,7 +48,7 @@ chart; see the `chart` job for the arguments).
 | Component | Directory | Checks |
 |---|---|---|
 | Operator (Go) | `operator/` | `go vet ./...`, `go build ./...`, `go test ./... -race` (CI also enforces an `internal/` coverage floor, in `.github/workflows/ci.yaml`), `golangci-lint run` (config in `operator/.golangci.yml`), and the envtest suite (below) |
-| Authz sidecar (Go) | `authz/` | `go mod tidy -diff`, `go vet ./...`, `go build ./...`, `golangci-lint run` (config in `authz/.golangci.yml`), `go test ./... -race` with an `internal/` coverage floor (in `.github/workflows/ci.yaml`); the tests mint tokens against a fake JWKS |
+| Authz sidecar (Go) | `authz/` | `go mod tidy -diff`, `go vet ./...`, `go build ./...`, `golangci-lint run` (config in `authz/.golangci.yml`), `go test ./... -race` with an `internal/` coverage floor (in `.github/workflows/ci.yaml`) |
 | CRD / deepcopy | `operator/` | Regenerate with `controller-gen` v0.21.0 (commands below) and commit the result; CI fails on drift. |
 | apps-api | `api/` | `uv lock --check`, `uv sync --frozen --extra dev`, `uv run --frozen --no-sync python -m pytest -q --cov` (fails under `fail_under` in `pyproject.toml`), then `ruff check .`, `ruff format --check .` and `mypy` (strict) through `uv run --frozen --no-sync` |
 | apps-mcp | `mcp/` | Same as apps-api, plus `uv pip install --no-deps -e ../api` before the tests (they drive the real API in process). |

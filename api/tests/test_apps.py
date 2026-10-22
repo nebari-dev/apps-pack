@@ -524,8 +524,8 @@ def test_access_users_is_refused(client, store):
     assert "users" not in store.apps[("apps", "docs-site")]["spec"]["access"]
 
 
-@pytest.mark.parametrize("entry", ["a,b", " ", ""])
-def test_access_group_entries_must_be_single_names(client, store, entry):
+@pytest.mark.parametrize("entry", ["/", "//", " ", ""])
+def test_access_group_entries_must_name_a_group(client, store, entry):
     field = "groups"
     body = make_app_body()
     body["access"][field] = [entry]

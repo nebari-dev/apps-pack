@@ -12,12 +12,13 @@ import (
 	appsv1alpha1 "github.com/nebari-dev/nebari-apps-pack/operator/api/v1alpha1"
 )
 
-// The gateway's SecurityPolicy only signs users in (nebari-operator #153), so
-// an App that lists access.groups gets the apps-authz
-// sidecar: it takes AppPort, checks the access token the gateway forwards
-// (NebariApp auth.forwardAccessToken) and proxies allowed requests to the
-// app container on AppInternalPort. Unrestricted Apps get no sidecar and an
-// unchanged pod spec.
+// The apps-authz sidecar sits in front of the app container of Apps that can
+// idle (it records request activity for the idle check, idle.go) and of image
+// Apps (it gives the image's own port the pack's one front port, AppPort). It
+// takes AppPort and proxies every request to the app container on
+// appContainerPort: it checks no tokens. access.groups are enforced by the
+// gateway (routing.go emits them as the NebariApp's auth.groups), so other
+// Apps get no sidecar and an unchanged pod spec.
 const (
 	// AppInternalPort is where the app container listens behind the sidecar.
 	AppInternalPort = 8081
@@ -43,18 +44,17 @@ var DefaultAuthzResources = corev1.ResourceRequirements{
 }
 
 // restricted reports whether an App limits who may open it beyond "any
-// signed-in user": a private App with groups.
+// signed-in user": a private App with groups. The gateway enforces them.
 func restricted(app *appsv1alpha1.App) bool {
 	a := app.Spec.Access
 	return !a.Public && len(a.Groups) > 0
 }
 
-// hasSidecar reports whether the App's pod runs the apps-authz sidecar:
-// restricted Apps (it enforces groups), Apps that can idle (in
-// passthrough mode it only records activity for the idle check) and image
-// Apps (it gives their own port the pack's one front port, AppPort).
+// hasSidecar reports whether the App's pod runs the apps-authz sidecar: Apps
+// that can idle (it records activity for the idle check) and image Apps (it
+// gives their own port the pack's one front port, AppPort).
 func (c OperatorConfig) hasSidecar(app *appsv1alpha1.App) bool {
-	return restricted(app) || c.idleTimeout(app) > 0 || isImage(app)
+	return c.idleTimeout(app) > 0 || isImage(app)
 }
 
 func isImage(app *appsv1alpha1.App) bool {
@@ -73,81 +73,45 @@ func (c OperatorConfig) appContainerPort(app *appsv1alpha1.App) int32 {
 	return AppPort
 }
 
-// oidcClientID is the Keycloak client nebari-operator provisions for the
-// App's NebariApp, which the gateway logs users in with (the token's azp).
-// It mirrors nebari-operator's naming.ClientID, "<namespace>-<NebariApp
-// name>"; if that naming changes, every restricted App denies everyone
-// (TestAuthzClientIDMatchesNebariOperator pins it).
-func oidcClientID(app *appsv1alpha1.App) string {
-	return app.Namespace + "-" + childName(app)
-}
-
-func realmURL(base, realm string) string {
-	if base == "" {
-		return ""
-	}
-	return strings.TrimSuffix(base, "/") + "/realms/" + realm
-}
-
-// authzIssuers are the iss values the sidecar accepts. Keycloak writes the
-// URL its token endpoint was called at, which can be the public or the
-// in-cluster URL depending on its hostname settings.
-func (c OperatorConfig) authzIssuers() []string {
-	var out []string
-	for _, base := range []string{c.KeycloakURL, c.KeycloakInternalURL} {
-		if u := realmURL(base, c.realm()); u != "" && !contains(out, u) {
-			out = append(out, u)
-		}
-	}
-	return out
-}
-
-// authzJWKSURL fetches the realm's keys in-cluster when possible.
-func (c OperatorConfig) authzJWKSURL() string {
-	base := c.KeycloakInternalURL
-	if base == "" {
-		base = c.KeycloakURL
-	}
-	return realmURL(base, c.realm()) + "/protocol/openid-connect/certs"
-}
-
-func (c OperatorConfig) realm() string {
-	if c.KeycloakRealm == "" {
-		return "nebari"
-	}
-	return c.KeycloakRealm
-}
-
-// checkAuthz reports why a restricted App cannot be enforced, so it fails
-// validation instead of running open.
+// checkAuthz reports why an App cannot run as specified, so it fails
+// validation instead: an image App needs the sidecar, and every access.groups
+// entry must name a group (nebari-operator denies every request when all
+// entries normalize to nothing, such as "/").
 func (c OperatorConfig) checkAuthz(app *appsv1alpha1.App) error {
 	if isImage(app) && c.AuthzImage == "" {
 		return fmt.Errorf("image sources need the authz sidecar, but the operator has no --authz-image (chart authz.image)")
 	}
-	if !restricted(app) {
-		return nil
-	}
-	if c.AuthzImage == "" {
-		return fmt.Errorf("access.groups need the authz sidecar, but the operator has no --authz-image (chart authz.image)")
-	}
-	if len(c.authzIssuers()) == 0 {
-		return fmt.Errorf("access.groups need the realm's URL, but the operator has no --keycloak-url or --keycloak-internal-url (chart keycloak.url, keycloak.internalUrl)")
-	}
-	for _, v := range app.Spec.Access.Groups {
-		if strings.TrimSpace(v) == "" || strings.Contains(v, ",") {
-			return fmt.Errorf("access.groups entries must be non-empty and must not contain ','")
+	for _, g := range app.Spec.Access.Groups {
+		if groupPath(g) == "" {
+			return fmt.Errorf("access.groups entries must name a group, such as finance or /parent/child")
 		}
 	}
 	return nil
+}
+
+// groupPath is nebari-operator's canonical form of an access.groups entry
+// (its groups.NormalizePath): the full Keycloak group path, with a leading
+// "/", no trailing "/" and no empty segments, so "finance" and "/finance" are
+// the same group. It returns "" for an entry that names no group.
+func groupPath(g string) string {
+	var segments []string
+	for _, s := range strings.Split(strings.TrimSpace(g), "/") {
+		if s != "" {
+			segments = append(segments, s)
+		}
+	}
+	if len(segments) == 0 {
+		return ""
+	}
+	return "/" + strings.Join(segments, "/")
 }
 
 // addAuthzSidecar moves the app container to appContainerPort (AppInternalPort,
 // or an image App's own port), points its
 // probes at the sidecar's /upstreamz (which dials the app on loopback, so an
 // app listening only on 127.0.0.1 still passes) and appends the sidecar,
-// which takes the "http" port the Service targets. For an unrestricted App
-// (one that is here only because it can idle) the sidecar runs in
-// passthrough mode: it checks no tokens and only records activity.
+// which takes the "http" port the Service targets. The sidecar checks no
+// tokens: it proxies every request and records activity.
 func (r *AppReconciler) addAuthzSidecar(app *appsv1alpha1.App, pod *corev1.PodSpec) {
 	main := &pod.Containers[0]
 	upstreamPort := r.Config.appContainerPort(app)
@@ -176,16 +140,6 @@ func (r *AppReconciler) addAuthzSidecar(app *appsv1alpha1.App, pod *corev1.PodSp
 		{Name: "AUTHZ_HEALTH_LISTEN", Value: fmt.Sprintf(":%d", authzHealthPort)},
 		{Name: "AUTHZ_UPSTREAM", Value: fmt.Sprintf("http://127.0.0.1:%d", upstreamPort)},
 	}
-	if restricted(app) {
-		env = append(env,
-			corev1.EnvVar{Name: "AUTHZ_ISSUERS", Value: strings.Join(r.Config.authzIssuers(), ",")},
-			corev1.EnvVar{Name: "AUTHZ_JWKS_URL", Value: r.Config.authzJWKSURL()},
-			corev1.EnvVar{Name: "AUTHZ_CLIENT_ID", Value: oidcClientID(app)},
-			corev1.EnvVar{Name: "AUTHZ_GROUPS", Value: strings.Join(app.Spec.Access.Groups, ",")},
-		)
-	} else {
-		env = append(env, corev1.EnvVar{Name: "AUTHZ_PASSTHROUGH", Value: "true"})
-	}
 
 	pod.Containers = append(pod.Containers, corev1.Container{
 		Name:            authzContainer,
@@ -195,10 +149,8 @@ func (r *AppReconciler) addAuthzSidecar(app *appsv1alpha1.App, pod *corev1.PodSp
 			{Name: "http", ContainerPort: AppPort, Protocol: corev1.ProtocolTCP},
 			{Name: authzHealthName, ContainerPort: authzHealthPort, Protocol: corev1.ProtocolTCP},
 		},
-		Env:       env,
-		Resources: *r.Config.AuthzResources.DeepCopy(),
-		// Ready once the realm's signing keys are fetched, so a wrong
-		// Keycloak URL never takes traffic (at once in passthrough).
+		Env:            env,
+		Resources:      *r.Config.AuthzResources.DeepCopy(),
 		ReadinessProbe: &corev1.Probe{ProbeHandler: healthGet("/readyz"), PeriodSeconds: 5},
 		LivenessProbe:  &corev1.Probe{ProbeHandler: healthGet("/healthz"), PeriodSeconds: 10},
 		SecurityContext: &corev1.SecurityContext{
@@ -210,13 +162,4 @@ func (r *AppReconciler) addAuthzSidecar(app *appsv1alpha1.App, pod *corev1.PodSp
 			Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
 		},
 	})
-}
-
-func contains(list []string, s string) bool {
-	for _, v := range list {
-		if v == s {
-			return true
-		}
-	}
-	return false
 }

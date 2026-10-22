@@ -30,9 +30,11 @@ func envOf(c corev1.Container) map[string]string {
 	return out
 }
 
+// deployed reconciles app once on a cluster where Apps idle after 30 minutes
+// (so every App runs the sidecar) and returns its children.
 func deployed(t *testing.T, app *appsv1alpha1.App) (*appsv1.Deployment, *corev1.Service, *corev1.ConfigMap, *AppReconciler) {
 	t.Helper()
-	r, c := newReconciler(t, managedNamespace(app.Namespace), app)
+	r, c, _ := idleReconciler(t, newFakePodActivity(t), managedNamespace(app.Namespace), app)
 	reconcile(t, r, app)
 	if got := getApp(t, c, app.Name, app.Namespace); got.Status.Phase == appsv1alpha1.AppPhaseFailed {
 		t.Fatalf("app failed: %s", got.Status.Message)
@@ -53,10 +55,19 @@ func deployed(t *testing.T, app *appsv1alpha1.App) (*appsv1.Deployment, *corev1.
 	return d, svc, cm, r
 }
 
+// The sidecar only proxies: the environment carries no token or group
+// settings, even for an App that lists access.groups (the gateway enforces
+// them).
+var passthroughEnv = map[string]string{
+	"AUTHZ_LISTEN":        ":8080",
+	"AUTHZ_HEALTH_LISTEN": ":8082",
+	"AUTHZ_UPSTREAM":      "http://127.0.0.1:8081",
+}
+
 func TestAuthzSidecarStaticApp(t *testing.T) {
 	app := restrictedApp(inlineApp("apps"), []string{"analysts", "admin"})
 	app.Name = "web-terminal"
-	d, svc, cm, _ := deployed(t, app)
+	d, svc, cm, r := deployed(t, app)
 	pod := d.Spec.Template.Spec
 
 	if len(pod.Containers) != 2 || pod.Containers[0].Name != "app" || pod.Containers[1].Name != "authz" {
@@ -78,8 +89,8 @@ func TestAuthzSidecarStaticApp(t *testing.T) {
 	if conf := cm.Data["default.conf"]; !strings.Contains(conf, "listen 127.0.0.1:8081;") {
 		t.Errorf("nginx should listen on loopback only:\n%s", conf)
 	}
-	if d.Spec.Template.Annotations["apps.nebari.dev/server-config-checksum"] != (OperatorConfig{}).serverConfChecksum(app) {
-		t.Error("server-config checksum does not follow the restricted config")
+	if d.Spec.Template.Annotations["apps.nebari.dev/server-config-checksum"] != r.Config.serverConfChecksum(app) {
+		t.Error("server-config checksum does not follow the sidecar config")
 	}
 
 	// The Service and NetworkPolicy keep targeting 8080 ("http"), now the sidecar.
@@ -90,18 +101,8 @@ func TestAuthzSidecarStaticApp(t *testing.T) {
 		t.Errorf("sidecar ports = %+v", side.Ports)
 	}
 
-	want := map[string]string{
-		"AUTHZ_LISTEN":        ":8080",
-		"AUTHZ_HEALTH_LISTEN": ":8082",
-		"AUTHZ_UPSTREAM":      "http://127.0.0.1:8081",
-		"AUTHZ_ISSUERS": "https://keycloak.nebari.local/realms/nebari," +
-			"http://keycloak-keycloakx-http.keycloak.svc.cluster.local:8080/realms/nebari",
-		"AUTHZ_JWKS_URL":  "http://keycloak-keycloakx-http.keycloak.svc.cluster.local:8080/realms/nebari/protocol/openid-connect/certs",
-		"AUTHZ_CLIENT_ID": "apps-app-web-terminal",
-		"AUTHZ_GROUPS":    "analysts,admin",
-	}
-	if got := envOf(side); !reflect.DeepEqual(got, want) {
-		t.Errorf("sidecar env =\n%v\nwant\n%v", got, want)
+	if got := envOf(side); !reflect.DeepEqual(got, passthroughEnv) {
+		t.Errorf("sidecar env =\n%v\nwant\n%v", got, passthroughEnv)
 	}
 	if side.Image != testAuthzImage {
 		t.Errorf("sidecar image = %q", side.Image)
@@ -118,7 +119,7 @@ func TestAuthzSidecarStaticApp(t *testing.T) {
 		t.Errorf("sidecar probes = %+v %+v", side.ReadinessProbe, side.LivenessProbe)
 	}
 	if *pod.AutomountServiceAccountToken {
-		t.Error("restricted pods must not mount a ServiceAccount token")
+		t.Error("app pods must not mount a ServiceAccount token")
 	}
 }
 
@@ -141,15 +142,15 @@ func TestAuthzSidecarPixiApp(t *testing.T) {
 	if main.StartupProbe.FailureThreshold != 60 {
 		t.Error("the cold-start budget of the startup probe should be kept")
 	}
-	env := envOf(pod.Containers[1])
-	if env["AUTHZ_GROUPS"] != "analysts" {
-		t.Errorf("AUTHZ_GROUPS = %q", env["AUTHZ_GROUPS"])
+	if got := envOf(pod.Containers[1]); !reflect.DeepEqual(got, passthroughEnv) {
+		t.Errorf("sidecar env = %v, want %v", got, passthroughEnv)
 	}
 }
 
-// Apps that do not restrict access get exactly the pod they got before the
-// sidecar existed, whatever the authz settings.
-func TestUnrestrictedAppsHaveNoSidecar(t *testing.T) {
+// Apps that neither idle nor run an image get exactly the pod they got before
+// the sidecar existed, whatever the authz settings, restricted ones included:
+// the gateway enforces access.groups.
+func TestAppsThatNeitherIdleNorRunAnImageHaveNoSidecar(t *testing.T) {
 	publicWithLists := inlineApp("team-a")
 	publicWithLists.Spec.Access.Groups = []string{"x"}
 	private := inlineApp("team-a")
@@ -160,6 +161,8 @@ func TestUnrestrictedAppsHaveNoSidecar(t *testing.T) {
 	for name, app := range map[string]*appsv1alpha1.App{
 		"public": inlineApp("team-a"), "public with lists": publicWithLists,
 		"private": private, "private pixi": privatePixi,
+		"restricted":      restrictedApp(inlineApp("team-a"), []string{"analysts"}),
+		"restricted pixi": restrictedApp(pixiApp("team-a"), []string{"/ops/oncall"}),
 	} {
 		t.Run(name, func(t *testing.T) {
 			r, _ := newReconciler(t)
@@ -168,13 +171,13 @@ func TestUnrestrictedAppsHaveNoSidecar(t *testing.T) {
 				t.Fatal(err)
 			}
 			bare := *r
-			bare.Config.AuthzImage, bare.Config.KeycloakURL, bare.Config.KeycloakInternalURL = "", "", ""
+			bare.Config.AuthzImage = ""
 			without, err := bare.buildDeployment(app)
 			if err != nil {
 				t.Fatal(err)
 			}
 			if !reflect.DeepEqual(withAuthz, without) {
-				t.Error("the authz settings changed an unrestricted App's Deployment")
+				t.Error("the authz settings changed the App's Deployment")
 			}
 			pod := withAuthz.Spec.Template.Spec
 			if len(pod.Containers) != 1 || pod.Containers[0].Ports[0].Name != "http" || pod.Containers[0].Ports[0].ContainerPort != AppPort {
@@ -184,10 +187,11 @@ func TestUnrestrictedAppsHaveNoSidecar(t *testing.T) {
 				t.Error("nginx should listen on 8080")
 			}
 			auth, _, _ := unstructured.NestedMap(r.buildNebariApp(app).Object, "spec", "auth")
-			for _, k := range []string{"forwardAccessToken", "enforceAtGateway", "users"} {
-				if _, has := auth[k]; has {
-					t.Errorf("auth.%s set on an unrestricted App", k)
-				}
+			if _, has := auth["forwardAccessToken"]; has {
+				t.Error("auth.forwardAccessToken set: no sidecar reads the token any more")
+			}
+			if _, has := auth["users"]; has {
+				t.Error("auth.users should never be emitted")
 			}
 		})
 	}
@@ -195,18 +199,20 @@ func TestUnrestrictedAppsHaveNoSidecar(t *testing.T) {
 
 func TestAuthzMisconfigurationFailsValidation(t *testing.T) {
 	cases := map[string]struct {
-		edit   func(*OperatorConfig)
-		groups []string
-		want   string
+		app  *appsv1alpha1.App
+		edit func(*OperatorConfig)
+		want string
 	}{
-		"no image":       {func(c *OperatorConfig) { c.AuthzImage = "" }, []string{"a"}, "--authz-image"},
-		"no keycloak":    {func(c *OperatorConfig) { c.KeycloakURL, c.KeycloakInternalURL = "", "" }, []string{"a"}, "--keycloak-url"},
-		"comma in group": {func(*OperatorConfig) {}, []string{"a,b"}, "must not contain ','"},
-		"blank group":    {func(*OperatorConfig) {}, []string{" "}, "must be non-empty"},
+		"image without sidecar image": {imageApp("team-a", "nginx:1.27"), func(c *OperatorConfig) {
+			c.ImageRegistries = []string{"docker.io/library"}
+			c.AuthzImage = ""
+		}, "--authz-image"},
+		"blank group": {restrictedApp(inlineApp("team-a"), []string{" "}), func(*OperatorConfig) {}, "must name a group"},
+		"root group":  {restrictedApp(inlineApp("team-a"), []string{"analysts", "/"}), func(*OperatorConfig) {}, "must name a group"},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			app := restrictedApp(inlineApp("team-a"), tc.groups)
+			app := tc.app
 			r, c := newReconciler(t, managedNamespace("team-a"), app)
 			tc.edit(&r.Config)
 			reconcile(t, r, app)
@@ -215,36 +221,28 @@ func TestAuthzMisconfigurationFailsValidation(t *testing.T) {
 				t.Errorf("phase %s message %q, want Failed with %q", got.Status.Phase, got.Status.Message, tc.want)
 			}
 			if err := c.Get(context.Background(), types.NamespacedName{Name: childName(app), Namespace: "team-a"}, &appsv1.Deployment{}); err == nil {
-				t.Error("a Deployment was created for an App whose access cannot be enforced")
+				t.Error("a Deployment was created for an App that failed validation")
 			}
 		})
 	}
 }
 
-func TestAuthzKeycloakURLs(t *testing.T) {
-	c := OperatorConfig{KeycloakURL: "https://kc.example.ai/auth/", KeycloakRealm: "r"}
-	if got := c.authzIssuers(); !reflect.DeepEqual(got, []string{"https://kc.example.ai/auth/realms/r"}) {
-		t.Errorf("issuers = %v", got)
-	}
-	if got := c.authzJWKSURL(); got != "https://kc.example.ai/auth/realms/r/protocol/openid-connect/certs" {
-		t.Errorf("jwks = %q (public URL when there is no internal one)", got)
-	}
-	c = OperatorConfig{KeycloakURL: "http://kc", KeycloakInternalURL: "http://kc"}
-	if got := c.authzIssuers(); !reflect.DeepEqual(got, []string{"http://kc/realms/nebari"}) {
-		t.Errorf("issuers = %v, want one deduplicated issuer in the default realm", got)
-	}
-}
-
-// The sidecar binds tokens to the client nebari-operator provisions for the
-// NebariApp: naming.ClientID is "<namespace>-<NebariApp name>" (live example:
-// apps-app-web-terminal). If nebari-operator changes that, restricted Apps
-// deny everyone; update oidcClientID with the contract pin.
-func TestAuthzClientIDMatchesNebariOperator(t *testing.T) {
-	app := inlineApp("apps")
-	app.Name = "web-terminal"
-	na := testReconciler().buildNebariApp(app)
-	if got, want := oidcClientID(app), na.GetNamespace()+"-"+na.GetName(); got != want || got != "apps-app-web-terminal" {
-		t.Errorf("client ID = %q, want %q", got, want)
+// groupPath mirrors nebari-operator's groups.NormalizePath (v0.2.0), which
+// decides what the gateway matches.
+func TestGroupPath(t *testing.T) {
+	for in, want := range map[string]string{
+		"finance":      "/finance",
+		"/finance":     "/finance",
+		" /finance/ ":  "/finance",
+		"/ops//oncall": "/ops/oncall",
+		"parent/child": "/parent/child",
+		"/":            "",
+		"   ":          "",
+		"a,b":          "/a,b",
+	} {
+		if got := groupPath(in); got != want {
+			t.Errorf("groupPath(%q) = %q, want %q", in, got, want)
+		}
 	}
 }
 

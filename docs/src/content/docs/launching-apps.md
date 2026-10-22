@@ -10,8 +10,8 @@ This pack deploys three kinds of app:
 - **Static sites** (HTML/CSS/JS) — served by nginx.
 - **Python apps** — launched by a [pixi](https://pixi.sh) task (`runtime.pixiTask`); the
   platform runs `pixi install` then `pixi run <task>`, and the task must start a server
-  on **0.0.0.0:$PORT** (`PORT` is injected: 8080, or 8081 when the app is
-  [restricted to groups](#access-control) or can [idle](#idle-apps)).
+  on **0.0.0.0:$PORT** (`PORT` is injected: 8080, or 8081 when the app can
+  [idle](#idle-apps)).
 - **Container images** — a published image (Streamlit, Gradio, Shiny, Dash, a Node service)
   run as is, when the cluster allows its registry. See [Container images](#container-images).
 
@@ -145,8 +145,8 @@ The contract:
   `pixi install` (with `--locked` when a `pixi.lock` is present) and then
   `pixi run <task>`.
 - The task must start a server listening on **0.0.0.0:$PORT**; `PORT` and `HOME=/app`
-  are injected. `PORT` is 8080, or 8081 when the authz sidecar takes 8080 (the app lists
-  groups, or it can [idle](#idle-apps)), so read it rather than hard-coding a port. pixi task strings
+  are injected. `PORT` is 8080, or 8081 when the authz sidecar takes 8080 (the app can
+  [idle](#idle-apps)), so read it rather than hard-coding a port. pixi task strings
   support `$PORT` but not `${PORT:-8080}`; run `PORT=8080 pixi run start` locally.
   Routing, TLS, and SSO are identical to static apps.
 - First start resolves and downloads the environment, so cold starts take longer —
@@ -192,7 +192,7 @@ What to know:
   every start; a digest pins the image.
 - **The port.** Set `port` to where the server listens (on `0.0.0.0` or `127.0.0.1`), from
   1024 up and not 8080 or 8082: the pack's sidecar always sits in front of an image app on
-  8080, enforcing `access.groups` and recording activity for
+  8080, proxying requests to it and recording activity for
   [idling](#idle-apps). The port is also passed as `$PORT`.
 - **Non-root.** The image must run as a non-root user, with no capabilities and no
   Kubernetes credentials. An image whose `USER` is root never starts: the app shows
@@ -288,31 +288,38 @@ set, rotate and remove secrets.
   are redirected to Keycloak and must sign in. The app itself never sees or handles auth.
 
 - **Private with `access.groups`** — only members of **any** listed Keycloak group get in.
-  Everyone else who signs in gets **403**. Access is granted by group only: to let a
+  Everyone else who signs in gets **403** from the gateway. Entries are full group paths:
+  `finance` means `/finance`, and a subgroup such as `/finance/analysts` has to be listed
+  itself. Access is granted by group only: to let a
   particular person in, add them to one of the app's groups in Keycloak.
 
 :::note[How groups are enforced]
-The gateway's `SecurityPolicy` only signs users in
-([nebari-operator#153](https://github.com/nebari-dev/nebari-operator/issues/153)), so the
-pack enforces the groups in the app pod. For an App that lists groups, the
-operator sets `forwardAccessToken: true` on its `NebariApp`, so the gateway passes the
-user's Keycloak access token to the pod as `Authorization: Bearer …`, and adds the
-**apps-authz** sidecar on port 8080 in front of the app container (which moves to 8081).
-The sidecar verifies the token against the realm's keys (signature, expiry, issuer, and
-that it was issued to the app's own client) and checks its `groups` claim. A request with no token gets `401`; every other refusal is
-`403`.
+The gateway enforces the groups. The operator passes them to the App's `NebariApp` as
+`auth.groups` with `enforceAtGateway: true`, and nebari-operator adds a group rule to the
+app's `SecurityPolicy`: the gateway reads the user's Keycloak access token from the session
+cookie, verifies it against the realm's keys, and checks that it was issued to the app's own
+client and that its `groups` claim holds a listed group. Everyone else gets `403` from the
+gateway, before the request reaches the pod. The app never receives the token.
 
+- **Groups are full paths, matched exactly.** Keycloak groups nest, and the token carries
+  each group's full path (`/finance`, `/finance/analysts`). An entry is one group:
+  `finance` and `/finance` are the same top-level group, and `/finance` does **not** admit
+  someone who is only in `/finance/analysts`. List each subgroup that needs access, such as
+  `/finance/analysts`. Matching is case-sensitive.
+- **A bare name is created, a path is not.** nebari-operator creates a missing top-level
+  group named by a bare entry (`finance`) in Keycloak. A path (`/ops/oncall`) must already
+  exist; until it does, the `NebariApp` reports `GroupsNotResolved` and members of that group
+  are not let in.
 - **Group changes apply when the user's access token refreshes**: Keycloak's access-token
   lifespan, 5 minutes by default. Removing someone from a group does not end a session
-  they already have open until then.
-- Needs nebari-operator `%NEBARI_OPERATOR_VERSION%` or later (for `forwardAccessToken`) and the
-  chart's `keycloak.url` or `keycloak.internalUrl`; without them the App fails validation
-  instead of running open.
-- The groups are also sent to the `NebariApp` as `auth.groups`, so a landing-page tile
-  is shown only to their members.
-- With the chart's `apps.networkPolicy.enabled`, only the gateway can reach the pod, and
-  only on 8080. Static apps listen on loopback behind the sidecar; a Python task that
-  binds `0.0.0.0` is reachable on 8081 from inside the cluster unless that policy is on.
+  they already have open until then; someone just added should sign out and back in.
+- Needs nebari-operator `%NEBARI_OPERATOR_VERSION%` or later, the first release that enforces
+  `auth.groups` at the gateway, with Envoy Gateway v1.2.0 or later.
+  ([Upgrading](/upgrading/) has what changes on the way there.)
+- The groups also set landing-page tile visibility: a tile is shown only to their members.
+- The gateway is the only check, so turn on the chart's `apps.networkPolicy.enabled`: then
+  only the gateway can reach app pods, on 8080, and nothing inside the cluster can go around
+  it.
 :::
 
 ## Managers
@@ -329,7 +336,8 @@ app shows up in their Apps list and under **Mine**.
 - **Managing is not opening.** Managers of a restricted app still need to be in its
   `access.groups` to open it; add them to one of those groups if they should.
 - Group membership comes from the caller's verified access token, so adding someone to a
-  manager group applies when their token refreshes.
+  manager group applies when their token refreshes. Manager groups are full paths, matched
+  like `access.groups` (`web-team` is `/web-team`, which does not include `/web-team/frontend`).
 - Ownership itself cannot be transferred yet.
 
 ```yaml

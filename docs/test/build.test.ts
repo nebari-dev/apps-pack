@@ -95,14 +95,15 @@ test('every nebari-operator version written outside the docs matches .nebari-ope
   // README and agent docs are rendered by GitHub, so they carry the literal version.
   for (const file of ['README.md', 'AGENTS.md', 'docs/PLAN.md']) {
     const text = readFileSync(join(REPO, file), 'utf8');
-    for (const [found] of text.matchAll(/v0\.\d+\.\d+-alpha\.\d+/g)) {
+    // Any v0.x release, alpha or not (the pin left the alpha line at v0.1.0).
+    for (const [found] of text.matchAll(/v0\.\d+\.\d+(?:-alpha\.\d+)?/g)) {
       expect(`${file}: ${found}`).toBe(`${file}: ${PIN}`);
     }
   }
   // Docs pages use the %NEBARI_OPERATOR_VERSION% placeholder instead.
   const docs = join(SITE, 'src', 'content', 'docs');
   for (const name of readdirSync(docs)) {
-    expect(`${name}: ${readFileSync(join(docs, name), 'utf8').match(/v0\.\d+\.\d+-alpha\.\d+/)?.[0] ?? ''}`).toBe(
+    expect(`${name}: ${readFileSync(join(docs, name), 'utf8').match(/v0\.\d+\.\d+(?:-alpha\.\d+)?/)?.[0] ?? ''}`).toBe(
       `${name}: `,
     );
   }

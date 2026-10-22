@@ -107,8 +107,7 @@ create.
 
 To launch a **Python/pixi app**, add `"pixiTask": "<task>"` to `runtime` — the source
 (any type) must then contain a `pixi.toml` or `pyproject.toml` at its root, and the task
-must start a server on `0.0.0.0:$PORT` (8080, or 8081 when `access.groups` is set
-or the app can idle). See [Launching apps](/launching-apps/#python-apps-pixi).
+must start a server on `0.0.0.0:$PORT` (8080, or 8081 when the app can idle). See [Launching apps](/launching-apps/#python-apps-pixi).
 
 To launch a **container image**, send an `image` source:
 
@@ -194,7 +193,7 @@ curl -X POST https://apps.example.ai/api/v1/apps/upload \
 | `404` | App (or its pods, for logs) not found. |
 | `409` | An app with that name already exists in the namespace, or the subdomain is already used by another app. |
 | `413` | Request body over 2 MiB, secret values over 256 KiB, or inline files over the ~900 KB inline cap (`MAX_UPLOAD_BYTES`), whether they come from an upload (or its extracted contents) or from `source.inline.files` in a JSON `POST`/`PATCH`. Zip members are checked against the cap before they are decompressed. |
-| `422` | Invalid request: unsupported source type, missing required fields, an `access.groups` entry that is blank or contains a comma, an `access` field the API does not know (such as the removed `users`), an invalid, duplicated or env-clashing secret name, or a `runtime.env` reference to a Secret or to another app's ConfigMap. |
+| `422` | Invalid request: unsupported source type, missing required fields, an `access.groups` or `access.managers.groups` entry that names no group (blank, or only `/`), an `access` field the API does not know (such as the removed `users`), an invalid, duplicated or env-clashing secret name, or a `runtime.env` reference to a Secret or to another app's ConfigMap. |
 | `502` | The app's Secret could not be written (the reason is in the API's log, never a value). |
 
 Error bodies are `{"detail": "..."}` with an actionable message.

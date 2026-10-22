@@ -36,7 +36,7 @@ start again on the next request
 | apps-api | REST API for CRUD, status, logs, events, analytics and zip/`.html` upload; writes `App` resources (and each App's write-only Secret) for the UI and the MCP server. | `apps-api` |
 | apps-ui | The apps list as the home page (with a Needs attention banner, a Mine filter and Open links), app detail with logs and events, the launch form, and a Settings page (the UI and API versions, your groups, the cluster's settings, and how to connect an agent). | `apps-ui` |
 | apps-mcp | MCP server at `/mcp` that lets coding agents launch and manage apps (tools), attach an app's spec, status, logs and events as context (resources), and follow the triage, launch and access-review workflows (prompts), with Keycloak device-flow login. | `apps-mcp` |
-| apps-authz | Sidecar in the pods of Apps that list `access.groups` (returns `403` to everyone else) or that can idle (records when the app last served a request). | `apps-authz` |
+| apps-authz | Sidecar in the pods of Apps that can idle (records when the app last served a request) and of image Apps (gives them the one front port). It checks no tokens: `access.groups` are enforced at the gateway. | `apps-authz` |
 
 Images are published to `ghcr.io/nebari-dev/apps-pack/<image>` and
 `quay.io/nebari/apps-pack-<image>`. The UI signs in with keycloak-js and the API validates its
@@ -49,7 +49,7 @@ be rebranded from chart values without rebuilding the image
 
 ## Quick start
 
-Prerequisites: a Nebari cluster running nebari-operator `v0.1.0-alpha.20` or later (the version
+Prerequisites: a Nebari cluster running nebari-operator `v0.2.0` or later (the version
 pinned in [`.nebari-operator-version`](.nebari-operator-version)), Helm 3.8+, and `kubectl` with
 cluster-admin. The full list is in
 [Getting started](https://packs.nebari.dev/apps-pack/getting-started/).
@@ -104,8 +104,10 @@ The user guide is at [packs.nebari.dev/apps-pack](https://packs.nebari.dev/apps-
 
 ## Known limitations
 
-- `access.groups` is enforced in the app pod by the apps-authz sidecar, not
-  at the gateway (Apps restrict access by Keycloak group only); group changes apply when the user's token refreshes (5 minutes by default).
+- Apps restrict access by Keycloak group only, enforced at the gateway (nebari-operator
+  `v0.2.0` or later). Groups are full paths matched exactly (`finance` is `/finance`, which
+  does not include `/finance/analysts`); group changes apply when the user's token refreshes
+  (5 minutes by default).
 - Users see and manage the Apps they launched or are listed as managers of
   (`access.managers`); members of `api.adminGroups` manage all of them. Ownership cannot be
   transferred yet.

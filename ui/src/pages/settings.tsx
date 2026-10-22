@@ -281,9 +281,10 @@ function Account({ me }: { me: Query<Me> }) {
       description={
         authEnabled ? (
           <>
-            Your groups come from your sign-in. A restricted App opens for members of any group it
-            lists (and for users it names); you can manage the Apps you own and those whose managers
-            include you or one of your groups. Admins can manage every App.
+            Your groups come from your sign-in, as full Keycloak group paths. A restricted App opens
+            for members of any group it lists (a group does not include its subgroups); you can
+            manage the Apps you own and those whose managers include you or one of your groups.
+            Admins can manage every App.
           </>
         ) : (
           <>Sign-in is off on this cluster, so everyone can see and manage every App.</>

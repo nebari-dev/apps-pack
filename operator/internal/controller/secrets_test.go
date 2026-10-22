@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -38,10 +39,10 @@ func TestSecretKeysInjectFromTheAppsOwnSecret(t *testing.T) {
 			app := tc.app
 			app.Spec.Runtime.Env = []corev1.EnvVar{{Name: "MODE", Value: "prod"}}
 			app.Spec.Runtime.SecretKeys = []string{"API_KEY", "DATABASE_URL"}
-			// Restricted, so the pod also runs the authz sidecar.
-			app.Spec.Access.Public = false
-			app.Spec.Access.Groups = []string{"team"}
+			// Can idle, so the pod also runs the authz sidecar.
 			r, _ := newReconciler(t)
+			r.Config.IdleTimeout = 30 * time.Minute
+			r.Config.ActivatorService, r.Config.ActivatorNamespace = activatorSvc, activatorNS
 			deploy, err := r.buildDeployment(app)
 			if err != nil {
 				t.Fatal(err)

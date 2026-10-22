@@ -53,16 +53,10 @@ func main() {
 	flag.StringVar(&cfg.PythonImage, "python-image", envOr("PYTHON_IMAGE", "ghcr.io/prefix-dev/pixi:0.68.1-noble"),
 		"Image running Python/pixi apps (runtime.pixiTask); must provide pixi and run as non-root.")
 	flag.StringVar(&cfg.AuthzImage, "authz-image", envOr("AUTHZ_IMAGE", ""),
-		"apps-authz sidecar image, added to Apps that restrict access.groups (required for those Apps).")
+		"apps-authz sidecar image, added to Apps that can idle and to image Apps (required for those Apps).")
 	var authzPullPolicy string
 	flag.StringVar(&authzPullPolicy, "authz-image-pull-policy", envOr("AUTHZ_IMAGE_PULL_POLICY", ""),
 		"Pull policy for the authz sidecar image (Always|IfNotPresent|Never; empty: the Kubernetes default).")
-	flag.StringVar(&cfg.KeycloakURL, "keycloak-url", envOr("KEYCLOAK_URL", ""),
-		"Public Keycloak base URL; the authz sidecar accepts tokens issued under <url>/realms/<realm>.")
-	flag.StringVar(&cfg.KeycloakInternalURL, "keycloak-internal-url", envOr("KEYCLOAK_INTERNAL_URL", ""),
-		"In-cluster Keycloak base URL; the authz sidecar also accepts it as issuer and fetches signing keys from it.")
-	flag.StringVar(&cfg.KeycloakRealm, "keycloak-realm", envOr("KEYCLOAK_REALM", "nebari"),
-		"Keycloak realm nebari-operator provisions app clients in.")
 	flag.BoolVar(&cfg.TLSDisabled, "tls-disabled", envOr("TLS_DISABLED", "") == "true",
 		"Serve apps over plain HTTP (no certificates, no HTTPS listeners).")
 	flag.BoolVar(&cfg.LandingPage, "landing-page", envOr("LANDING_PAGE", "") == "true",
@@ -191,7 +185,7 @@ func main() {
 
 	setupLog.Info("starting manager",
 		"appsDomain", cfg.AppsDomain, "gateway", cfg.Gateway,
-		"authzImage", cfg.AuthzImage, "keycloakIssuers", len(cfg.KeycloakURL+cfg.KeycloakInternalURL) > 0,
+		"authzImage", cfg.AuthzImage,
 		"idleTimeout", cfg.IdleTimeout.String(), "activatorService", cfg.ActivatorNamespace+"/"+cfg.ActivatorService,
 		"imageRegistries", cfg.ImageRegistries)
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {

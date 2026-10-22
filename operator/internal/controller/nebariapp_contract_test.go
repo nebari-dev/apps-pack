@@ -97,11 +97,14 @@ func TestNebariAppContractPrivateApp(t *testing.T) {
 	if len(groups) != 1 || groups[0] != "analytics" {
 		t.Errorf("auth.groups = %+v", groups)
 	}
-	// Groups are enforced by the authz sidecar on the forwarded token, which
-	// needs forwardAccessToken (and enforceAtGateway, per the CRD's rule).
-	if auth["forwardAccessToken"] != true || auth["enforceAtGateway"] != true {
-		t.Errorf("auth.forwardAccessToken/enforceAtGateway = %v/%v, want true/true",
-			auth["forwardAccessToken"], auth["enforceAtGateway"])
+	// The gateway enforces the groups (nebari-operator v0.2.0+): a signed-in
+	// non-member gets 403 there. No sidecar reads the token, so it is not
+	// forwarded to the (untrusted) app.
+	if auth["enforceAtGateway"] != true {
+		t.Errorf("auth.enforceAtGateway = %v, want true", auth["enforceAtGateway"])
+	}
+	if _, has := auth["forwardAccessToken"]; has {
+		t.Errorf("auth.forwardAccessToken = %v, want unset", auth["forwardAccessToken"])
 	}
 	scopes := auth["scopes"].([]any)
 	want := []string{"openid", "profile", "email", "groups"}
@@ -123,18 +126,26 @@ func TestNebariAppContractPrivateApp(t *testing.T) {
 	}
 }
 
-// A group-restricted App forwards the token for the sidecar and never emits
-// an auth.users field.
-func TestNebariAppContractGroupsOnly(t *testing.T) {
+// A group-restricted App hands its entries to the gateway as written:
+// nebari-operator normalizes them to full group paths ("analysts" is
+// "/analysts") and matches them exactly, so a subgroup path passes through
+// unchanged. It never emits auth.users or forwards the token.
+func TestNebariAppContractGroupsEnforcedAtGateway(t *testing.T) {
 	app := inlineApp("team-a")
-	app.Spec.Access = appsv1alpha1.AppAccess{Groups: []string{"analysts"}, Subdomain: "docs-site"}
+	app.Spec.Access = appsv1alpha1.AppAccess{Groups: []string{"analysts", "/ops/oncall"}, Subdomain: "docs-site"}
 
 	auth, _, _ := unstructured.NestedMap(testReconciler().buildNebariApp(app).Object, "spec", "auth")
-	if auth["enabled"] != true || auth["forwardAccessToken"] != true || auth["enforceAtGateway"] != true {
-		t.Errorf("auth = %+v, want sign-in with the token forwarded", auth)
+	if auth["enabled"] != true || auth["provider"] != "keycloak" || auth["enforceAtGateway"] != true {
+		t.Errorf("auth = %+v, want keycloak sign-in enforced at the gateway", auth)
 	}
-	if _, has := auth["users"]; has {
-		t.Error("auth.users should never be emitted")
+	groups, _, _ := unstructured.NestedStringSlice(auth, "groups")
+	if len(groups) != 2 || groups[0] != "analysts" || groups[1] != "/ops/oncall" {
+		t.Errorf("auth.groups = %v, want [analysts /ops/oncall]", groups)
+	}
+	for _, k := range []string{"users", "forwardAccessToken"} {
+		if _, has := auth[k]; has {
+			t.Errorf("auth.%s should not be emitted", k)
+		}
 	}
 }
 
@@ -248,5 +259,24 @@ func TestNebariAppContractIdleRoutesToActivator(t *testing.T) {
 	after, _, _ := unstructured.NestedMap(na.Object, "spec", "auth")
 	if len(after) != len(before) || after["enabled"] != before["enabled"] {
 		t.Errorf("auth changed: %+v -> %+v", before, after)
+	}
+}
+
+// A restricted App keeps its gateway group rule while it idles, so the
+// activator's wake page is only shown to members.
+func TestNebariAppContractIdleRestrictedKeepsGroups(t *testing.T) {
+	app := inlineApp("team-analytics")
+	app.Spec.Access.Public = false
+	app.Spec.Access.Groups = []string{"analysts"}
+	r := testReconciler()
+	r.Config.ActivatorService = "nebari-apps-activator"
+	r.Config.ActivatorNamespace = "nebari-apps"
+	na := r.buildNebariApp(app)
+	r.Config.routeToActivator(na)
+
+	groups, _, _ := unstructured.NestedStringSlice(na.Object, "spec", "auth", "groups")
+	enforce, _, _ := unstructured.NestedBool(na.Object, "spec", "auth", "enforceAtGateway")
+	if len(groups) != 1 || groups[0] != "analysts" || !enforce {
+		t.Errorf("auth.groups = %v enforceAtGateway = %v, want [analysts] true", groups, enforce)
 	}
 }

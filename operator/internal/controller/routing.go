@@ -12,7 +12,7 @@ import (
 // NebariOperatorContract is the nebari-operator release whose NebariApp shape
 // this pack emits. It must equal the repo's .nebari-operator-version (the dev
 // cluster and docs read that file); TestContractVersionIsTheRepoPin checks.
-const NebariOperatorContract = "v0.1.0-alpha.20"
+const NebariOperatorContract = "v0.2.0"
 
 // NebariAppGVK is the nebari-operator CRD this pack emits for routing, TLS,
 // SSO, and landing-page registration (see NebariOperatorContract).
@@ -38,22 +38,19 @@ func (r *AppReconciler) buildNebariApp(app *appsv1alpha1.App) *unstructured.Unst
 		auth["provider"] = "keycloak"
 		auth["provisionClient"] = true
 		auth["scopes"] = []any{"openid", "profile", "email", "groups"}
-		if len(app.Spec.Access.Groups) > 0 {
+		if restricted(app) {
+			// The gateway enforces the groups (nebari-operator v0.2.0+):
+			// a signed-in user outside them gets 403 before the request
+			// reaches the pod. nebari-operator matches entries as full
+			// group paths ("finance" is "/finance"). enforceAtGateway
+			// defaults to true; it is set explicitly so a change of that
+			// default can never open a restricted App.
 			groups := make([]any, 0, len(app.Spec.Access.Groups))
 			for _, g := range app.Spec.Access.Groups {
 				groups = append(groups, g)
 			}
 			auth["groups"] = groups
-		}
-		// NebariApp's groups only drive landing-tile visibility; the authz
-		// sidecar is what enforces them.
-		if restricted(app) {
-			// The authz sidecar (authz.go) enforces the groups on the
-			// access token the gateway forwards. forwardAccessToken requires
-			// enforceAtGateway (a CEL rule on the NebariApp CRD), which
-			// defaults to true; it is set explicitly so the rule holds.
 			auth["enforceAtGateway"] = true
-			auth["forwardAccessToken"] = true
 		}
 	}
 

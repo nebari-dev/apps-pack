@@ -1090,7 +1090,7 @@
     },
     "authz": {
       "type": "object",
-      "description": "The apps-authz sidecar that enforces access.groups in app pods.",
+      "description": "The apps-authz sidecar in front of app pods that can idle or run an image (activity tracking and the front port; access.groups are enforced at the gateway).",
       "properties": {
         "image": {
           "type": "object",
