@@ -69,4 +69,11 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           echo "$GH_TOKEN" | helm registry login ghcr.io --username "$ACTOR" --password-stdin
+          version=$(grep -E '^version:' charts/nebari-apps/Chart.yaml | awk '{print $2}' | tr -d "\"'")
+          # A Chart.yaml change without a version bump re-runs this workflow;
+          # pushing again would move the tag to a new digest.
+          if helm show chart "oci://ghcr.io/${REPO}/charts/nebari-apps" --version "$version" >/dev/null 2>&1; then
+            echo "::notice::nebari-apps ${version} is already in GHCR, skipping."
+            exit 0
+          fi
           helm push dist/*.tgz "oci://ghcr.io/${REPO}/charts"
