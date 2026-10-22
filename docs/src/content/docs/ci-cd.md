@@ -13,7 +13,7 @@ description: What CI checks on every pull request, how images and charts are bui
 | | UI e2e + a11y | Playwright on Chromium against the UI job's build (apps-api mocked): a user flow or keyboard path that breaks, or a `critical`/`serious` axe violation (WCAG 2.0/2.1 A and AA) on any page in light or dark, at desktop width and at 390px (where a page that scrolls sideways also fails); uploads the HTML report every run |
 | | Helm chart | `helm lint`/`helm template` errors, `values.schema.json`, a stale chart README, chart RBAC assertions, the alert rules (promtool), kubeconform on the examples and rendered chart |
 | | Repo invariants | a path in `AGENTS.md` or the skill that does not exist, version strings that disagree with the release manifest, a pin file that disagrees with its Dockerfile, actionlint, zizmor |
-| **Images** (`images.yaml`) | one per image | the image does not build, or (`apps-ui`) serves the wrong security headers; on changes to the images' sources only |
+| **Images** (`images.yaml`) | one per image | the image does not build, or (`ui`) serves the wrong security headers; on changes to the images' sources only |
 | **Docs** (`docs.yml`) | docs | the site's tests or build, or a broken external link (on docs changes only) |
 
 CI also runs weekly, so advisories published after a merge surface even when nothing
@@ -29,8 +29,7 @@ Every action is pinned to a commit SHA, and every workflow starts from
 
 ## Images
 
-`images.yaml` builds the five images (`apps-operator`, `apps-authz`, `apps-api`,
-`apps-ui`, `apps-mcp`). Pull requests build each image once, on `linux/amd64`, without
+`images.yaml` builds the five images (`operator`, `authz`, `api`, `ui`, `mcp`). Pull requests build each image once, on `linux/amd64`, without
 pushing. Every merge to `main` builds them for `linux/amd64` and `linux/arm64` through the
 org's reusable `pack-build-image` workflow, pushes `ghcr.io/nebari-dev/apps-pack/<image>`
 and `quay.io/nebari/apps-pack-<image>`, tagged `sha-<short commit>` and `latest`, and signs

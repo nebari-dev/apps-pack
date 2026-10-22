@@ -142,7 +142,7 @@ Running the standalone `apps-ui` image without a chart, branding resolves from, 
      -e API_URL=http://apps-api:8080 \
      -e BRANDING_TITLE="Acme Apps" \
      -e BRANDING_LOGO_URL=https://cdn.acme.example/logo.svg \
-     ghcr.io/nebari-dev/apps-pack/apps-ui
+     ghcr.io/nebari-dev/apps-pack/ui
    ```
 
 3. **Built-in Nebari defaults** for any field still unset.

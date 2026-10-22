@@ -51,15 +51,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - image: apps-operator
+          - image: operator
             context: operator
-          - image: apps-authz
+          - image: authz
             context: authz
-          - image: apps-api
+          - image: api
             context: api
-          - image: apps-ui
+          - image: ui
             context: ui
-          - image: apps-mcp
+          - image: mcp
             context: mcp
     env:
       IMAGE: ${{ matrix.image }}
@@ -75,8 +75,8 @@ jobs:
       # Boots the real image so the assertion covers nginx's header
       # inheritance, not just the config text.
       - name: Security headers
-        if: matrix.image == 'apps-ui'
-        run: ui/scripts/check-headers.sh apps-ui:ci
+        if: matrix.image == 'ui'
+        run: ui/scripts/check-headers.sh ui:ci
 
   # Not `needs: check`: a failing check must not stop `latest` tracking main,
   # or the release commit's sha images from existing (release.yaml depends on
@@ -87,15 +87,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - image: apps-operator
+          - image: operator
             context: operator
-          - image: apps-authz
+          - image: authz
             context: authz
-          - image: apps-api
+          - image: api
             context: api
-          - image: apps-ui
+          - image: ui
             context: ui
-          - image: apps-mcp
+          - image: mcp
             context: mcp
     permissions:
       contents: read

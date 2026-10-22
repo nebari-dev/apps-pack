@@ -84,6 +84,15 @@ Status fields in the backup are ignored; the operator recomputes them.
 
 ## Version notes
 
+### Upgrading to the shorter image names
+
+The images dropped their `apps-` prefix: `ghcr.io/nebari-dev/apps-pack/apps-operator` is now
+`ghcr.io/nebari-dev/apps-pack/operator`, and the same for `authz`, `api`, `ui` and `mcp`
+(on Quay, `quay.io/nebari/apps-pack-operator` and so on). The chart's defaults follow, so
+nothing changes unless you set `*.image.repository` yourself, for example to mirror the
+images: point those values at the new names. Images built before the rename stay at the old
+paths; new tags are published only under the new ones.
+
 ### Upgrading to gateway group enforcement
 
 **Breaking:** `access.groups` are enforced at the gateway by nebari-operator

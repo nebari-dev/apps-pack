@@ -35,7 +35,7 @@ only `clusterDomain` and `keycloak.url` need changing.
 | `staticImage` | `nginxinc/nginx-unprivileged:1.27-alpine` | Serves static app content; must listen on 8080 as non-root. The operator mounts its nginx server config (security headers, `try_files`) over `/etc/nginx/conf.d`, so a replacement image should be nginx-based or ignore that directory. |
 | `gitImage` | `alpine/git:v2.47.2` | Init-container image that clones `git` sources. |
 | `pythonImage` | `ghcr.io/prefix-dev/pixi:0.68.1-noble` | Runs Python/pixi apps (`runtime.pixiTask`); must provide `pixi` and run as non-root. |
-| `authz.image.repository` / `tag` / `pullPolicy` | `ghcr.io/nebari-dev/apps-pack/apps-authz` / appVersion / `IfNotPresent` | The sidecar the operator adds to apps that can idle and to image apps: it takes port 8080, proxies every request to the app and records when the app last served one. It checks no tokens; `access.groups` are enforced at the gateway (see [Access control](/launching-apps/#access-control)). |
+| `authz.image.repository` / `tag` / `pullPolicy` | `ghcr.io/nebari-dev/apps-pack/authz` / appVersion / `IfNotPresent` | The sidecar the operator adds to apps that can idle and to image apps: it takes port 8080, proxies every request to the app and records when the app last served one. It checks no tokens; `access.groups` are enforced at the gateway (see [Access control](/launching-apps/#access-control)). |
 | `authz.resources` | `10m`/`32Mi` requests, `100m`/`64Mi` limits | The sidecar's requests/limits, on top of the app container's, in every pod that runs it. |
 
 ### Image registries
@@ -82,7 +82,7 @@ apps:
 
 | Value | Default | Purpose |
 |---|---|---|
-| `operator.image.repository` / `tag` / `pullPolicy` | `ghcr.io/nebari-dev/apps-pack/apps-operator` / `""` (chart `appVersion`) / `IfNotPresent` | Operator image. |
+| `operator.image.repository` / `tag` / `pullPolicy` | `ghcr.io/nebari-dev/apps-pack/operator` / `""` (chart `appVersion`) / `IfNotPresent` | Operator image. |
 | `operator.replicaCount` | `1` | Replicas; more than one needs `leaderElection`. |
 | `operator.leaderElection` | `true` | Lease-based leader election in the release namespace. |
 | `operator.resources` | `500m/256Mi` (requests = limits) | Pod resources. |
@@ -112,7 +112,7 @@ namespace.
 | Value | Default | Purpose |
 |---|---|---|
 | `api.enabled` | `true` | Deploy the REST API (the UI and MCP are thin clients over it). |
-| `api.image.repository` / `tag` / `pullPolicy` | `ghcr.io/nebari-dev/apps-pack/apps-api` / `""` / `IfNotPresent` | API image. |
+| `api.image.repository` / `tag` / `pullPolicy` | `ghcr.io/nebari-dev/apps-pack/api` / `""` / `IfNotPresent` | API image. |
 | `api.replicaCount` | `1` | The API is stateless; more replicas are safe. |
 | `api.auth.enabled` | `true` | Keycloak JWT bearer auth for the API and keycloak-js login in the UI. **Disable only for local development**; off, every caller is anonymous with full access. Rendering fails if it is off while `tls.enabled=true`, unless `api.auth.insecureAllowAnonymous` is set. |
 | `api.auth.insecureAllowAnonymous` | `false` | Explicit opt-in to an unauthenticated API on a TLS install. Leave off. |
@@ -137,7 +137,7 @@ in).
 | Value | Default | Purpose |
 |---|---|---|
 | `ui.enabled` | `true` | Deploy the web UI (also the nginx front door that proxies `/api/` and `/mcp`). |
-| `ui.image.repository` / `tag` / `pullPolicy` | `ghcr.io/nebari-dev/apps-pack/apps-ui` / `""` / `IfNotPresent` | UI image. |
+| `ui.image.repository` / `tag` / `pullPolicy` | `ghcr.io/nebari-dev/apps-pack/ui` / `""` / `IfNotPresent` | UI image. |
 | `ui.replicaCount` | `1` | Replicas. |
 | `ui.hostname` | `<appsDomain>` | Hostname the UI is served at. |
 | `ui.title` | `Nebari Apps` | Browser-tab title. |
@@ -154,7 +154,7 @@ in).
 | Value | Default | Purpose |
 |---|---|---|
 | `mcp.enabled` | `true` | Deploy the MCP server at `https://<ui hostname>/mcp` (proxied by the UI's nginx; no separate hostname). When off, `/mcp` returns 404. |
-| `mcp.image.repository` / `tag` / `pullPolicy` | `ghcr.io/nebari-dev/apps-pack/apps-mcp` / `""` / `IfNotPresent` | MCP image. |
+| `mcp.image.repository` / `tag` / `pullPolicy` | `ghcr.io/nebari-dev/apps-pack/mcp` / `""` / `IfNotPresent` | MCP image. |
 | `mcp.replicaCount` | `1` | **Keep at 1**: handshake-era MCP sessions are held in process memory (authentication is per request and does not depend on them). |
 | `mcp.oauth.clientId` | `""` | Public Keycloak client MCP clients sign in with ([MCP authentication](/mcp/#the-sign-in-client)); create it in Keycloak first. The chart adds it to the allowed clients of apps-api and apps-mcp, and the UI's `claude mcp add` command passes it as `--client-id`. Empty: MCP clients cannot sign in on their own and need a token from elsewhere. |
 | `mcp.oauth.callbackPort` | `33418` | The MCP client's OAuth callback port (`--callback-port`); the client's redirect URI must be `http://localhost:<port>/callback`. |

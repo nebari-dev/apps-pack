@@ -14,7 +14,7 @@ import (
 	appsv1alpha1 "github.com/nebari-dev/nebari-apps-pack/operator/api/v1alpha1"
 )
 
-const testAuthzImage = "ghcr.io/nebari-dev/apps-pack/apps-authz:test"
+const testAuthzImage = "ghcr.io/nebari-dev/apps-pack/authz:test"
 
 func restrictedApp(app *appsv1alpha1.App, groups []string) *appsv1alpha1.App {
 	app.Spec.Access.Public = false
