@@ -8,7 +8,7 @@ import {
   splitList,
   validate,
 } from "@/components/app-form/state";
-import { accessLine } from "@/lib/access";
+import { accessLine, groupPath } from "@/lib/access";
 import type { App } from "@/lib/types";
 
 describe("AppForm reducer", () => {
@@ -73,6 +73,36 @@ describe("validate", () => {
       "pixiTask",
       "gitUrl",
     ]);
+  });
+});
+
+describe("allowed groups", () => {
+  const base = {
+    ...initialState(undefined, false),
+    nameInput: "docs",
+    displayName: "Docs",
+    namespace: "apps",
+    subdomain: "docs",
+    sourceTab: "git" as const,
+    gitUrl: "https://github.com/x/y",
+    isPublic: false,
+  };
+
+  it("matches nebari-operator's full-path form", () => {
+    expect(groupPath("finance")).toBe("/finance");
+    expect(groupPath(" /finance/ ")).toBe("/finance");
+    expect(groupPath("/ops//oncall")).toBe("/ops/oncall");
+    expect(groupPath("/")).toBe("");
+    expect(groupPath("  ")).toBe("");
+  });
+
+  it("refuses an entry that names no group", () => {
+    expect(validate({ ...base, groups: "finance, /ops/oncall" }, false)).toEqual([]);
+    expect(validate({ ...base, groups: "finance, /" }, false).map((p) => p.field)).toEqual([
+      "groups",
+    ]);
+    // A public app ignores its groups.
+    expect(validate({ ...base, groups: "/", isPublic: true }, false)).toEqual([]);
   });
 });
 

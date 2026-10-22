@@ -21,6 +21,7 @@ from . import __version__
 from . import cr as crmod
 from .auth import User, app_managers, app_role, can_access, can_change_managers, current_user, is_admin
 from .config import settings
+from .groups import group_path
 from .images import check_image, parse_allowlist
 from .k8s import READY_TIMEOUT, AppStore, ConflictError, KubernetesAppStore, NotFoundError
 from .limits import BodySizeLimitMiddleware
@@ -563,19 +564,23 @@ def create_app(store: AppStore | None = None) -> FastAPI:
 
 
 def _check_access(access: Any) -> None:
-    """Groups reach the authz sidecar as a comma-separated list, so an entry
-    may not be blank or contain a comma (the operator refuses such an App;
-    this says so up front).
+    """Each group entry must name a Keycloak group. nebari-operator matches
+    entries as full group paths ("finance" is "/finance") and denies every
+    request when all of an App's entries name nothing (such as "/"); the
+    apps-operator refuses such an App, and this says so up front.
     """
     if access is None:
         return
     for entry in access.groups:
-        if not entry.strip() or "," in entry:
-            raise HTTPException(422, "access.groups: entries must be non-empty and must not contain ','")
+        if not group_path(entry):
+            raise HTTPException(422, "access.groups: entries must name a group, such as finance or /parent/child")
     if access.managers is not None:
-        for field in ("users", "groups"):
-            if any(not entry.strip() for entry in getattr(access.managers, field)):
-                raise HTTPException(422, f"access.managers.{field}: entries must be non-empty")
+        if any(not entry.strip() for entry in access.managers.users):
+            raise HTTPException(422, "access.managers.users: entries must be non-empty")
+        if any(not group_path(entry) for entry in access.managers.groups):
+            raise HTTPException(
+                422, "access.managers.groups: entries must name a group, such as finance or /parent/child"
+            )
 
 
 def _check_source(source: Any) -> None:

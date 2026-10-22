@@ -37,11 +37,12 @@ class Settings:
     )
 
     # Keycloak groups whose members may see and manage every App. Everyone
-    # else sees and manages only the Apps they own (spec.owner). Group names
-    # are compared without a leading "/" (Keycloak full-path groups).
+    # else sees and manages only the Apps they own (spec.owner). Entries are
+    # full group paths ("admin" is "/admin"; a subgroup such as "/team/admin"
+    # does not count), compared through groups.group_path.
     admin_groups: list[str] = field(
         default_factory=lambda: [
-            g.strip().lstrip("/") for g in os.environ.get("APPS_ADMIN_GROUPS", "admin").split(",") if g.strip()
+            g.strip() for g in os.environ.get("APPS_ADMIN_GROUPS", "admin").split(",") if g.strip()
         ]
     )
 

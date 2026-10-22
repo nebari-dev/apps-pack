@@ -174,6 +174,19 @@ def test_group_membership_comes_from_the_token(as_user, alice_app):
     assert as_user(User(username="x", groups=["Dave"])).get(f"{PREFIX}/apps/apps/alices").status_code == 403
 
 
+def test_groups_match_as_full_paths(as_user, alice_app):
+    """Groups match the way nebari-operator matches access.groups: "web-team"
+    and "/web-team" are the same group, a subgroup or a same-named group under
+    another parent is not, and neither is a parent of the listed group.
+    """
+    get = lambda u: as_user(u).get(f"{PREFIX}/apps/apps/alices").status_code  # noqa: E731
+    assert get(User(username="x", groups=["/web-team/"])) == 200
+    assert get(User(username="x", groups=["/web-team/frontend"])) == 403
+    assert get(User(username="x", groups=["/eng/web-team"])) == 403
+    assert get(User(username="x", groups=["/team/admin"])) == 403
+    assert get(User(username="x", groups=["/admin"])) == 200
+
+
 NEW_MANAGERS = {"users": ["mallory"], "groups": []}
 
 
@@ -225,6 +238,9 @@ def test_owner_and_admin_can_change_managers(as_user, alice_app, store, user):
 def test_blank_manager_entries_rejected(as_user, alice_app):
     resp = as_user(ALICE).patch(f"{PREFIX}/apps/apps/alices", json=access_with({"users": [" "]}))
     assert resp.status_code == 422
+    resp = as_user(ALICE).patch(f"{PREFIX}/apps/apps/alices", json=access_with({"groups": ["/"]}))
+    assert resp.status_code == 422
+    assert "access.managers.groups" in resp.json()["detail"]
 
 
 def test_manager_of_unowned_app(as_user, store):

@@ -45,6 +45,7 @@ export const CONTROL_IDS: Record<Field, string> = {
   imageRunAsUser: "imageRunAsUser",
   idleTimeout: "idleTimeout",
   secrets: "secrets-first",
+  groups: "groups",
   subdomain: "subdomain",
 };
 
@@ -824,7 +825,7 @@ export function RuntimeSection({ form }: { form: FormContext }) {
             <IdleFields form={form} />
             <p className={HELP}>
               Python apps must serve on <span className="font-mono">0.0.0.0:$PORT</span> (8080, or
-              8081 when groups restrict the app or it can idle).
+              8081 when the app can idle).
             </p>
           </div>
         </details>
@@ -869,13 +870,14 @@ export function AccessSection({ form }: { form: FormContext }) {
             <FormField
               id="groups"
               label="Allowed groups"
-              help="Only members of these Keycloak groups can open the app; everyone else gets 403. Leave it empty to allow any signed-in user. Changes apply when a user's session token refreshes (a few minutes)."
+              help="Only members of these Keycloak groups can open the app; the gateway gives every other signed-in user 403. Groups are full paths: finance means /finance, and /finance does not include people who are only in /finance/analysts, so list each subgroup. Leave it empty to allow any signed-in user. Changes apply when a user's session token refreshes (a few minutes)."
+              form={form}
               className={row}
             >
               <Input
                 id="groups"
-                placeholder="comma-separated"
-                aria-describedby="groups-help"
+                placeholder="comma-separated, e.g. finance, /ops/oncall"
+                {...fieldProps("groups", "groups-help")}
                 value={groups}
                 onChange={(e) => set("groups", e.target.value)}
               />
@@ -1058,8 +1060,9 @@ export function ManagersSection({ form }: { form: FormContext }) {
           />
         </FormField>
         <p id="managers-help" className={HELP}>
-          Keycloak usernames and groups. Group membership is read from each person's sign-in token,
-          so a change to their groups applies when it refreshes.
+          Keycloak usernames and groups. Groups are full paths, as for allowed groups. Group
+          membership is read from each person's sign-in token, so a change to their groups applies
+          when it refreshes.
         </p>
         {editable ? null : (
           <p

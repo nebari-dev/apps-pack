@@ -15,6 +15,7 @@ from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from .config import settings
+from .groups import group_paths
 from .models import Role
 
 _bearer = HTTPBearer(auto_error=False)
@@ -37,7 +38,7 @@ def is_admin(user: User) -> bool:
     """
     if not settings.auth_enabled:
         return True
-    return any(g.lstrip("/") in settings.admin_groups for g in user.groups)
+    return bool(group_paths(user.groups) & group_paths(settings.admin_groups))
 
 
 def app_owner(cr: dict[str, Any]) -> str:
@@ -60,15 +61,14 @@ def app_managers(cr: dict[str, Any]) -> dict[str, list[str]]:
 
 
 def is_manager(user: User, cr: dict[str, Any]) -> bool:
-    """Listed in spec.access.managers by username (case-insensitive) or through a group in the caller's verified token (a leading
-    "/" ignored on both sides, like api.adminGroups).
+    """Listed in spec.access.managers by username (case-insensitive) or through a group in the caller's verified token,
+    matched as full group paths like api.adminGroups ("web-team" is "/web-team"; a subgroup does not count).
     """
     managers = app_managers(cr)
     name = user.username.lower()
     if name and any(u.lower() == name for u in managers["users"]):
         return True
-    groups = {g.lstrip("/") for g in user.groups}
-    return any(g.lstrip("/") in groups for g in managers["groups"])
+    return bool(group_paths(user.groups) & group_paths(managers["groups"]))
 
 
 def app_role(user: User, cr: dict[str, Any]) -> Role:
@@ -133,7 +133,10 @@ class JWTValidator:
         return User(
             username=claims.get("preferred_username", claims.get("sub", "")),
             email=claims.get("email", ""),
-            groups=[g.lstrip("/") for g in claims.get("groups", [])],
+            # Full group paths ("/finance"), as nebari-operator v0.2.0+ makes
+            # Keycloak emit them; a client still sending bare names is read as
+            # the top-level group of that name.
+            groups=sorted(group_paths(str(g) for g in claims.get("groups") or [])),
         )
 
 

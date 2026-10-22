@@ -124,7 +124,7 @@ describe("AppForm (create)", () => {
     const details = summary.closest("details") as HTMLDetailsElement;
     expect(details).not.toHaveAttribute("open");
     expect(details).toHaveTextContent(
-      "Python apps must serve on 0.0.0.0:$PORT (8080, or 8081 when groups restrict the app or it can idle).",
+      "Python apps must serve on 0.0.0.0:$PORT (8080, or 8081 when the app can idle).",
     );
     for (const label of [
       "Replicas",
@@ -196,7 +196,7 @@ describe("AppForm (create)", () => {
   it("describes who the groups field lets in", () => {
     setup();
     expect(screen.getByLabelText("Allowed groups")).toHaveAccessibleDescription(
-      /Only members of these Keycloak groups can open the app; everyone else gets 403/,
+      /Only members of these Keycloak groups can open the app; the gateway gives every other signed-in user 403\. Groups are full paths: finance means \/finance, and \/finance does not include people who are only in \/finance\/analysts/,
     );
   });
 

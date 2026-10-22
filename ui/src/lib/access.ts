@@ -1,8 +1,19 @@
 import type { App } from "@/lib/types";
 
 /**
+ * The full Keycloak group path an access.groups entry names, the way
+ * nebari-operator matches it at the gateway: "finance" and "/finance/" are
+ * "/finance", and "" when the entry names no group (such as "/"). A parent
+ * path does not include its subgroups.
+ */
+export function groupPath(entry: string): string {
+  const segments = entry.trim().split("/").filter(Boolean);
+  return segments.length ? `/${segments.join("/")}` : "";
+}
+
+/**
  * Who can open the app: "Public", any signed-in user, or the groups the
- * authz sidecar lets in.
+ * gateway lets in.
  */
 export function accessLine(a: App): string {
   if (a.access?.public) return "Public - no authentication";

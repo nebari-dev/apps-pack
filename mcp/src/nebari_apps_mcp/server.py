@@ -398,8 +398,10 @@ async def launch_app(
         list[str] | None,
         Field(
             description=(
-                "Keycloak groups allowed to open the app (private apps; enforced in the app pod, "
-                "everyone else gets 403). Empty = any signed-in user"
+                "Keycloak groups allowed to open the app (private apps; enforced at the gateway, "
+                "every other signed-in user gets 403). Full group paths matched exactly: 'finance' is "
+                "'/finance', and '/finance' does not admit members of '/finance/analysts' only, so list "
+                "each subgroup. Empty = any signed-in user"
             )
         ),
     ] = None,
@@ -417,8 +419,8 @@ async def launch_app(
         list[str] | None,
         Field(
             description=(
-                "Keycloak groups whose members may manage the app, like manager_users. "
-                "Omit to keep the current list when re-launching; [] clears it"
+                "Keycloak groups whose members may manage the app, like manager_users "
+                "(full group paths, matched like groups). Omit to keep the current list when re-launching; [] clears it"
             )
         ),
     ] = None,
@@ -910,7 +912,10 @@ Read {app} (tool: get_app) and report:
    - public: true means anyone with the URL, with no sign-in. Flag this if the app looks internal or lists \
 secretKeys.
    - public: false with empty groups means any user who can sign in to the cluster's Keycloak.
-   - public: false with groups is restricted: a member of any listed group gets in, everyone else gets 403. Group changes take effect when the user's access token refreshes (minutes).
+   - public: false with groups is restricted: the gateway lets in a member of any listed group and gives everyone \
+else 403. Entries are full group paths matched exactly ("finance" is "/finance"; "/finance" does not admit members \
+of "/finance/analysts" only), so check that each subgroup that needs access is listed. Group changes take effect \
+when the user's access token refreshes (minutes).
    - groups have no effect while public is true; point out that combination.
 2. Who can manage it: the owner, every user in access.managers.users, members of access.managers.groups, \
 and cluster admins. Managers can edit, start, stop, restart and delete the app and read its logs, but only the \

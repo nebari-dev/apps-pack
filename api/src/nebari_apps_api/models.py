@@ -144,7 +144,7 @@ class AppRuntime(BaseModel):
     # When set, the app runs as a Python/pixi service: the operator installs
     # the pixi environment and executes `pixi run <pixiTask>`. The task must
     # start a server on $PORT (8080, or 8081 when the sidecar fronts it:
-    # restricted apps and apps that can idle).
+    # apps that can idle).
     pixiTask: str = Field(default="", max_length=64)
 
 
@@ -159,9 +159,11 @@ class AppAccess(BaseModel):
     # Unknown keys are ignored on reads: an App stored before the users list was
     # removed from access may still carry it (the apiserver prunes it on the next write).
     public: bool = False
-    # A private app with groups is enforced in the app pod by the authz
-    # sidecar: a member of any group gets in, everyone else gets 403. Empty:
-    # any signed-in user.
+    # A private app with groups is enforced at the gateway (nebari-operator
+    # auth.groups): a member of any group gets in, every other signed-in user
+    # gets 403. Entries are full group paths ("finance" is "/finance", which
+    # does not admit members of "/finance/analysts" only). Empty: any
+    # signed-in user.
     groups: list[str] = Field(default_factory=list)
     # Users and groups who may manage the App like its owner; only the owner
     # and admins may change this list.
