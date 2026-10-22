@@ -6,7 +6,7 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
-// The UI's own release, bumped by release-please, baked into the bundle (the
+// The UI's own release, set by bump_version.py, baked into the bundle (the
 // Settings page shows it next to the API's).
 const { version } = JSON.parse(readFileSync(path.resolve(__dirname, "package.json"), "utf8"));
 

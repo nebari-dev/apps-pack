@@ -28,7 +28,7 @@ dev = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-# The version lives in __init__.py (release-please bumps it), so uv.lock
+# The version lives in __init__.py (bump_version.py sets it), so uv.lock
 # does not record it and a release needs no relock.
 [tool.hatch.version]
 path = "src/nebari_apps_api/__init__.py"

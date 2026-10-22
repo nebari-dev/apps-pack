@@ -12,7 +12,7 @@ description: What CI checks on every pull request, how images and charts are bui
 | | UI | Biome, the production build, the bundle budget, vitest and its coverage thresholds, `npm audit --audit-level=high` |
 | | UI e2e + a11y | Playwright on Chromium against the UI job's build (apps-api mocked): a user flow or keyboard path that breaks, or a `critical`/`serious` axe violation (WCAG 2.0/2.1 A and AA) on any page in light or dark, at desktop width and at 390px (where a page that scrolls sideways also fails); uploads the HTML report every run |
 | | Helm chart | `helm lint`/`helm template` errors, `values.schema.json`, a stale chart README, chart RBAC assertions, the alert rules (promtool), kubeconform on the examples and rendered chart |
-| | Repo invariants | a path in `AGENTS.md` or the skill that does not exist, version strings that disagree with the release manifest, a pin file that disagrees with its Dockerfile, actionlint, zizmor |
+| | Repo invariants | a path in `AGENTS.md` or the skill that does not exist, version strings that disagree with the chart's `version`, a pin file that disagrees with its Dockerfile, actionlint, zizmor |
 | **Images** (`images.yaml`) | one per image | the image does not build, or (`ui`) serves the wrong security headers; on changes to the images' sources only |
 | **Docs** (`docs.yml`) | docs | the site's tests or build, or a broken external link (on docs changes only) |
 
@@ -44,15 +44,19 @@ The signer identity is the org workflow at the commit this repository pins
 
 ## Cutting a release
 
+Releases work as in the other Nebari packs: a pull request bumps the chart's version, and
+merging it is the release.
+
 1. **Merge pull requests with Conventional Commit titles.** They are squash-merged, so the
    title is the commit, and it decides the next version: `feat:` bumps the minor version
-   while the pack is below 1.0, `fix:` the patch version.
-2. **release-please keeps a release PR open** (`release-pr.yaml`), titled
-   `chore: release X.Y.Z`. It bumps every version string together (the chart's `version`
-   and `appVersion`, the API and MCP `__version__`, `ui/package.json` and its lockfile) and
-   adds the release's section to `CHANGELOG.md`. Without a `RELEASE_PLEASE_TOKEN` secret the
-   PR is opened with `GITHUB_TOKEN`, which does not start CI; close and reopen it to run the
-   checks.
+   while the pack is below 1.0, `fix:` the patch version (a breaking change, `!`, also bumps
+   the minor version below 1.0).
+2. **Open a release PR** titled `chore: release X.Y.Z`. Set every version string with
+   `python3 .github/scripts/bump_version.py X.Y.Z` (the chart's `version` and `appVersion`,
+   the API and MCP `__version__`, `ui/package.json` and its lockfile; CI fails if they
+   disagree), and add the release's section to `CHANGELOG.md` from the feature, fix and
+   breaking-change titles merged since the last release
+   (`git log --oneline nebari-apps-<previous>..main`).
 3. **Merging the release PR is the release.** The `Chart.yaml` version bump runs
    `release.yaml` (the org's `pack-release` workflow), which:
    - pins the chart's five image tags to `sha-<release commit>`, built by the same push,

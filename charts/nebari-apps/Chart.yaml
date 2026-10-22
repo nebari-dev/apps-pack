@@ -6,8 +6,8 @@ description: >-
   apps-operator that reconciles Apps into Deployments, Services, and
   NebariApps.
 type: application
-version: 0.1.0 # x-release-please-version
-appVersion: "0.1.0" # x-release-please-version
+version: 0.1.0
+appVersion: "0.1.0"
 home: https://github.com/nebari-dev/apps-pack
 sources:
   - https://github.com/nebari-dev/apps-pack

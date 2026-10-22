@@ -124,8 +124,9 @@ The full list is in [Getting started](https://packs.nebari.dev/apps-pack/getting
 
 ## Releases
 
-[release-please](https://github.com/googleapis/release-please) keeps a `chore: release X.Y.Z`
-pull request open; merging it is the release. The chart is published to
+A release is a pull request that bumps the version
+(`python3 .github/scripts/bump_version.py X.Y.Z`) and adds its `CHANGELOG.md` section; merging
+it is the release, as in the other Nebari packs. The chart is published to
 `oci://ghcr.io/nebari-dev/apps-pack/charts` and to the
 [org Helm repository](https://github.com/nebari-dev/helm-repository), and the chart and images
 are signed with cosign

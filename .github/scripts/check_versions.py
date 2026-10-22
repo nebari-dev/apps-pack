@@ -1,6 +1,6 @@
-"""Fail when a version string disagrees with .release-please-manifest.json.
+"""Fail when a version string disagrees with the chart's `version`.
 
-release-please bumps all of these together; a hand edit to one of them
+`bump_version.py` sets all of these together; a hand edit to one of them
 would ship mismatched versions.
 """
 
@@ -20,7 +20,7 @@ def grep(path: str, pattern: str) -> str | None:
 
 
 def main() -> int:
-    want = json.loads((ROOT / ".release-please-manifest.json").read_text())["."]
+    want = grep("charts/nebari-apps/Chart.yaml", r"^version:\s*\"?([^\"\s#]+)")
     lock = json.loads((ROOT / "ui/package-lock.json").read_text())
     found = {
         "Chart.yaml version": grep("charts/nebari-apps/Chart.yaml", r"^version:\s*\"?([^\"\s#]+)"),
@@ -35,7 +35,7 @@ def main() -> int:
     for k, v in found.items():
         print(("ok   " if v == want else "FAIL ") + f"{k}: {v}")
     if bad:
-        print(f"::error::version strings must all be {want} (the release-please manifest)")
+        print(f"::error::version strings must all be {want} (the chart's version; set them with bump_version.py)")
         return 1
     return 0
 
