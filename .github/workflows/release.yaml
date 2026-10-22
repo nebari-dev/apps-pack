@@ -28,7 +28,7 @@ jobs:
       attestations: write
     # Same nebari-dev/.github commit as images.yaml: chart signing landed
     # after the v1 tag.
-    uses: nebari-dev/.github/.github/workflows/pack-release.yaml@a6c757c72124a03542a79ac5385fd250ee9c45b7
+    uses: nebari-dev/.github/.github/workflows/pack-release.yaml@ad70045ae1f4593cd46105a6fd0c733b338d48de
     with:
       chart-path: charts/nebari-apps
       chart-name: nebari-apps

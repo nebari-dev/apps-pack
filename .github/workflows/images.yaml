@@ -104,7 +104,7 @@ jobs:
       attestations: write
     # Pinned to nebari-dev/.github main (2026-07-30): signing and attestations
     # landed after the v1 tag. Move to the next tag once one includes them.
-    uses: nebari-dev/.github/.github/workflows/pack-build-image.yaml@a6c757c72124a03542a79ac5385fd250ee9c45b7
+    uses: nebari-dev/.github/.github/workflows/pack-build-image.yaml@ad70045ae1f4593cd46105a6fd0c733b338d48de
     with:
       image: ${{ matrix.image }}
       context: ${{ matrix.context }}
