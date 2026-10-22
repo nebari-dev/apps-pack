@@ -48,7 +48,7 @@ helm install nebari-apps charts/nebari-apps \
   --set keycloak.url=https://keycloak.example.ai/auth \
   --set operator.image.tag=latest --set api.image.tag=latest \
   --set ui.image.tag=latest --set mcp.image.tag=latest \
-  --set authz.image.tag=latest
+  --set proxy.image.tag=latest
 
 # The nebari-operator only processes namespaces that opt in:
 kubectl label namespace nebari-apps nebari.dev/managed=true
@@ -71,7 +71,7 @@ with the same values (edit the two hostnames and `targetRevision`).
 kubectl apply -n argocd -f examples/argocd-application.yaml
 ```
 
-This deploys four components. A fifth image, **apps-authz**, is not a Deployment: the
+This deploys four components. A fifth image, **apps-proxy**, is not a Deployment: the
 operator adds it as a sidecar to Apps that can idle or that run an image.
 
 | Component | Where it ends up |
@@ -198,7 +198,7 @@ or pilot.
   request after idling gets a "starting" page until a pod is ready: seconds for a static app,
   up to minutes for a Python app, which reinstalls its pixi environment. Any request to an idle
   App's URL wakes it, including bots on public apps (the gateway still keeps users outside a
-  restricted App's groups out). Apps that can idle carry the authz sidecar, and Python apps there listen on
+  restricted App's groups out). Apps that can idle carry the proxy sidecar, and Python apps there listen on
   8081. Idle detection counts HTTP requests through the sidecar only, so an app that works
   in the background with no visitors needs `runtime.keepAlive: true`. See
   [Scale to zero](/app-crd-reference/#scale-to-zero).

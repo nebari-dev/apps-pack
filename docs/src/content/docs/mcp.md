@@ -146,7 +146,7 @@ their paths mirror the REST API (`/api/v1/apps/{namespace}/{name}/…`):
 | `nebari-apps://apps` | The apps you own or manage (all apps for admins); inline sources list file `paths` only. | `list_apps` |
 | `nebari-apps://apps/{namespace}/{name}` | One app's full spec and status, with your `role`; inline files fenced. | `get_app` |
 | `nebari-apps://apps/{namespace}/{name}/status` | Phase, URL, replicas, conditions, message. | `get_app_status` |
-| `nebari-apps://apps/{namespace}/{name}/logs{?lines,container}` | Recent pod logs, fenced (last 64 KiB). `lines` is 1–5000 (default 200); `container` defaults to `app`, and `git-clone`, `copy-source` or `authz` read the init containers or the sidecar, e.g. `…/logs?lines=500&container=git-clone`. | `get_app_logs` |
+| `nebari-apps://apps/{namespace}/{name}/logs{?lines,container}` | Recent pod logs, fenced (last 64 KiB). `lines` is 1–5000 (default 200); `container` defaults to `app`, and `git-clone`, `copy-source` or `proxy` read the init containers or the sidecar, e.g. `…/logs?lines=500&container=git-clone`. | `get_app_logs` |
 | `nebari-apps://apps/{namespace}/{name}/events` | Kubernetes events for the app and its workload, newest first, fenced as one JSON document (capped at 32 KiB). | — |
 
 `resources/list` returns the two fixed resources plus one `nebari-apps://apps/{namespace}/{name}`

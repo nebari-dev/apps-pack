@@ -19,7 +19,7 @@ on:
     branches: [main]
     paths:
       - "operator/**"
-      - "authz/**"
+      - "proxy/**"
       - "api/**"
       - "ui/**"
       - "mcp/**"
@@ -28,7 +28,7 @@ on:
   pull_request:
     paths:
       - "operator/**"
-      - "authz/**"
+      - "proxy/**"
       - "api/**"
       - "ui/**"
       - "mcp/**"
@@ -53,8 +53,8 @@ jobs:
         include:
           - image: operator
             context: operator
-          - image: authz
-            context: authz
+          - image: proxy
+            context: proxy
           - image: api
             context: api
           - image: ui
@@ -89,8 +89,8 @@ jobs:
         include:
           - image: operator
             context: operator
-          - image: authz
-            context: authz
+          - image: proxy
+            context: proxy
           - image: api
             context: api
           - image: ui

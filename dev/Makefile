@@ -51,7 +51,7 @@ IMG            := apps-operator:dev
 API_IMG        := apps-api:dev
 UI_IMG         := apps-ui:dev
 MCP_IMG        := apps-mcp:dev
-AUTHZ_IMG      := apps-authz:dev
+PROXY_IMG      := apps-proxy:dev
 # In-cluster Keycloak from the nebari-operator dev scripts: apps-api and
 # apps-mcp fetch the realm's keys from it when auth is on.
 KEYCLOAK_INTERNAL_URL := http://keycloak-keycloakx-http.keycloak.svc.cluster.local:8080
@@ -99,7 +99,7 @@ endef
 export ENVOY_NODEPORT_PROXY
 
 .PHONY: up up-git redeploy deploy images operator-image api-image ui-image \
-	mcp-image authz-image cluster dns check-dns down \
+	mcp-image proxy-image cluster dns check-dns down \
 	_cluster-create _clone-operator _kind-create _services \
 	_gateway-nodeport _keycloak-setup _operator _namespaces
 
@@ -205,11 +205,11 @@ mcp-image:
 	docker build -t $(MCP_IMG) ../mcp
 	kind load docker-image $(MCP_IMG) --name $(CLUSTER_NAME)
 
-authz-image:
-	docker build -t $(AUTHZ_IMG) ../authz
-	kind load docker-image $(AUTHZ_IMG) --name $(CLUSTER_NAME)
+proxy-image:
+	docker build -t $(PROXY_IMG) ../proxy
+	kind load docker-image $(PROXY_IMG) --name $(CLUSTER_NAME)
 
-images: operator-image api-image ui-image mcp-image authz-image
+images: operator-image api-image ui-image mcp-image proxy-image
 
 # --------------------------------------------------------------------------
 # deploy - install/upgrade the nebari-apps chart with the dev images
@@ -234,9 +234,9 @@ deploy:
 		--set mcp.image.repository=apps-mcp \
 		--set mcp.image.tag=dev \
 		--set mcp.image.pullPolicy=Never \
-		--set authz.image.repository=apps-authz \
-		--set authz.image.tag=dev \
-		--set authz.image.pullPolicy=Never \
+		--set proxy.image.repository=apps-proxy \
+		--set proxy.image.tag=dev \
+		--set proxy.image.pullPolicy=Never \
 		--set keycloak.internalUrl=$(KEYCLOAK_INTERNAL_URL) \
 		--wait --timeout 3m
 

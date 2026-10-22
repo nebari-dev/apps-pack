@@ -194,7 +194,7 @@ func TestHealth(t *testing.T) {
 func env(m map[string]string) func(string) string { return func(k string) string { return m[k] } }
 
 func TestFromEnv(t *testing.T) {
-	full := map[string]string{"AUTHZ_UPSTREAM": "http://127.0.0.1:8081"}
+	full := map[string]string{"PROXY_UPSTREAM": "http://127.0.0.1:8081"}
 	cfg, err := FromEnv(env(full))
 	if err != nil {
 		t.Fatal(err)
@@ -202,24 +202,33 @@ func TestFromEnv(t *testing.T) {
 	if cfg.Listen != ":8080" || cfg.HealthListen != ":8082" || cfg.Upstream.String() != "http://127.0.0.1:8081" {
 		t.Errorf("defaults: %+v", cfg)
 	}
-	// Earlier operators set AUTHZ_PASSTHROUGH on Apps that only idle; it is
-	// ignored now that every request passes.
-	if _, err := FromEnv(env(map[string]string{"AUTHZ_UPSTREAM": "http://127.0.0.1:8081", "AUTHZ_PASSTHROUGH": "true"})); err != nil {
-		t.Errorf("AUTHZ_PASSTHROUGH: %v", err)
+	// An operator from before the rename sets only the old names (and, for
+	// Apps that only idle, AUTHZ_PASSTHROUGH): the sidecar must not start.
+	old := map[string]string{
+		"AUTHZ_LISTEN": ":8080", "AUTHZ_HEALTH_LISTEN": ":8082",
+		"AUTHZ_UPSTREAM": "http://127.0.0.1:8081", "AUTHZ_PASSTHROUGH": "true",
+	}
+	if _, err := FromEnv(env(old)); err == nil || !strings.Contains(err.Error(), "AUTHZ_UPSTREAM is set") ||
+		!strings.Contains(err.Error(), "PROXY_UPSTREAM is required") {
+		t.Errorf("an operator from before the rename: %v", err)
 	}
 
 	cases := map[string]struct {
 		edit map[string]string
 		want string
 	}{
-		"no upstream":       {map[string]string{"AUTHZ_UPSTREAM": ""}, "AUTHZ_UPSTREAM is required"},
-		"bad upstream":      {map[string]string{"AUTHZ_UPSTREAM": "127.0.0.1:8081"}, "AUTHZ_UPSTREAM"},
-		"same listen ports": {map[string]string{"AUTHZ_HEALTH_LISTEN": ":8080"}, "must differ"},
+		"no upstream":       {map[string]string{"PROXY_UPSTREAM": ""}, "PROXY_UPSTREAM is required"},
+		"bad upstream":      {map[string]string{"PROXY_UPSTREAM": "127.0.0.1:8081"}, "PROXY_UPSTREAM"},
+		"same listen ports": {map[string]string{"PROXY_HEALTH_LISTEN": ":8080"}, "must differ"},
 		// An older operator restricting an App: refuse, never run it open.
 		"groups":    {map[string]string{"AUTHZ_GROUPS": "analysts"}, "AUTHZ_GROUPS is set"},
 		"issuers":   {map[string]string{"AUTHZ_ISSUERS": "https://kc/realms/nebari"}, "AUTHZ_ISSUERS is set"},
 		"jwks":      {map[string]string{"AUTHZ_JWKS_URL": "https://kc/certs"}, "AUTHZ_JWKS_URL is set"},
 		"client id": {map[string]string{"AUTHZ_CLIENT_ID": "apps-app-x"}, "AUTHZ_CLIENT_ID is set"},
+		// The sidecar's own settings under the old name fail closed too.
+		"old upstream": {map[string]string{"AUTHZ_UPSTREAM": "http://127.0.0.1:8081"}, "AUTHZ_UPSTREAM is set"},
+		"old listen":   {map[string]string{"AUTHZ_LISTEN": ":8080"}, "reads PROXY_LISTEN"},
+		"old health":   {map[string]string{"AUTHZ_HEALTH_LISTEN": ":8082"}, "AUTHZ_HEALTH_LISTEN is set"},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -230,7 +239,7 @@ func TestFromEnv(t *testing.T) {
 			}
 		})
 	}
-	if _, err := FromEnv(env(map[string]string{"AUTHZ_GROUPS": "a", "AUTHZ_HEALTH_LISTEN": ":8080"})); err == nil || strings.Count(err.Error(), "\n") < 2 {
+	if _, err := FromEnv(env(map[string]string{"AUTHZ_GROUPS": "a", "PROXY_HEALTH_LISTEN": ":8080"})); err == nil || strings.Count(err.Error(), "\n") < 2 {
 		t.Errorf("every problem should be reported at once: %v", err)
 	}
 }

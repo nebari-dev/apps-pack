@@ -77,8 +77,8 @@ func TestReconcileImageApp(t *testing.T) {
 	if len(pod.Volumes) != 0 || len(pod.InitContainers) != 0 {
 		t.Errorf("image pods need no volumes or init containers: %+v %+v", pod.Volumes, pod.InitContainers)
 	}
-	if names(pod.Containers)[0] != "app" || len(pod.Containers) != 2 || pod.Containers[1].Name != authzContainer {
-		t.Fatalf("containers = %v, want app then the authz sidecar", names(pod.Containers))
+	if names(pod.Containers)[0] != "app" || len(pod.Containers) != 2 || pod.Containers[1].Name != proxyContainer {
+		t.Fatalf("containers = %v, want app then the proxy sidecar", names(pod.Containers))
 	}
 	main := pod.Containers[0]
 	if main.Image != "ghcr.io/org/dash:1.2.3" || main.ImagePullPolicy != corev1.PullAlways {
@@ -113,7 +113,7 @@ func TestReconcileImageApp(t *testing.T) {
 		t.Errorf("readiness probe should go through the sidecar: %+v", main.ReadinessProbe)
 	}
 	side := envOf(pod.Containers[1])
-	if side["AUTHZ_UPSTREAM"] != "http://127.0.0.1:8501" || len(side) != 3 {
+	if side["PROXY_UPSTREAM"] != "http://127.0.0.1:8501" || len(side) != 3 {
 		t.Errorf("sidecar env = %v", side)
 	}
 	if pod.Containers[1].Ports[0].Name != "http" || pod.Containers[1].Ports[0].ContainerPort != AppPort {
@@ -141,7 +141,7 @@ func TestImageAppRestrictedAndDigest(t *testing.T) {
 	// The sidecar still fronts the image's port; the gateway enforces the
 	// groups, so it gets no group settings.
 	side := envOf(pod.Containers[1])
-	if side["AUTHZ_UPSTREAM"] != "http://127.0.0.1:8501" || side["AUTHZ_GROUPS"] != "" {
+	if side["PROXY_UPSTREAM"] != "http://127.0.0.1:8501" || side["AUTHZ_GROUPS"] != "" {
 		t.Errorf("restricted image app sidecar env = %v", side)
 	}
 }
@@ -279,13 +279,13 @@ func TestImagePullFailure(t *testing.T) {
 	}
 }
 
-func TestImageAppNeedsAuthzImage(t *testing.T) {
+func TestImageAppNeedsProxyImage(t *testing.T) {
 	app := imageApp("apps", "ghcr.io/org/dash:1")
 	r, c, _ := imageReconciler(t, managedNamespace("apps"), app)
-	r.Config.AuthzImage = ""
+	r.Config.ProxyImage = ""
 	reconcile(t, r, app)
 	if got := getApp(t, c, app.Name, app.Namespace); got.Status.Phase != appsv1alpha1.AppPhaseFailed ||
-		!strings.Contains(got.Status.Message, "--authz-image") {
+		!strings.Contains(got.Status.Message, "--proxy-image") {
 		t.Errorf("phase %s message %q", got.Status.Phase, got.Status.Message)
 	}
 }

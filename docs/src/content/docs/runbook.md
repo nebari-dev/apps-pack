@@ -92,7 +92,7 @@ kubectl -n nebari-operator-system logs deploy/nebari-operator-controller-manager
 ## Group access
 
 `access.groups` are enforced at the gateway, by the group rule nebari-operator adds to each
-restricted App's SecurityPolicy (`%NEBARI_OPERATOR_VERSION%` or later). The apps-authz sidecar
+restricted App's SecurityPolicy (`%NEBARI_OPERATOR_VERSION%` or later). The apps-proxy sidecar
 in app pods checks nothing.
 
 ```bash
@@ -127,7 +127,7 @@ kubectl -n nebari-apps logs deploy/nebari-apps-operator --since=30m | grep -E 'i
 ```
 
 - **An App never idles.** Check that it can idle at all: `keepAlive` unset, `replicas` above 0,
-  a timeout above 0, and the pod has the `authz` container. Then look for `idle check failed`
+  a timeout above 0, and the pod has the `proxy` container. Then look for `idle check failed`
   in the operator log: the operator could not read the sidecar's activity (port 8082 on the pod
   IP) and kept the App running; `LAST ACTIVE` stays at the last request it did see. A
   NetworkPolicy that blocks the operator's namespace from port 8082 is the usual cause; the

@@ -80,8 +80,8 @@ func startEnv(t *testing.T) client.Client {
 			PythonImage:     "ghcr.io/prefix-dev/pixi:0.68.1-noble",
 			StaticResources: DefaultStaticResources,
 			PythonResources: DefaultPythonResources,
-			AuthzImage:      testAuthzImage,
-			AuthzResources:  DefaultAuthzResources,
+			ProxyImage:      testProxyImage,
+			ProxyResources:  DefaultProxyResources,
 		},
 	}
 	if err := r.SetupWithManager(mgr); err != nil {

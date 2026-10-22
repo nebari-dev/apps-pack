@@ -62,7 +62,7 @@ kubectl -n <ns> logs deploy/app-<name> -c app           # the app itself
   `pixi.lock` makes the install `--locked` and faster.
 - **Python app is `Running` but never ready.** The task must listen on `0.0.0.0:$PORT` (the
   pod gets `PORT=8080`). A server bound to `127.0.0.1` fails the readiness probe. An App
-  that can idle gets `PORT=8081`, because the authz sidecar takes 8080: a task that
+  that can idle gets `PORT=8081`, because the proxy sidecar takes 8080: a task that
   hard-codes 8080 then collides with the sidecar.
 - **A restricted app returns `403` to someone who should get in.** The gateway refused them:
   their access token's `groups` claim holds none of the App's `access.groups`. Entries are
@@ -83,12 +83,17 @@ kubectl -n <ns> logs deploy/app-<name> -c app           # the app itself
   create it. `GroupsEmpty` means every entry names no group (such as `/`), and
   `GroupsClaimConflict` that a mapper on the app's Keycloak client writes the `groups` claim
   in another form; the gateway denies everyone until it is fixed.
-- **An app pod's `authz` container exits with "AUTHZ_GROUPS is set".** The authz image is
-  newer than the apps-operator, which still asks the sidecar to check groups. The sidecar
-  refuses rather than run the App open: upgrade the operator to the same release as the
-  image (the chart ships them together).
-- **An image app stays `Failed` with "--authz-image".** Image apps always run the sidecar:
-  keep the chart's `authz.image`.
+- **An app pod's sidecar exits with "AUTHZ_GROUPS is set" or "AUTHZ_UPSTREAM is set".** The
+  proxy image is newer than the apps-operator, which still configures the sidecar under its
+  old name (apps-authz) or asks it to check groups. The sidecar refuses rather than run the
+  App open: upgrade the operator to the same release as the image (the chart ships them
+  together). Such an operator names the container `authz`, so read it with
+  `kubectl logs -c authz`.
+- **An app pod's `proxy` container exits with "AUTHZ_UPSTREAM is required".** The other way
+  round: the operator is current but `proxy.image` points at an old apps-authz image (a
+  mirror that was not updated, say). Point it at the apps-proxy image of the same release.
+- **An image app stays `Failed` with "--proxy-image".** Image apps always run the sidecar:
+  keep the chart's `proxy.image`.
 - **`CreateContainerConfigError` with `secret "app-<name>-secrets" not found` or
   `couldn't find key`.** The App lists `runtime.secretKeys` that its Secret does not hold.
   Set the missing values (UI **Secrets**, `PATCH /apps/{ns}/{name}/secrets`), or, for an App

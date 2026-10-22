@@ -145,7 +145,7 @@ The contract:
   `pixi install` (with `--locked` when a `pixi.lock` is present) and then
   `pixi run <task>`.
 - The task must start a server listening on **0.0.0.0:$PORT**; `PORT` and `HOME=/app`
-  are injected. `PORT` is 8080, or 8081 when the authz sidecar takes 8080 (the app can
+  are injected. `PORT` is 8080, or 8081 when the proxy sidecar takes 8080 (the app can
   [idle](#idle-apps)), so read it rather than hard-coding a port. pixi task strings
   support `$PORT` but not `${PORT:-8080}`; run `PORT=8080 pixi run start` locally.
   Routing, TLS, and SSO are identical to static apps.

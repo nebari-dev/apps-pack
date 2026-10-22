@@ -636,7 +636,7 @@ async def get_app_metrics(ctx: Context, namespace: str, name: str) -> Any:
     restarts, lastTermination, startedAt, limits, requests}]}.
     cpu (millicores, "12m") and memory (Mi, "34Mi") are instantaneous usage from metrics.k8s.io;
     available=false means the cluster has no metrics server and they are "". The rest comes from
-    the pod and is always filled, all about the `app` container (the authz sidecar is left out):
+    the pod and is always filled, all about the `app` container (the proxy sidecar is left out):
     restarts (its restart count), lastTermination ({reason, exitCode, finishedAt} of its previous
     run or null; reason is a Kubernetes identifier such as OOMKilled or Error, never the
     container's own message), startedAt (when it started running, null while it is not), and
@@ -777,7 +777,7 @@ async def app_status_resource(namespace: str, name: str, ctx: Context) -> Any:
     f"{SCHEME}://apps/{{namespace}}/{{name}}/logs{{?lines,container}}",
     name="app-logs",
     description="Recent pod logs (fenced untrusted content, last 64 KiB). Query: lines (1-5000, default 200) "
-    "and container (default app; git-clone or copy-source for the init containers, authz for the sidecar).",
+    "and container (default app; git-clone or copy-source for the init containers, proxy for the sidecar).",
     mime_type=JSON,
     annotations=READ_ONLY_RESOURCE,
 )

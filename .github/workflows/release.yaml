@@ -34,7 +34,7 @@ jobs:
       chart-name: nebari-apps
       tag-paths: |
         operator.image.tag
-        authz.image.tag
+        proxy.image.tag
         api.image.tag
         ui.image.tag
         mcp.image.tag

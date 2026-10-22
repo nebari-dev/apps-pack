@@ -13,9 +13,9 @@ import (
 
 const (
 	// AppPort is the port the Service and the chart's NetworkPolicy target.
-	// The app container listens on it, unless the App runs the authz sidecar
+	// The app container listens on it, unless the App runs the proxy sidecar
 	// (it can idle, or runs an image): then the sidecar takes it and the app
-	// moves to AppInternalPort (authz.go). Sign-in and access.groups are
+	// moves to AppInternalPort (proxy.go). Sign-in and access.groups are
 	// enforced at the gateway by the NebariApp SecurityPolicy, so apps serve
 	// plain HTTP here.
 	AppPort = 8080
@@ -75,7 +75,7 @@ func (r *AppReconciler) buildDeployment(app *appsv1alpha1.App) (*appsv1.Deployme
 		annotations[appsv1alpha1.SecretsVersionAnnotation] = v
 	}
 	if r.Config.hasSidecar(app) {
-		r.addAuthzSidecar(app, &podSpec)
+		r.addProxySidecar(app, &podSpec)
 		// kubectl logs/exec pick the app, not the sidecar.
 		annotations["kubectl.kubernetes.io/default-container"] = "app"
 	}
@@ -232,7 +232,7 @@ const (
 // buildPixiPodSpec runs the app as a Python/pixi service: source is assembled
 // into a writable emptyDir, then the main container installs the pixi
 // environment and executes `pixi run <task>`. The task must listen on $PORT
-// (AppPort, or AppInternalPort behind the authz sidecar).
+// (AppPort, or AppInternalPort behind the proxy sidecar).
 func (r *AppReconciler) buildPixiPodSpec(app *appsv1alpha1.App, annotations map[string]string) (corev1.PodSpec, error) {
 	containerSecurity := &corev1.SecurityContext{
 		AllowPrivilegeEscalation: ptr.To(false),
@@ -350,7 +350,7 @@ func (r *AppReconciler) buildPixiPodSpec(app *appsv1alpha1.App, annotations map[
 // allowlist; the pod runs the normalized reference, so the kubelet pulls
 // exactly what was checked. The pod keeps the invariants of the other
 // sources (non-root, no capabilities, no ServiceAccount token, resource
-// limits) and always gets the apps-authz sidecar (hasSidecar), which takes
+// limits) and always gets the apps-proxy sidecar (hasSidecar), which takes
 // AppPort and proxies to the image's own port; that keeps one front port for
 // the Service and the chart's NetworkPolicy whatever port the image uses.
 func (r *AppReconciler) buildImagePodSpec(app *appsv1alpha1.App) (corev1.PodSpec, error) {
@@ -397,7 +397,7 @@ func (r *AppReconciler) buildImagePodSpec(app *appsv1alpha1.App) (corev1.PodSpec
 			}},
 			Env:       env,
 			Resources: r.Config.appResources(app),
-			// The sidecar points these at its /upstreamz (addAuthzSidecar).
+			// The sidecar points these at its /upstreamz (addProxySidecar).
 			StartupProbe:   &corev1.Probe{ProbeHandler: tcpProbe, PeriodSeconds: 5, FailureThreshold: 60},
 			ReadinessProbe: &corev1.Probe{ProbeHandler: tcpProbe, PeriodSeconds: 5},
 			LivenessProbe:  &corev1.Probe{ProbeHandler: tcpProbe, PeriodSeconds: 10},

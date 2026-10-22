@@ -46,10 +46,6 @@ wrong type fails the install.
 | apps.networkPolicy.enabled | bool | `false` | Render a NetworkPolicy for launched app pods: ingress only from the gateway namespace on the app port (and from the operator on the sidecar's health port, for the idle check), egress only to DNS and to the internet minus `blockedCIDRs`, so user code cannot reach cluster-internal services. git/pixi sources still clone and install from the internet. Needs a CNI that enforces NetworkPolicy. |
 | apps.networkPolicy.gatewayNamespace | string | `"envoy-gateway-system"` | Namespace of the Envoy gateway pods allowed to reach app pods. |
 | appsDomain | string | `""` | Domain apps are exposed under: `https://<subdomain>.<appsDomain>`. Empty defaults to `apps.<clusterDomain>`, e.g. `my-app.apps.example.ai`. |
-| authz.image.pullPolicy | string | `"IfNotPresent"` | Image pull policy. |
-| authz.image.repository | string | `"ghcr.io/nebari-dev/apps-pack/authz"` | apps-authz image repository. |
-| authz.image.tag | string | `""` | Image tag. Empty defaults to the chart's appVersion. |
-| authz.resources | object | `{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}}` | Sidecar resources, per app pod that runs it (on top of the app container's own). |
 | clusterDomain | string | `""` | Required. The cluster's base domain; there is no sensible default. |
 | fullnameOverride | string | `""` | Override the full resource-name prefix. |
 | gateway | string | `"public"` | Shared Gateway that app NebariApps attach to: `public` or `internal`. |
@@ -76,6 +72,10 @@ wrong type fails the install.
 | operator.leaderElection | bool | `true` | Elect a leader so only one replica reconciles at a time. |
 | operator.replicaCount | int | `1` | Operator replicas (one leads when `leaderElection` is on). |
 | operator.resources | object | `{"limits":{"cpu":"500m","memory":"256Mi"},"requests":{"cpu":"500m","memory":"256Mi"}}` | Container resources. Requests equal limits, so the pod is Guaranteed. |
+| proxy.image.pullPolicy | string | `"IfNotPresent"` | Image pull policy. |
+| proxy.image.repository | string | `"ghcr.io/nebari-dev/apps-pack/proxy"` | apps-proxy image repository. |
+| proxy.image.tag | string | `""` | Image tag. Empty defaults to the chart's appVersion. |
+| proxy.resources | object | `{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}}` | Sidecar resources, per app pod that runs it (on top of the app container's own). |
 | pythonImage | string | `"ghcr.io/prefix-dev/pixi:0.68.1-noble"` | Image running Python/pixi apps (`runtime.pixiTask`). Must provide the `pixi` binary and run as a non-root user. |
 | staticImage | string | `"nginxinc/nginx-unprivileged:1.27-alpine"` | Image serving static app content. Must listen on 8080 as a non-root user; the operator mounts its nginx server config over /etc/nginx/conf.d. |
 | telemetry.enabled | bool | `false` | Render ServiceMonitors for the operator and apps-api (needs the Prometheus Operator CRDs) and the `prometheus.io/*` scrape annotations on the operator's metrics Service. |

@@ -617,7 +617,7 @@ def _check_image(source: Any, pixi_task: str, allowlist: list[str]) -> None:
     if source.image.port in IMAGE_RESERVED_PORTS:
         raise HTTPException(
             422,
-            f"source.image.port may not be {' or '.join(map(str, IMAGE_RESERVED_PORTS))}: the apps-authz sidecar uses them",
+            f"source.image.port may not be {' or '.join(map(str, IMAGE_RESERVED_PORTS))}: the apps-proxy sidecar uses them",
         )
     try:
         check_image(source.image.reference, allowlist)

@@ -14,7 +14,7 @@ import (
 	appsv1alpha1 "github.com/nebari-dev/nebari-apps-pack/operator/api/v1alpha1"
 )
 
-const testAuthzImage = "ghcr.io/nebari-dev/apps-pack/authz:test"
+const testProxyImage = "ghcr.io/nebari-dev/apps-pack/proxy:test"
 
 func restrictedApp(app *appsv1alpha1.App, groups []string) *appsv1alpha1.App {
 	app.Spec.Access.Public = false
@@ -59,19 +59,19 @@ func deployed(t *testing.T, app *appsv1alpha1.App) (*appsv1.Deployment, *corev1.
 // settings, even for an App that lists access.groups (the gateway enforces
 // them).
 var passthroughEnv = map[string]string{
-	"AUTHZ_LISTEN":        ":8080",
-	"AUTHZ_HEALTH_LISTEN": ":8082",
-	"AUTHZ_UPSTREAM":      "http://127.0.0.1:8081",
+	"PROXY_LISTEN":        ":8080",
+	"PROXY_HEALTH_LISTEN": ":8082",
+	"PROXY_UPSTREAM":      "http://127.0.0.1:8081",
 }
 
-func TestAuthzSidecarStaticApp(t *testing.T) {
+func TestProxySidecarStaticApp(t *testing.T) {
 	app := restrictedApp(inlineApp("apps"), []string{"analysts", "admin"})
 	app.Name = "web-terminal"
 	d, svc, cm, r := deployed(t, app)
 	pod := d.Spec.Template.Spec
 
-	if len(pod.Containers) != 2 || pod.Containers[0].Name != "app" || pod.Containers[1].Name != "authz" {
-		t.Fatalf("containers = %+v, want app then authz", names(pod.Containers))
+	if len(pod.Containers) != 2 || pod.Containers[0].Name != "app" || pod.Containers[1].Name != "proxy" {
+		t.Fatalf("containers = %+v, want app then proxy", names(pod.Containers))
 	}
 	main, side := pod.Containers[0], pod.Containers[1]
 	if d.Spec.Template.Annotations["kubectl.kubernetes.io/default-container"] != "app" {
@@ -82,7 +82,7 @@ func TestAuthzSidecarStaticApp(t *testing.T) {
 		t.Errorf("app ports = %+v, want only %d under another name", main.Ports, AppInternalPort)
 	}
 	for _, p := range []*corev1.Probe{main.ReadinessProbe, main.LivenessProbe} {
-		if p == nil || p.HTTPGet == nil || p.HTTPGet.Path != "/upstreamz" || p.HTTPGet.Port.IntVal != authzHealthPort {
+		if p == nil || p.HTTPGet == nil || p.HTTPGet.Path != "/upstreamz" || p.HTTPGet.Port.IntVal != proxyHealthPort {
 			t.Errorf("app probe = %+v, want the sidecar's /upstreamz", p)
 		}
 	}
@@ -104,10 +104,10 @@ func TestAuthzSidecarStaticApp(t *testing.T) {
 	if got := envOf(side); !reflect.DeepEqual(got, passthroughEnv) {
 		t.Errorf("sidecar env =\n%v\nwant\n%v", got, passthroughEnv)
 	}
-	if side.Image != testAuthzImage {
+	if side.Image != testProxyImage {
 		t.Errorf("sidecar image = %q", side.Image)
 	}
-	if !reflect.DeepEqual(side.Resources, DefaultAuthzResources) {
+	if !reflect.DeepEqual(side.Resources, DefaultProxyResources) {
 		t.Errorf("sidecar resources = %+v", side.Resources)
 	}
 	sc := side.SecurityContext
@@ -123,7 +123,7 @@ func TestAuthzSidecarStaticApp(t *testing.T) {
 	}
 }
 
-func TestAuthzSidecarPixiApp(t *testing.T) {
+func TestProxySidecarPixiApp(t *testing.T) {
 	app := restrictedApp(pixiApp("apps"), []string{"analysts"})
 	d, _, _, _ := deployed(t, app)
 	pod := d.Spec.Template.Spec
@@ -135,7 +135,7 @@ func TestAuthzSidecarPixiApp(t *testing.T) {
 		t.Errorf("PORT = %q, want 8081", envOf(main)["PORT"])
 	}
 	for _, p := range []*corev1.Probe{main.StartupProbe, main.ReadinessProbe, main.LivenessProbe} {
-		if p == nil || p.HTTPGet == nil || p.HTTPGet.Path != "/upstreamz" || p.HTTPGet.Port.IntVal != authzHealthPort || p.TCPSocket != nil {
+		if p == nil || p.HTTPGet == nil || p.HTTPGet.Path != "/upstreamz" || p.HTTPGet.Port.IntVal != proxyHealthPort || p.TCPSocket != nil {
 			t.Errorf("app probe = %+v, want the sidecar's /upstreamz", p)
 		}
 	}
@@ -148,7 +148,7 @@ func TestAuthzSidecarPixiApp(t *testing.T) {
 }
 
 // Apps that neither idle nor run an image get exactly the pod they got before
-// the sidecar existed, whatever the authz settings, restricted ones included:
+// the sidecar existed, whatever the proxy settings, restricted ones included:
 // the gateway enforces access.groups.
 func TestAppsThatNeitherIdleNorRunAnImageHaveNoSidecar(t *testing.T) {
 	publicWithLists := inlineApp("team-a")
@@ -166,20 +166,20 @@ func TestAppsThatNeitherIdleNorRunAnImageHaveNoSidecar(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			r, _ := newReconciler(t)
-			withAuthz, err := r.buildDeployment(app)
+			withProxy, err := r.buildDeployment(app)
 			if err != nil {
 				t.Fatal(err)
 			}
 			bare := *r
-			bare.Config.AuthzImage = ""
+			bare.Config.ProxyImage = ""
 			without, err := bare.buildDeployment(app)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !reflect.DeepEqual(withAuthz, without) {
-				t.Error("the authz settings changed the App's Deployment")
+			if !reflect.DeepEqual(withProxy, without) {
+				t.Error("the proxy settings changed the App's Deployment")
 			}
-			pod := withAuthz.Spec.Template.Spec
+			pod := withProxy.Spec.Template.Spec
 			if len(pod.Containers) != 1 || pod.Containers[0].Ports[0].Name != "http" || pod.Containers[0].Ports[0].ContainerPort != AppPort {
 				t.Errorf("pod = %+v", pod.Containers)
 			}
@@ -197,7 +197,7 @@ func TestAppsThatNeitherIdleNorRunAnImageHaveNoSidecar(t *testing.T) {
 	}
 }
 
-func TestAuthzMisconfigurationFailsValidation(t *testing.T) {
+func TestProxyMisconfigurationFailsValidation(t *testing.T) {
 	cases := map[string]struct {
 		app  *appsv1alpha1.App
 		edit func(*OperatorConfig)
@@ -205,8 +205,8 @@ func TestAuthzMisconfigurationFailsValidation(t *testing.T) {
 	}{
 		"image without sidecar image": {imageApp("team-a", "nginx:1.27"), func(c *OperatorConfig) {
 			c.ImageRegistries = []string{"docker.io/library"}
-			c.AuthzImage = ""
-		}, "--authz-image"},
+			c.ProxyImage = ""
+		}, "--proxy-image"},
 		"blank group": {restrictedApp(inlineApp("team-a"), []string{" "}), func(*OperatorConfig) {}, "must name a group"},
 		"root group":  {restrictedApp(inlineApp("team-a"), []string{"analysts", "/"}), func(*OperatorConfig) {}, "must name a group"},
 	}

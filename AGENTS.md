@@ -17,8 +17,8 @@ Keycloak auth. See [`docs/src/content/docs/architecture.md`](docs/src/content/do
 
 | Path | What | Key files |
 |---|---|---|
-| `operator/` | Go operator (controller-runtime) | `api/v1alpha1/app_types.go` (the CRD), `internal/controller/app_controller.go` (reconcile pipeline), `internal/controller/workload.go` (pod spec), `internal/controller/authz.go` (the authz sidecar for Apps that can idle or run an image), `internal/controller/idle.go` (scale to zero: activity polling, the Idle phase, the activator ReferenceGrant), `internal/controller/activator.go` (the page idle Apps serve while they wake), `internal/controller/sources.go` (source volumes and init containers), `internal/controller/imageref.go` (image references and the registry allowlist for `source.type: image`), `internal/controller/routing.go` (NebariApp) |
-| `authz/` | Go sidecar in front of Apps that can idle and image Apps: proxies every request and reports activity for the idle check. It checks no tokens: `access.groups` are enforced at the gateway (NebariApp `auth.groups`), and it refuses to start if given group settings | `main.go` (env config), `internal/gate/config.go` (env), `internal/gate/proxy.go` (proxy + probes), `internal/gate/activity.go` (`/activity`) |
+| `operator/` | Go operator (controller-runtime) | `api/v1alpha1/app_types.go` (the CRD), `internal/controller/app_controller.go` (reconcile pipeline), `internal/controller/workload.go` (pod spec), `internal/controller/proxy.go` (the proxy sidecar for Apps that can idle or run an image), `internal/controller/idle.go` (scale to zero: activity polling, the Idle phase, the activator ReferenceGrant), `internal/controller/activator.go` (the page idle Apps serve while they wake), `internal/controller/sources.go` (source volumes and init containers), `internal/controller/imageref.go` (image references and the registry allowlist for `source.type: image`), `internal/controller/routing.go` (NebariApp) |
+| `proxy/` | Go sidecar in front of Apps that can idle and image Apps: proxies every request and reports activity for the idle check. It checks no tokens: `access.groups` are enforced at the gateway (NebariApp `auth.groups`), and it refuses to start if given group settings | `main.go` (env config), `internal/gate/config.go` (env), `internal/gate/proxy.go` (proxy + probes), `internal/gate/activity.go` (`/activity`) |
 | `api/` | FastAPI REST API over App CRs | `src/nebari_apps_api/main.py` (routes), `auth.py` (JWT + owner/admin checks), `models.py` (request/response models), `cr.py` (model ↔ CR), `images.py` (image allowlist, mirrors `imageref.go`), `k8s.py` (store) |
 | `mcp/` | FastMCP server, agent tools, resources and prompts at `/mcp` | `src/nebari_apps_mcp/server.py` (tools, `nebari-apps://` resources, prompts), `auth.py` (MCP OAuth: protected resource metadata, JWT verification), `untrusted.py` (fencing app output) |
 | `ui/` | React + Vite UI on the Nebari design registry | `src/pages/`, `src/components/` (`app-form/`: state, sections), `src/hooks/use-app-actions.ts`, `src/lib/api.ts`, `src/lib/types.ts` (over the generated `crd.gen.ts`) |
@@ -34,7 +34,7 @@ Run the checks for every component you touched; CI runs all of them
 ([quality gates](CONTRIBUTING.md#quality-gates) has the full table).
 
 ```bash
-# operator/ (authz/ is the same)
+# operator/ (proxy/ is the same)
 go build ./... && go vet ./... && go test ./... -race && golangci-lint run
 
 # api/  (mcp/ is the same, plus `uv pip install --no-deps -e ../api` before pytest)
@@ -70,11 +70,11 @@ helm lint charts/nebari-apps --set clusterDomain=nebari.example.com
   `docs/src/content/docs/configuration.md`.
 - **The gateway enforces `access.groups`, not the pod.** A restricted App's NebariApp carries
   `auth.groups` with `enforceAtGateway: true`, and nebari-operator's SecurityPolicy returns
-  403 to non-members. The authz sidecar is passthrough only (activity for idling, the front
+  403 to non-members. The proxy sidecar is passthrough only (activity for idling, the front
   port for image Apps); never add token or group checks back to it, and never set
   `forwardAccessToken` (app pods do not get the user's token). Groups are full Keycloak paths
   matched exactly (`finance` == `/finance`; `/finance` does not admit `/finance/analysts`),
-  normalized like nebari-operator's `groups.NormalizePath` in `authz.go` (`groupPath`),
+  normalized like nebari-operator's `groups.NormalizePath` in `proxy.go` (`groupPath`),
   `api/src/nebari_apps_api/groups.py` and `ui/src/lib/access.ts` (`groupPath`); change them
   together. apps-api matches `api.adminGroups` and `access.managers.groups` the same way.
 - **Every per-App API route authorizes through `authorized_app`** (owner, a manager listed
@@ -84,7 +84,7 @@ helm lint charts/nebari-apps --set clusterDomain=nebari.example.com
 - **App pods are untrusted user code.** Keep them non-root, capability-free, without a
   ServiceAccount token, and with resource limits. User input reaches init containers through
   environment variables, never shell interpolation. The `app` container stays first and
-  keeps its name (logs default to it); Apps that can idle and image Apps add the `authz`
+  keeps its name (logs default to it); Apps that can idle and image Apps add the `proxy`
   sidecar after it. The operator reads idle Apps' activity from the pod, so treat that answer as
   untrusted too (bounded, clamped, and a failed check never idles the App). MCP tools and resources return app-controlled text
   (logs, files, events) only through the fences in `mcp/src/nebari_apps_mcp/untrusted.py`, and
@@ -109,7 +109,7 @@ helm lint charts/nebari-apps --set clusterDomain=nebari.example.com
   check compares them with the chart's `version`.
 - **Runtime versions are pinned once:** `ui/.node-version`, `api/.python-version`,
   `mcp/.python-version`, `docs/.bun-version`, and the `toolchain` line in `operator/go.mod`
-  (`authz/go.mod` carries the same line).
+  (`proxy/go.mod` carries the same line).
   Change the pin and the matching Dockerfile `FROM` (digest-pinned) together.
 - **Workflows:** every `uses:` is pinned to a full commit SHA with a `# vX.Y.Z` comment;
   each workflow starts at `permissions: contents: read`. actionlint and zizmor run in the

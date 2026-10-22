@@ -84,10 +84,34 @@ Status fields in the backup are ignored; the operator recomputes them.
 
 ## Version notes
 
+### Upgrading to the proxy sidecar
+
+**Breaking:** the sidecar in front of Apps that can idle and image Apps is renamed from
+apps-authz to apps-proxy. It has checked no tokens or groups since
+[gateway group enforcement](#upgrading-to-gateway-group-enforcement); it only proxies requests,
+records activity for scale to zero and gives image Apps the front port 8080. Its ports and
+behaviour are unchanged.
+
+- **The image and the chart keys are renamed.** The image is now
+  `ghcr.io/nebari-dev/apps-pack/proxy` (`quay.io/nebari/apps-pack-proxy`), and the chart's
+  `authz.*` values are now `proxy.*` (`proxy.image.repository`, `proxy.image.tag`,
+  `proxy.image.pullPolicy`, `proxy.resources`). If you override them, for example to mirror
+  the images, move your settings to the new keys. The chart's schema rejects the old `authz`
+  key, so a values file that still sets it fails the install instead of being ignored.
+- **Pods with the sidecar roll once.** The sidecar container is now named `proxy` (and its
+  probe port `proxy-health`), so every App that can idle or runs an image gets a new pod once.
+- **Read its logs with `-c proxy`.** `kubectl logs -c authz` becomes `kubectl logs -c proxy`;
+  the same goes for the API's and the MCP server's `container` parameter.
+- **Upgrade the chart and the images together.** The operator now sets `PROXY_*` variables on
+  the sidecar. A proxy image refuses to start when it is given the old `AUTHZ_*` ones (or
+  `AUTHZ_GROUPS`), and an authz image does not start without them, so a mismatched operator
+  and image leave the App down rather than open.
+
 ### Upgrading to the shorter image names
 
 The images dropped their `apps-` prefix: `ghcr.io/nebari-dev/apps-pack/apps-operator` is now
-`ghcr.io/nebari-dev/apps-pack/operator`, and the same for `authz`, `api`, `ui` and `mcp`
+`ghcr.io/nebari-dev/apps-pack/operator`, and the same for `authz` (now
+[`proxy`](#upgrading-to-the-proxy-sidecar)), `api`, `ui` and `mcp`
 (on Quay, `quay.io/nebari/apps-pack-operator` and so on). The chart's defaults follow, so
 nothing changes unless you set `*.image.repository` yourself, for example to mirror the
 images: point those values at the new names. Images built before the rename stay at the old
@@ -259,7 +283,7 @@ UI and the apps-authz sidecar (`AUTHZ_USERS`, `AUTHZ_USERS_CLAIM`).
   the apps-authz sidecar and returns `403` to everyone else, so check who your existing
   Apps list. Python tasks of restricted Apps must listen on `$PORT` (8081 for them). The
   operator needs the chart's `keycloak.url` (or `keycloak.internalUrl`), or such Apps fail
-  validation; `authz.image` ships with the chart.
+  validation; the sidecar image (`proxy.image`) ships with the chart.
 - **App pods get default requests and limits** (`apps.defaultResources`) and at most 10
   replicas.
 - **Auth is stricter.** Tokens must come from the pack's own Keycloak clients, and

@@ -32,9 +32,9 @@ spec:
             - --static-image={{ .Values.staticImage }}
             - --git-image={{ .Values.gitImage }}
             - --python-image={{ .Values.pythonImage }}
-            - --authz-image={{ include "nebari-apps.authzImage" . }}
-            - --authz-image-pull-policy={{ .Values.authz.image.pullPolicy }}
-            - {{ printf "--authz-resources=%s" (toJson .Values.authz.resources) | quote }}
+            - --proxy-image={{ include "nebari-apps.proxyImage" . }}
+            - --proxy-image-pull-policy={{ .Values.proxy.image.pullPolicy }}
+            - {{ printf "--proxy-resources=%s" (toJson .Values.proxy.resources) | quote }}
             - {{ printf "--default-static-resources=%s" (toJson .Values.apps.defaultResources.static) | quote }}
             - {{ printf "--default-python-resources=%s" (toJson .Values.apps.defaultResources.python) | quote }}
             {{- if not .Values.tls.enabled }}

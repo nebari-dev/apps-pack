@@ -24,7 +24,7 @@ import (
 	appsv1alpha1 "github.com/nebari-dev/nebari-apps-pack/operator/api/v1alpha1"
 )
 
-// Scale to zero. An App that can idle (idleTimeout > 0) runs the apps-authz
+// Scale to zero. An App that can idle (idleTimeout > 0) runs the apps-proxy
 // sidecar, which records when the app last served a request (GET /activity
 // on its health port). The operator polls it, keeps the answer in
 // status.lastActivityTime, and once the App has gone a whole idle timeout
@@ -56,7 +56,7 @@ var ReferenceGrantGVK = schema.GroupVersionKind{
 // idlingAvailable reports whether this operator can scale Apps to zero: it
 // needs the sidecar image (activity) and the activator Service (wake-up).
 func (c OperatorConfig) idlingAvailable() bool {
-	return c.AuthzImage != "" && c.ActivatorService != "" && c.ActivatorNamespace != ""
+	return c.ProxyImage != "" && c.ActivatorService != "" && c.ActivatorNamespace != ""
 }
 
 // idleTimeout is how long an App may go without a request before it is
@@ -230,7 +230,7 @@ func podReady(pod *corev1.Pod) bool {
 }
 
 func (r *AppReconciler) fetchActivity(ctx context.Context, podIP string) (time.Time, error) {
-	url := "http://" + net.JoinHostPort(podIP, strconv.Itoa(authzHealthPort)) + "/activity"
+	url := "http://" + net.JoinHostPort(podIP, strconv.Itoa(proxyHealthPort)) + "/activity"
 	if r.ActivityURL != nil {
 		url = r.ActivityURL(podIP)
 	}

@@ -65,7 +65,7 @@ class PVCSource(BaseModel):
     subPath: str = ""
 
 
-# Ports the apps-authz sidecar takes in every image App's pod (its listener
+# Ports the apps-proxy sidecar takes in every image App's pod (its listener
 # and its probe port), so the image may not listen on them.
 IMAGE_RESERVED_PORTS = (8080, 8082)
 IMAGE_PORT_MIN = 1024
@@ -299,7 +299,7 @@ class PodMetric(BaseModel):
     name: str
     cpu: str = ""  # e.g. "12m" (millicores); "" without a metrics server
     memory: str = ""  # e.g. "34Mi"; "" without a metrics server
-    # Restarts of the `app` container (the authz sidecar's are not counted).
+    # Restarts of the `app` container (the proxy sidecar's are not counted).
     restarts: int = 0
     lastTermination: PodTermination | None = None
     # When the `app` container last started running; None while it is not running.

@@ -336,7 +336,7 @@ spec:
                       environment from the app source and executes `pixi run <PixiTask>`.
                       Not allowed with source type image, which runs its own server.
                       The task must start a server on $PORT: 8080, or 8081 when the app can
-                      idle (the authz sidecar takes 8080).
+                      idle (the proxy sidecar takes 8080).
                     maxLength: 64
                     type: string
                   replicas:
@@ -456,7 +456,7 @@ spec:
                     description: |-
                       ImageSource runs a prebuilt container image as the app container, with the
                       same non-root, capability-free, resource-limited pod spec as other Apps and
-                      the apps-authz sidecar in front of it.
+                      the apps-proxy sidecar in front of it.
                     properties:
                       args:
                         description: Args replaces the image's CMD (exec form, no
@@ -477,7 +477,7 @@ spec:
                       port:
                         description: |-
                           Port the image's server listens on (on 0.0.0.0 or 127.0.0.1; also
-                          passed as $PORT). The apps-authz sidecar always fronts image Apps on
+                          passed as $PORT). The apps-proxy sidecar always fronts image Apps on
                           8080 and serves its probes on 8082, so the app may use neither.
                         format: int32
                         maximum: 65535
@@ -485,7 +485,7 @@ spec:
                         type: integer
                         x-kubernetes-validations:
                         - message: 'source.image.port may not be 8080 or 8082: the
-                            apps-authz sidecar uses them'
+                            apps-proxy sidecar uses them'
                           rule: self != 8080 && self != 8082
                       reference:
                         description: |-
