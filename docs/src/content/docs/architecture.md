@@ -34,8 +34,8 @@ For each `App`, the operator runs an ordered, idempotent pipeline:
    `RuntimeDefault`): nginx serving the app's content, with git sources cloned by a
    non-root init container. Static apps run an operator-written nginx config (a
    `<app>-server` ConfigMap mounted over `/etc/nginx/conf.d`) that adds security headers.
-   An App restricted to groups also gets the `authz` sidecar (next section), and so
-   does an App that can idle, where the sidecar records activity. An `image` App runs the
+   An App that can idle also gets the `authz` sidecar (next section), which records
+   activity; it checks no tokens. An `image` App runs the
    given image as the `app` container instead, always behind the sidecar, which keeps 8080 as
    the one port the Service and NetworkPolicy target while the image listens on its own port. Before the Deployment is
    applied the operator runs the **idle check** (below) and scales an idle App to zero.
@@ -55,8 +55,9 @@ An App that goes its idle timeout without a request is scaled to zero and wakes 
 request ([details](/app-crd-reference/#scale-to-zero)). The pieces:
 
 - **Activity.** The `authz` sidecar counts requests that reach the app and serves the time of
-  the last one on its health port (`GET :8082/activity`). Apps that restrict nobody run it in
-  passthrough mode, so public and restricted Apps are measured the same way. The operator polls
+  the last one on its health port (`GET :8082/activity`). It proxies every request: sign-in and
+  `access.groups` were already enforced at the gateway, so a request that reaches the pod is one
+  the App lets in, and public and restricted Apps are measured the same way. The operator polls
   every ready pod (requeueing the App on a timer) and keeps the result in
   `status.lastActivityTime`. A pod it cannot read counts as active.
 - **Idle.** Past the timeout the Deployment goes to zero replicas and the phase to `Idle`.
@@ -113,15 +114,29 @@ Apps never contain auth code. A private app's `NebariApp` creates an Envoy Gatew
 `access.public: true` skips the policy entirely. This keeps user workloads honest — there is
 no token to mishandle inside an app pod.
 
-The gateway only signs users in; it has no group rule
-([nebari-operator#153](https://github.com/nebari-dev/nebari-operator/issues/153)). So when a
-private App lists `access.groups`, the operator enforces them in the pod:
-the `NebariApp` sets `forwardAccessToken: true`, and the Deployment gets the **apps-authz**
-sidecar on port 8080 in front of the app container (moved to 8081). The sidecar verifies
-the forwarded Keycloak access token against the realm's keys and lets in a member of any
-listed group; everyone else gets `403`. Access is by group only: Apps have no per-user
-allow list. `access.groups` also goes to the `NebariApp` as `auth.groups` (landing-page tile
-visibility). See [Access control](/launching-apps/#access-control).
+When a private App lists `access.groups`, the operator passes them to the `NebariApp` as
+`auth.groups` with `enforceAtGateway: true`, and nebari-operator (`%NEBARI_OPERATOR_VERSION%` or
+later) adds a group rule to the same `SecurityPolicy`: the gateway verifies the user's access
+token against the realm's keys and lets in a member of any listed group; every other signed-in
+user gets `403` before the request reaches the pod. Entries are full Keycloak group paths
+matched exactly (`finance` is `/finance`, and `/finance` does not admit members of
+`/finance/analysts` only). Access is by group only: Apps have no per-user allow list. The same
+groups set landing-page tile visibility. See [Access control](/launching-apps/#access-control).
+
+The split between the gateway and the pod:
+
+| Concern | Where |
+|---|---|
+| Sign-in (Keycloak SSO) | Gateway (`SecurityPolicy`) |
+| `access.groups` (`403` for non-members) | Gateway (`SecurityPolicy` group rule, nebari-operator `%NEBARI_OPERATOR_VERSION%`+) |
+| Activity for [scale to zero](#scale-to-zero) | apps-authz sidecar, in Apps that can idle |
+| One front port (8080) for an `image` App | apps-authz sidecar, in every `image` App |
+
+The **apps-authz** sidecar checks no tokens and gets none: the gateway does not forward the
+access token to app pods. A restricted App that neither idles nor runs an image has no sidecar.
+Because the gateway is the only check, keep app pods unreachable except through it: turn on
+`apps.networkPolicy.enabled`, which admits traffic to app pods only from the gateway's
+namespace (and the operator's idle check).
 
 ## Secrets
 
@@ -218,8 +233,8 @@ The zone is configurable via the `appsDomain` value (default `apps.<clusterDomai
   never idles the App, so a pod can at worst keep its own App awake (what `keepAlive` allows
   anyway). The activator reveals only the host the caller asked for, and waking costs the
   App's resources, nothing more: any request that reaches an idle App's URL wakes it,
-  including a signed-in user outside a restricted App's groups (the sidecar still refuses them
-  once the App is up).
+  except a signed-in user outside a restricted App's groups: the gateway's group rule applies
+  to the activator route too, so they get `403` and never wake it.
 - An `image` source runs only images from the chart's `apps.image.allowedRegistries`
   (empty by default, which turns the source off). The **operator** enforces the list on every
   App, so `kubectl` and GitOps authors cannot bypass it, and apps-api refuses the same images

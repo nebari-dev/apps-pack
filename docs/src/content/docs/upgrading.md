@@ -69,7 +69,9 @@ helm rollback nebari-apps <REVISION> -n nebari-apps
 
 `helm rollback` restores the workloads, RBAC and values, but not the CRD. CRD changes
 within `v1alpha1` are additive ([versioning policy](/app-crd-reference/#versioning-and-deprecation),
-checked in CI), so the newer CRD keeps working with the older operator. The exception is
+checked in CI), so the newer CRD keeps working with the older operator. Rolling back past
+[gateway group enforcement](#upgrading-to-gateway-group-enforcement) brings the old sidecar
+back, which also checks groups, so leave nebari-operator where it is. The exception is
 [group-only access](#upgrading-to-group-only-access), which removed `access.users`: rolling
 back does not restore the lists the newer CRD pruned.
 If Apps were lost, re-apply the backup:
@@ -81,6 +83,63 @@ kubectl apply -f apps-backup-<date>.yaml
 Status fields in the backup are ignored; the operator recomputes them.
 
 ## Version notes
+
+### Upgrading to gateway group enforcement
+
+**Breaking:** `access.groups` are enforced at the gateway by nebari-operator
+`%NEBARI_OPERATOR_VERSION%`, the first release that enforces a `NebariApp`'s `auth.groups`, and
+the pack now requires it. The apps-authz sidecar no longer checks tokens or groups: it only
+runs in Apps that can idle (activity for scale to zero) and in image Apps (the front port), and
+a restricted App that does neither loses it. The operator's `--keycloak-url`,
+`--keycloak-internal-url` and `--keycloak-realm` flags are gone; `keycloak.*` in the chart now
+configures only apps-api and apps-mcp.
+
+- **Upgrade nebari-operator first.** With an older nebari-operator the gateway ignores
+  `auth.groups`, so after the pack upgrade a restricted App would be open to every signed-in
+  user. Upgrade nebari-operator to `%NEBARI_OPERATOR_VERSION%` (it needs Envoy Gateway v1.2.0 or
+  later), check that a restricted App's SecurityPolicy has an `authorization` section, then
+  upgrade the pack:
+
+  ```bash
+  kubectl -n <ns> get securitypolicy app-<name>-security -o jsonpath='{.spec.authorization.defaultAction}{"\n"}'   # Deny
+  ```
+
+  In between, the old sidecar and the gateway both check groups, which is safe. Do not roll
+  nebari-operator back below `%NEBARI_OPERATOR_VERSION%` while this pack runs.
+- **Users sign in again once.** nebari-operator renames the access-token cookie of every App
+  that enforces groups (`nebari-at-<namespace>-<name>`), so users of restricted Apps are signed
+  out once when it starts enforcing, and every App's Keycloak client is reprovisioned once.
+- **The `groups` claim now carries full paths.** nebari-operator switches every client's group
+  mapper to full paths (`/finance`, `/finance/analysts`), and entries are matched as full
+  paths: `finance` is the top-level group `/finance`, and `/finance` does not admit members of
+  `/finance/analysts` only. Before, the claim held bare names, so an App that listed a
+  subgroup by its name (`analysts` for `/finance/analysts`) let its members in. Now:
+  - such an entry means a **top-level** group `/analysts`, which nebari-operator creates in
+    Keycloak if it is missing, and the subgroup's members get `403`. Replace it with the full
+    path (`/finance/analysts`).
+  - the same holds for `access.managers.groups` and the chart's `api.adminGroups`: a subgroup
+    named without its parent no longer matches. List its full path.
+  - apps that read the `groups` claim themselves (with `enforceAtGateway: false`, or the pack's
+    API and MCP server) see the leading `/`. apps-api and apps-mcp match full paths already.
+
+  Find the entries to check:
+
+  ```bash
+  kubectl get apps.apps.nebari.dev -A -o json | jq -r '.items[] | select((.spec.access.groups // []) + (.spec.access.managers.groups // []) | length > 0) | "\(.metadata.namespace)/\(.metadata.name): groups=\(.spec.access.groups // []) managers=\(.spec.access.managers.groups // [])"'
+  ```
+
+- **Pods roll once.** Restricted Apps lose the sidecar unless they can idle or run an image,
+  and Python tasks there move from port 8081 to 8080 (`$PORT`). Every other App with the
+  sidecar rolls once for its new environment.
+- **The token no longer reaches the app.** The gateway stopped forwarding the access token to
+  restricted Apps (`forwardAccessToken`). An app that read `Authorization: Bearer` there gets
+  no header now.
+- **Keep the gateway the only way in.** The sidecar used to refuse non-members even for
+  traffic from inside the cluster. Turn on `apps.networkPolicy.enabled` so app pods take
+  traffic only from the gateway.
+- **Mixed versions.** An authz image from this release refuses to start (`AUTHZ_GROUPS is set`)
+  next to an older apps-operator, so a restricted App never runs open; upgrade the chart and
+  images together.
 
 ### Upgrading to group-only access
 

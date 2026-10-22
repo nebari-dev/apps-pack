@@ -62,16 +62,33 @@ kubectl -n <ns> logs deploy/app-<name> -c app           # the app itself
   `pixi.lock` makes the install `--locked` and faster.
 - **Python app is `Running` but never ready.** The task must listen on `0.0.0.0:$PORT` (the
   pod gets `PORT=8080`). A server bound to `127.0.0.1` fails the readiness probe. An App
-  that lists `access.groups` (or can idle) gets `PORT=8081`, because the authz sidecar
-  takes 8080: a task that hard-codes 8080 then collides with the sidecar.
-- **A restricted app returns `403` to someone who should get in.** The sidecar's log says
-  why (`kubectl logs deploy/app-<name> -c authz`): not in an allowed group,
-  token issued to another client, issuer not accepted (check `keycloak.url` and
-  `keycloak.internalUrl`), or expired. Group changes reach the token on its next refresh
-  (5 minutes by default). A `401` means the gateway forwarded no token: the `NebariApp` has
-  no `auth.forwardAccessToken` (nebari-operator older than `%NEBARI_OPERATOR_VERSION%`).
-- **A restricted app stays `Failed` with "need the realm's URL" or "--authz-image".** Set
-  the chart's `keycloak.url` (or `keycloak.internalUrl`) and keep `authz.image`.
+  that can idle gets `PORT=8081`, because the authz sidecar takes 8080: a task that
+  hard-codes 8080 then collides with the sidecar.
+- **A restricted app returns `403` to someone who should get in.** The gateway refused them:
+  their access token's `groups` claim holds none of the App's `access.groups`. Entries are
+  full group paths matched exactly and case-sensitively, so `/finance` does not admit someone
+  who is only in `/finance/analysts`: list the subgroup itself. Group changes reach the token
+  on its next refresh (5 minutes by default); someone just added should sign out and back in.
+  The values the gateway enforces are in the SecurityPolicy:
+  `kubectl -n <ns> get securitypolicy app-<name>-security -o jsonpath='{.spec.authorization}'`.
+  nebari-operator's [troubleshooting guide](https://github.com/nebari-dev/nebari-operator/blob/main/docs/troubleshooting.md)
+  covers the rest.
+- **Every signed-in user gets into a restricted app.** nebari-operator is older than
+  `%NEBARI_OPERATOR_VERSION%`, which is the first release that enforces `auth.groups` at the
+  gateway: upgrade it ([Upgrading](/upgrading/)). The SecurityPolicy above has no
+  `authorization` section then.
+- **A restricted app stays `Deploying` with `GroupsNotResolved` in `RoutingReady`.** A path in
+  `access.groups` (such as `/ops/oncall`) does not exist in Keycloak. Paths are never created:
+  create the group, or list a top-level group by bare name (`oncall`) to have nebari-operator
+  create it. `GroupsEmpty` means every entry names no group (such as `/`), and
+  `GroupsClaimConflict` that a mapper on the app's Keycloak client writes the `groups` claim
+  in another form; the gateway denies everyone until it is fixed.
+- **An app pod's `authz` container exits with "AUTHZ_GROUPS is set".** The authz image is
+  newer than the apps-operator, which still asks the sidecar to check groups. The sidecar
+  refuses rather than run the App open: upgrade the operator to the same release as the
+  image (the chart ships them together).
+- **An image app stays `Failed` with "--authz-image".** Image apps always run the sidecar:
+  keep the chart's `authz.image`.
 - **`CreateContainerConfigError` with `secret "app-<name>-secrets" not found` or
   `couldn't find key`.** The App lists `runtime.secretKeys` that its Secret does not hold.
   Set the missing values (UI **Secrets**, `PATCH /apps/{ns}/{name}/secrets`), or, for an App

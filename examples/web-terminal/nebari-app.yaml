@@ -15,7 +15,7 @@ runtime:
     limits: { cpu: "2", memory: 2Gi }
 access:
   public: false        # a shell: keep it behind Keycloak SSO at the gateway
-  # Only members of `admin` get in: the authz sidecar checks the access token
-  # the gateway forwards and returns 403 to everyone else.
+  # Only members of the top-level group `/admin` get in: the gateway returns
+  # 403 to every other signed-in user (list a subgroup by its full path).
   groups: ["admin"]
   subdomain: web-terminal

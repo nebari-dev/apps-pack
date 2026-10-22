@@ -23,9 +23,8 @@ title: Getting started
 - Optional: metrics-server for per-app live CPU/memory usage in the UI (without it the UI
   still shows limits and restarts) and the LGTM observability pack for logs.
 
-Read the [Known limitations](#known-limitations) before a demo: group and user restrictions
-are enforced in the app pod (by a sidecar), not at the gateway, and users manage only their
-own apps (admins manage all of them).
+Read the [Known limitations](#known-limitations) before a demo: access is by Keycloak group
+(full group paths), and users manage only their own apps (admins manage all of them).
 
 ## Install
 
@@ -73,7 +72,7 @@ kubectl apply -n argocd -f examples/argocd-application.yaml
 ```
 
 This deploys four components. A fifth image, **apps-authz**, is not a Deployment: the
-operator adds it as a sidecar to Apps that list `access.groups`, that can idle, or that run an image.
+operator adds it as a sidecar to Apps that can idle or that run an image.
 
 | Component | Where it ends up |
 |---|---|
@@ -169,14 +168,14 @@ it the HTTPRoute, certificate, and OIDC client) are all garbage-collected.
 The pack is alpha: the happy path works, and these are the gaps to know about before a demo
 or pilot.
 
-- **`access.groups` is enforced in the app pod, not at the gateway.** The
-  nebari-operator `SecurityPolicy` only signs users in
-  ([nebari-operator#153](https://github.com/nebari-dev/nebari-operator/issues/153)), so a
-  private app that lists groups gets the apps-authz sidecar, which checks the
-  forwarded access token and returns `403` to everyone else. Group changes apply when the
-  user's token refreshes (5 minutes by default). A private app with no groups is open to any
-  signed-in realm user. Access is by group only; there is no per-user allow list. See
-  [Access control](/launching-apps/#access-control).
+- **Access is by Keycloak group, matched as full paths.** A private app that lists
+  `access.groups` is enforced at the gateway (nebari-operator `%NEBARI_OPERATOR_VERSION%` or
+  later), which returns `403` to every other signed-in user. `finance` means `/finance`, and a
+  parent group does not admit members of its subgroups, so list each subgroup. Group changes
+  apply when the user's token refreshes (5 minutes by default). A private app with no groups
+  is open to any signed-in realm user, and there is no per-user allow list. The gateway is the
+  only check, so turn on `apps.networkPolicy.enabled` to keep other pods from reaching apps
+  directly. See [Access control](/launching-apps/#access-control).
 - **Authorization is owner, manager or admin.** The API lets a user see and manage the Apps
   they launched or are listed as a [manager](/launching-apps/#managers) of; members of
   `api.adminGroups` manage all of them. Ownership cannot be transferred yet, and anyone with
@@ -198,8 +197,8 @@ or pilot.
   when `apps.idle.timeoutMinutes` (or an App's `runtime.idleTimeoutMinutes`) is set. The first
   request after idling gets a "starting" page until a pod is ready: seconds for a static app,
   up to minutes for a Python app, which reinstalls its pixi environment. Any request to an idle
-  App's URL wakes it, including bots on public apps and signed-in users outside a restricted
-  App's groups. Apps that can idle carry the authz sidecar, and Python apps there listen on
+  App's URL wakes it, including bots on public apps (the gateway still keeps users outside a
+  restricted App's groups out). Apps that can idle carry the authz sidecar, and Python apps there listen on
   8081. Idle detection counts HTTP requests through the sidecar only, so an app that works
   in the background with no visitors needs `runtime.keepAlive: true`. See
   [Scale to zero](/app-crd-reference/#scale-to-zero).

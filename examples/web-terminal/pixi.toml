@@ -43,7 +43,7 @@ nss_wrapper = "*"
 
 [tasks]
 # The platform runs `pixi run start` and expects a server on 0.0.0.0:$PORT:
-# 8081 here, because access.groups puts the authz sidecar on 8080. Locally:
+# 8080, or 8081 when the cluster idles apps (the authz sidecar takes 8080). Locally:
 # PORT=8080 pixi run start
 # -W makes the terminal writable (ttyd defaults to read-only). terminal.sh
 # runs per browser session: identity setup, then an interactive bash that

@@ -172,14 +172,14 @@ operator and apps-api refuse to start with a malformed one.
 | `replicas` | int | No | `1` | Desired replicas, `0`–`10`. `0` stops the app (phase `Stopped`). |
 | `keepAlive` | bool | No | `false` | `true` exempts the app from [scale to zero](#scale-to-zero): it keeps running however long it goes without a request, whatever `idleTimeoutMinutes` or the cluster default say. |
 | `idleTimeoutMinutes` | int | No | chart `apps.idle.timeoutMinutes` | Minutes without a request before the operator scales the app to zero (phase `Idle`), `5`–`43200`. Unset follows the cluster default (`0` there keeps apps running), so an App can opt in on a cluster that does not idle by default. Ignored when `keepAlive` is `true` or `replicas` is `0`. See [Scale to zero](#scale-to-zero). |
-| `pixiTask` | string | No | — | Not allowed with `source.type: image`. When set, the app runs as a **Python/pixi service**: the operator copies the source into a writable workspace, runs `pixi install` (`--locked` when a `pixi.lock` is present), then `pixi run <pixiTask>`. The task must start a server on `0.0.0.0:$PORT` (`PORT` and `HOME=/app` are injected; `PORT` is 8080, or 8081 when the sidecar takes 8080: `access.groups` is set, or the app can idle). Max 64 chars. |
+| `pixiTask` | string | No | — | Not allowed with `source.type: image`. When set, the app runs as a **Python/pixi service**: the operator copies the source into a writable workspace, runs `pixi install` (`--locked` when a `pixi.lock` is present), then `pixi run <pixiTask>`. The task must start a server on `0.0.0.0:$PORT` (`PORT` and `HOME=/app` are injected; `PORT` is 8080, or 8081 when the sidecar takes 8080 because the app can idle). Max 64 chars. |
 
 ## spec.access
 
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `public` | bool | No | `true` disables authentication entirely (anonymous access). |
-| `groups` | []string | No | Keycloak groups allowed to open a private app. **Enforced in the app pod** by the authz sidecar (everyone else gets `403`); also passed to the `NebariApp` as `auth.groups`, which hides the landing-page tile from non-members. A user in **any** group gets in; with none listed, any signed-in realm user does. Access is by group only: to let one person in, add them to a group. Changes apply when the user's access token refreshes (Keycloak's lifespan, 5 minutes by default). See [Access control](/launching-apps/#access-control). |
+| `groups` | []string | No | Keycloak groups allowed to open a private app. **Enforced at the gateway**: passed to the `NebariApp` as `auth.groups` with `enforceAtGateway: true`, so every other signed-in user gets `403` there; it also hides the landing-page tile from non-members. Entries are **full group paths** matched exactly: `finance` is `/finance`, and `/finance` does not admit members of `/finance/analysts` only, so list each subgroup. A bare top-level name is created in Keycloak if missing; a path must exist. An entry that names no group (`/`) is refused. A user in **any** group gets in; with none listed, any signed-in realm user does. Access is by group only: to let one person in, add them to a group. Changes apply when the user's access token refreshes (Keycloak's lifespan, 5 minutes by default). See [Access control](/launching-apps/#access-control). |
 | `managers.users` | []string | No | Keycloak usernames (`preferred_username`, case-insensitive) who may **manage** the app through apps-api, the UI and the MCP server: everything its owner can do (edit, stop, start, restart, delete, read status, logs, events and metrics) except change `managers`. Only the owner and `api.adminGroups` members may change the list. Does **not** let them open a restricted app: that is still `public` and `groups`. Ignored by the operator. See [Managers](/launching-apps/#managers). |
 | `managers.groups` | []string | No | Keycloak groups whose members may manage the app, like `managers.users`. Membership is read from the caller's verified access token (a leading `/` is ignored), the same way `api.adminGroups` is checked, so a group change applies when their token refreshes. |
 | `subdomain` | string | Yes | Lowercase DNS label, at most 63 characters. The app is served at `https://<subdomain>.<appsDomain>`. **Unique across all Apps** in the cluster: the API returns `409` for a taken subdomain, and if two Apps claim one anyway (e.g. via `kubectl`), the oldest keeps it and the other goes `Failed` with `Validated=False`, reason `SubdomainTaken`, and no `NebariApp`. **Immutable** after creation. The operator mirrors it into the `apps.nebari.dev/subdomain` label. |
@@ -220,7 +220,7 @@ For each `App` the operator creates (and owns, via `ownerReferences`):
 |---|---|---|
 | ConfigMap | `app-<name>-content` | Inline source files (inline apps only). |
 | ConfigMap | `app-<name>-server` | The nginx server config with security headers (static apps only). |
-| Deployment | `app-<name>` | The app workload (hardened: non-root, no privilege escalation, seccomp `RuntimeDefault`). The `app` container comes first; an App that lists `access.groups`, that can idle, or that runs an image also gets the `authz` sidecar on 8080, with the app on 8081 (an image app on its own `source.image.port`). For an unrestricted App the sidecar runs in passthrough mode and only records activity. Scaled to zero while the App is `Idle`. |
+| Deployment | `app-<name>` | The app workload (hardened: non-root, no privilege escalation, seccomp `RuntimeDefault`). The `app` container comes first; an App that can idle or that runs an image also gets the `authz` sidecar on 8080, with the app on 8081 (an image app on its own `source.image.port`). The sidecar proxies every request and records activity; it checks no tokens (`access.groups` are enforced at the gateway). Scaled to zero while the App is `Idle`. |
 | Service | `app-<name>` | ClusterIP on port 8080 (the app, or the authz sidecar in front of it). |
 | NebariApp | `app-<name>` | Routing + TLS + auth + (opt-in) landing-page tile, reconciled by the nebari-operator (contract pinned to `%NEBARI_OPERATOR_VERSION%`). While the App is `Idle` or waking, `spec.service` points at the activator Service in the pack's namespace. |
 
@@ -260,8 +260,9 @@ otherwise let anyone who can write an App read any Secret in its namespace throu
 An App **can idle** when its idle timeout (`runtime.idleTimeoutMinutes`, else the chart's
 `apps.idle.timeoutMinutes`) is above zero, `runtime.keepAlive` is not `true` and
 `runtime.replicas` is not `0`. Such an App runs the `authz` sidecar, which records when the app
-last served a request; a request still open (a WebSocket, a stream) counts until it ends, and
-requests the sidecar refuses (`401`/`403`) do not count. The operator asks every ready pod's
+last served a request; a request still open (a WebSocket, a stream) counts until it ends.
+Requests the gateway refuses (sign-in, or `403` outside a restricted App's groups) never reach
+the pod, so they do not count. The operator asks every ready pod's
 sidecar every few minutes (a sixth of the timeout, between 30 seconds and 5 minutes) and keeps
 the answer in `status.lastActivityTime`.
 
@@ -269,8 +270,8 @@ the answer in `status.lastActivityTime`.
    to zero and the phase becomes `Idle`. The App's spec, including `replicas`, is unchanged.
 2. Its `NebariApp` now routes to the **activator**: a page served by the operator itself (behind
    the `<release>-activator` Service) that says the app is starting, reloads itself every few
-   seconds, and answers `503` with `Retry-After` for non-browser clients. Sign-in at the gateway
-   still applies to private apps.
+   seconds, and answers `503` with `Retry-After` for non-browser clients. Sign-in and
+   `access.groups` at the gateway still apply, so only someone allowed in can wake the app.
 3. The request stamps the `apps.nebari.dev/wake-requested-at` annotation on the App, which counts
    as a request: the operator scales the Deployment back to `replicas` (phase `Deploying`,
    message "waking up"). Starting the App from the UI, the API or the `start_app` tool sets the

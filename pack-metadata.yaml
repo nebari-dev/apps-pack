@@ -17,6 +17,7 @@ scope:
 last_promoted_pr: 33
 # last_promoted_at: YYYY-MM-DD
 demo_notes: >-
-  access.groups is enforced in the app pod by an authz sidecar (403 for
-  everyone else); a private app with no groups is "any signed-in user".
+  access.groups is enforced at the gateway by nebari-operator (403 for
+  everyone else; full group paths, so list subgroups); a private app with no
+  groups is "any signed-in user".
   Any authenticated user can manage every app. Launched apps are not on the landing page unless opted in.
