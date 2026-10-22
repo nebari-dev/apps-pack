@@ -143,7 +143,7 @@ content files and the manifest.
 copied into a writable workspace, `pixi install` resolves the environment (use a
 committed `pixi.lock` for reproducible, faster starts), and `pixi run <task>` launches
 the app. The task must start a server on **0.0.0.0:$PORT** — `PORT` is injected (8080, or
-8081 when idling puts the authz sidecar on 8080), so use
+8081 when idling puts the proxy sidecar on 8080), so use
 `--port $PORT` and run `PORT=8080 pixi run start` locally (pixi tasks do not support
 `${PORT:-8080}`). No Dockerfile needed.
 

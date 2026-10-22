@@ -115,7 +115,7 @@ image App is refused.
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `reference` | string | Yes | The image, with a **tag or a digest**: `ghcr.io/org/app:1.2.3`, `ghcr.io/org/app@sha256:<64 hex>`, or both. An implicit `:latest` is refused. Docker Hub short names are expanded the way the container runtime does (`nginx:1.27` is `docker.io/library/nginx:1.27`; `index.docker.io` is `docker.io`), and the pod runs that normalized reference, so the kubelet pulls exactly what was checked. Max 512 chars. See [allowlist matching](#image-allowlist-matching). |
-| `port` | int | Yes | The port the image's server listens on (on `0.0.0.0` or `127.0.0.1`), `1024`–`65535`, not `8080` or `8082`: the `authz` sidecar always fronts image Apps on 8080 and serves its probes on 8082. Also passed to the container as `$PORT`. |
+| `port` | int | Yes | The port the image's server listens on (on `0.0.0.0` or `127.0.0.1`), `1024`–`65535`, not `8080` or `8082`: the `proxy` sidecar always fronts image Apps on 8080 and serves its probes on 8082. Also passed to the container as `$PORT`. |
 | `command` | []string | No | Replaces the image's `ENTRYPOINT` (exec form, no shell), at most 64 entries of 4096 chars. |
 | `args` | []string | No | Replaces the image's `CMD` (exec form, no shell), same bounds. |
 | `runAsUser` | int64 | No | A non-zero uid to run as. Set it for an image whose `USER` is a name rather than a number, which the kubelet cannot verify as non-root. `0` is refused. |
@@ -220,8 +220,8 @@ For each `App` the operator creates (and owns, via `ownerReferences`):
 |---|---|---|
 | ConfigMap | `app-<name>-content` | Inline source files (inline apps only). |
 | ConfigMap | `app-<name>-server` | The nginx server config with security headers (static apps only). |
-| Deployment | `app-<name>` | The app workload (hardened: non-root, no privilege escalation, seccomp `RuntimeDefault`). The `app` container comes first; an App that can idle or that runs an image also gets the `authz` sidecar on 8080, with the app on 8081 (an image app on its own `source.image.port`). The sidecar proxies every request and records activity; it checks no tokens (`access.groups` are enforced at the gateway). Scaled to zero while the App is `Idle`. |
-| Service | `app-<name>` | ClusterIP on port 8080 (the app, or the authz sidecar in front of it). |
+| Deployment | `app-<name>` | The app workload (hardened: non-root, no privilege escalation, seccomp `RuntimeDefault`). The `app` container comes first; an App that can idle or that runs an image also gets the `proxy` sidecar on 8080, with the app on 8081 (an image app on its own `source.image.port`). The sidecar proxies every request and records activity; it checks no tokens (`access.groups` are enforced at the gateway). Scaled to zero while the App is `Idle`. |
+| Service | `app-<name>` | ClusterIP on port 8080 (the app, or the proxy sidecar in front of it). |
 | NebariApp | `app-<name>` | Routing + TLS + auth + (opt-in) landing-page tile, reconciled by the nebari-operator (contract pinned to `%NEBARI_OPERATOR_VERSION%`). While the App is `Idle` or waking, `spec.service` points at the activator Service in the pack's namespace. |
 
 Deleting the `App` cascades through all of them, and through the App's Secret
@@ -259,7 +259,7 @@ otherwise let anyone who can write an App read any Secret in its namespace throu
 
 An App **can idle** when its idle timeout (`runtime.idleTimeoutMinutes`, else the chart's
 `apps.idle.timeoutMinutes`) is above zero, `runtime.keepAlive` is not `true` and
-`runtime.replicas` is not `0`. Such an App runs the `authz` sidecar, which records when the app
+`runtime.replicas` is not `0`. Such an App runs the `proxy` sidecar, which records when the app
 last served a request; a request still open (a WebSocket, a stream) counts until it ends.
 Requests the gateway refuses (sign-in, or `403` outside a restricted App's groups) never reach
 the pod, so they do not count. The operator asks every ready pod's

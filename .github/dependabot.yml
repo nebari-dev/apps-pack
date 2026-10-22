@@ -99,7 +99,7 @@ updates:
     # Major updates are not grouped, so each opens its own PR
 
   - package-ecosystem: "gomod"
-    directory: "/authz"
+    directory: "/proxy"
     schedule:
       interval: "monthly"
       day: "monday"
@@ -120,7 +120,7 @@ updates:
       - "/api"
       - "/mcp"
       - "/operator"
-      - "/authz"
+      - "/proxy"
     # The Node major is pinned in ui/.node-version (CI fails when the image
     # disagrees); move both together on purpose.
     ignore:

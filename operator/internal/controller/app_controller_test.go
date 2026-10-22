@@ -80,8 +80,8 @@ func newReconciler(t *testing.T, objs ...client.Object) (*AppReconciler, client.
 			PythonImage:     "ghcr.io/prefix-dev/pixi:0.68.1-noble",
 			StaticResources: DefaultStaticResources,
 			PythonResources: DefaultPythonResources,
-			AuthzImage:      testAuthzImage,
-			AuthzResources:  DefaultAuthzResources,
+			ProxyImage:      testProxyImage,
+			ProxyResources:  DefaultProxyResources,
 		},
 	}
 	return r, c

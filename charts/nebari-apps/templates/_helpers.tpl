@@ -72,8 +72,8 @@ Operator image reference
 {{- end }}
 
 {{/*
-apps-authz sidecar image reference (passed to the operator)
+apps-proxy sidecar image reference (passed to the operator)
 */}}
-{{- define "nebari-apps.authzImage" -}}
-{{- printf "%s:%s" .Values.authz.image.repository (.Values.authz.image.tag | default .Chart.AppVersion) }}
+{{- define "nebari-apps.proxyImage" -}}
+{{- printf "%s:%s" .Values.proxy.image.repository (.Values.proxy.image.tag | default .Chart.AppVersion) }}
 {{- end }}

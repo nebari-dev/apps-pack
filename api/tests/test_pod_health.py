@@ -36,14 +36,14 @@ def make_pod(name: str, *, phase: str = "Running", app: dict[str, Any] | None = 
                             "requests": {"cpu": "250m", "memory": "268435456"},
                         },
                     },
-                    {"name": "authz", "resources": {"limits": {"cpu": "100m", "memory": "64Mi"}}},
+                    {"name": "proxy", "resources": {"limits": {"cpu": "100m", "memory": "64Mi"}}},
                 ]
             },
             "status": {
                 "phase": phase,
                 "containerStatuses": [
                     app_status,
-                    {"name": "authz", "image": "authz", "imageID": "", "ready": True, "restartCount": 9},
+                    {"name": "proxy", "image": "proxy", "imageID": "", "ready": True, "restartCount": 9},
                 ],
             },
         }
@@ -86,7 +86,7 @@ def test_oom_killed_pod_counts_only_the_app_container(kube):
     }
     serve(kube, make_pod("app-demo-1", app=oom))
     [pod] = kube.pod_health("apps", "demo")
-    # The authz sidecar's 9 restarts are not the app's.
+    # The proxy sidecar's 9 restarts are not the app's.
     assert pod["restarts"] == 3
     assert pod["lastTermination"] == {"reason": "OOMKilled", "exitCode": 137, "finishedAt": "2026-07-15T09:58:00Z"}
 

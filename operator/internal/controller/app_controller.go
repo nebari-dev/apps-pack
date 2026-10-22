@@ -58,21 +58,21 @@ type OperatorConfig struct {
 	// limit an App leaves unset (static apps vs runtime.pixiTask apps).
 	StaticResources corev1.ResourceRequirements
 	PythonResources corev1.ResourceRequirements
-	// AuthzImage is the apps-authz sidecar added in front of Apps that can
-	// idle and of image Apps (authz.go).
-	AuthzImage string
-	// AuthzImagePullPolicy is the sidecar's pull policy (empty: the
+	// ProxyImage is the apps-proxy sidecar added in front of Apps that can
+	// idle and of image Apps (proxy.go).
+	ProxyImage string
+	// ProxyImagePullPolicy is the sidecar's pull policy (empty: the
 	// Kubernetes default).
-	AuthzImagePullPolicy corev1.PullPolicy
-	// AuthzResources are the sidecar's requests/limits.
-	AuthzResources corev1.ResourceRequirements
+	ProxyImagePullPolicy corev1.PullPolicy
+	// ProxyResources are the sidecar's requests/limits.
+	ProxyResources corev1.ResourceRequirements
 	// IdleTimeout is the cluster default for scaling an App to zero after
 	// it goes this long without a request (0: Apps never idle unless they
 	// set runtime.idleTimeoutMinutes). See idle.go.
 	IdleTimeout time.Duration
 	// ActivatorService and ActivatorNamespace name the Service in front of
 	// the operator's activator (activator.go), which idle Apps route to.
-	// Idling needs both, and AuthzImage.
+	// Idling needs both, and ProxyImage.
 	ActivatorService   string
 	ActivatorNamespace string
 	// ImageRegistries is the normalized allowlist for source type image
@@ -330,7 +330,7 @@ func (r *AppReconciler) validate(ctx context.Context, app *appsv1alpha1.App) err
 	if app.Spec.Access.Subdomain == "" {
 		return fmt.Errorf("access.subdomain is required")
 	}
-	if err := r.Config.checkAuthz(app); err != nil {
+	if err := r.Config.checkProxy(app); err != nil {
 		return err
 	}
 	return r.checkSubdomain(ctx, app)
@@ -347,9 +347,9 @@ func (c OperatorConfig) validateImageSource(app *appsv1alpha1.App) error {
 	if app.Spec.Runtime.PixiTask != "" {
 		return fmt.Errorf("runtime.pixiTask cannot be combined with source type image: the image runs its own server")
 	}
-	if src.Port < 1024 || src.Port > 65535 || src.Port == AppPort || src.Port == authzHealthPort {
-		return fmt.Errorf("source.image.port %d must be 1024-65535 and not %d or %d (the authz sidecar's ports)",
-			src.Port, AppPort, authzHealthPort)
+	if src.Port < 1024 || src.Port > 65535 || src.Port == AppPort || src.Port == proxyHealthPort {
+		return fmt.Errorf("source.image.port %d must be 1024-65535 and not %d or %d (the proxy sidecar's ports)",
+			src.Port, AppPort, proxyHealthPort)
 	}
 	if src.RunAsUser != nil && *src.RunAsUser < 1 {
 		return fmt.Errorf("source.image.runAsUser must be a non-zero uid: image apps never run as root")

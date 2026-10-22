@@ -62,7 +62,7 @@ export type AppRuntime = {
 export type AppSource = {
   /** GitSource references app content in a git repository. */
   git?: GitSource;
-  /** ImageSource runs a prebuilt container image as the app container, with the same non-root, capability-free, resource-limited pod spec as other Apps and the apps-authz sidecar in front of it. */
+  /** ImageSource runs a prebuilt container image as the app container, with the same non-root, capability-free, resource-limited pod spec as other Apps and the apps-proxy sidecar in front of it. */
   image?: {
     /** Args replaces the image's CMD (exec form, no shell). */
     args?: string[];

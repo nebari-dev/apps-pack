@@ -38,7 +38,7 @@ apps:
   # operator's activator until the next request has started it again. An App
   # sets `runtime.idleTimeoutMinutes` to override the default (and can opt in
   # while it is 0) or `runtime.keepAlive: true` to opt out. Apps that can idle
-  # run the apps-authz sidecar, which records their activity.
+  # run the apps-proxy sidecar, which records their activity.
   idle:
     # -- Cluster default idle timeout in minutes; `0` keeps apps running
     # unless they set `runtime.idleTimeoutMinutes`. Otherwise at least 5.
@@ -386,14 +386,14 @@ gitImage: alpine/git:v2.47.2
 # `pixi` binary and run as a non-root user.
 pythonImage: ghcr.io/prefix-dev/pixi:0.68.1-noble
 
-# The apps-authz sidecar. Apps that can idle and image Apps get it in front of
+# The apps-proxy sidecar. Apps that can idle and image Apps get it in front of
 # the app container: it proxies every request and records activity for the
 # idle check. It checks no tokens; `access.groups` are enforced at the gateway
 # by nebari-operator.
-authz:
+proxy:
   image:
-    # -- apps-authz image repository.
-    repository: ghcr.io/nebari-dev/apps-pack/authz
+    # -- apps-proxy image repository.
+    repository: ghcr.io/nebari-dev/apps-pack/proxy
     # -- Image tag. Empty defaults to the chart's appVersion.
     tag: ""
     # -- Image pull policy.

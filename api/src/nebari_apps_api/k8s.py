@@ -21,7 +21,7 @@ PLURAL = "apps"
 MANAGED_LABEL = "nebari.dev/managed"
 APP_LABEL = "apps.nebari.dev/app"
 # The operator always names the app's own container "app" (and puts it
-# first); restricted apps add an "authz" sidecar next to it.
+# first); restricted apps add an "proxy" sidecar next to it.
 APP_CONTAINER = "app"
 # Seconds a readiness check may wait on a dependency.
 READY_TIMEOUT = 3
@@ -188,7 +188,7 @@ class KubernetesAppStore:
             resp: Any = self._core.read_namespaced_pod_log(
                 pod_name,
                 namespace,
-                # Restricted apps run an authz sidecar too, and the apiserver
+                # Restricted apps run an proxy sidecar too, and the apiserver
                 # needs a container name for multi-container pods: default to
                 # the app's own container.
                 container=container or APP_CONTAINER,
@@ -317,7 +317,7 @@ class KubernetesAppStore:
         """Health and resources of the App's live pods, from pod status and spec.
 
         Needs no metrics server: one pod list call, by the App's label. Each
-        entry carries the `app` container's restart count (the authz
+        entry carries the `app` container's restart count (the proxy
         sidecar's are left out), how its previous run ended
         (`lastTermination`: reason, exit code and finish time; never the
         termination message, which the container writes), when it started

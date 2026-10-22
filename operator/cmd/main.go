@@ -52,11 +52,11 @@ func main() {
 		"Image used by init containers to fetch git sources.")
 	flag.StringVar(&cfg.PythonImage, "python-image", envOr("PYTHON_IMAGE", "ghcr.io/prefix-dev/pixi:0.68.1-noble"),
 		"Image running Python/pixi apps (runtime.pixiTask); must provide pixi and run as non-root.")
-	flag.StringVar(&cfg.AuthzImage, "authz-image", envOr("AUTHZ_IMAGE", ""),
-		"apps-authz sidecar image, added to Apps that can idle and to image Apps (required for those Apps).")
-	var authzPullPolicy string
-	flag.StringVar(&authzPullPolicy, "authz-image-pull-policy", envOr("AUTHZ_IMAGE_PULL_POLICY", ""),
-		"Pull policy for the authz sidecar image (Always|IfNotPresent|Never; empty: the Kubernetes default).")
+	flag.StringVar(&cfg.ProxyImage, "proxy-image", envOr("PROXY_IMAGE", ""),
+		"apps-proxy sidecar image, added to Apps that can idle and to image Apps (required for those Apps).")
+	var proxyPullPolicy string
+	flag.StringVar(&proxyPullPolicy, "proxy-image-pull-policy", envOr("PROXY_IMAGE_PULL_POLICY", ""),
+		"Pull policy for the proxy sidecar image (Always|IfNotPresent|Never; empty: the Kubernetes default).")
 	flag.BoolVar(&cfg.TLSDisabled, "tls-disabled", envOr("TLS_DISABLED", "") == "true",
 		"Serve apps over plain HTTP (no certificates, no HTTPS listeners).")
 	flag.BoolVar(&cfg.LandingPage, "landing-page", envOr("LANDING_PAGE", "") == "true",
@@ -80,13 +80,13 @@ func main() {
 		"Comma-separated names of Secrets (in each App namespace) that image Apps pull with.")
 
 	opts := zap.Options{Development: false}
-	var staticResources, pythonResources, authzResources string
+	var staticResources, pythonResources, proxyResources string
 	flag.StringVar(&staticResources, "default-static-resources", envOr("DEFAULT_STATIC_RESOURCES", ""),
 		`Requests/limits (JSON, e.g. {"requests":{"cpu":"50m"},"limits":{"memory":"256Mi"}}) for static app pods that leave them unset.`)
 	flag.StringVar(&pythonResources, "default-python-resources", envOr("DEFAULT_PYTHON_RESOURCES", ""),
 		"Requests/limits (JSON) for Python/pixi app pods that leave them unset.")
-	flag.StringVar(&authzResources, "authz-resources", envOr("AUTHZ_RESOURCES", ""),
-		"Requests/limits (JSON) for the authz sidecar.")
+	flag.StringVar(&proxyResources, "proxy-resources", envOr("PROXY_RESOURCES", ""),
+		"Requests/limits (JSON) for the proxy sidecar.")
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
@@ -102,15 +102,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	if cfg.AuthzResources, err = controller.ParseResources(authzResources, controller.DefaultAuthzResources); err != nil {
-		setupLog.Error(err, "invalid --authz-resources")
+	if cfg.ProxyResources, err = controller.ParseResources(proxyResources, controller.DefaultProxyResources); err != nil {
+		setupLog.Error(err, "invalid --proxy-resources")
 		os.Exit(1)
 	}
-	switch p := corev1.PullPolicy(authzPullPolicy); p {
+	switch p := corev1.PullPolicy(proxyPullPolicy); p {
 	case "", corev1.PullAlways, corev1.PullIfNotPresent, corev1.PullNever:
-		cfg.AuthzImagePullPolicy = p
+		cfg.ProxyImagePullPolicy = p
 	default:
-		setupLog.Error(nil, "invalid --authz-image-pull-policy", "value", authzPullPolicy)
+		setupLog.Error(nil, "invalid --proxy-image-pull-policy", "value", proxyPullPolicy)
 		os.Exit(1)
 	}
 
@@ -129,8 +129,8 @@ func main() {
 		os.Exit(1)
 	}
 	cfg.IdleTimeout = time.Duration(idleMinutes) * time.Minute
-	if cfg.IdleTimeout > 0 && (cfg.ActivatorService == "" || cfg.ActivatorNamespace == "" || cfg.AuthzImage == "") {
-		setupLog.Error(nil, "--idle-timeout-minutes needs --activator-service, --activator-namespace and --authz-image")
+	if cfg.IdleTimeout > 0 && (cfg.ActivatorService == "" || cfg.ActivatorNamespace == "" || cfg.ProxyImage == "") {
+		setupLog.Error(nil, "--idle-timeout-minutes needs --activator-service, --activator-namespace and --proxy-image")
 		os.Exit(1)
 	}
 
@@ -185,7 +185,7 @@ func main() {
 
 	setupLog.Info("starting manager",
 		"appsDomain", cfg.AppsDomain, "gateway", cfg.Gateway,
-		"authzImage", cfg.AuthzImage,
+		"proxyImage", cfg.ProxyImage,
 		"idleTimeout", cfg.IdleTimeout.String(), "activatorService", cfg.ActivatorNamespace+"/"+cfg.ActivatorService,
 		"imageRegistries", cfg.ImageRegistries)
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {

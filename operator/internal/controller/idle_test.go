@@ -124,7 +124,7 @@ func deploymentReplicas(t *testing.T, c client.Client, app *appsv1alpha1.App) in
 }
 
 func TestIdleTimeoutPolicy(t *testing.T) {
-	on := OperatorConfig{AuthzImage: testAuthzImage, ActivatorService: activatorSvc, ActivatorNamespace: activatorNS,
+	on := OperatorConfig{ProxyImage: testProxyImage, ActivatorService: activatorSvc, ActivatorNamespace: activatorNS,
 		IdleTimeout: 30 * time.Minute}
 	app := inlineApp("team-a")
 	if got := on.idleTimeout(app); got != 30*time.Minute {
@@ -168,8 +168,8 @@ func TestIdleAppGetsPassthroughSidecar(t *testing.T) {
 		t.Fatal(err)
 	}
 	pod := d.Spec.Template.Spec
-	if len(pod.Containers) != 2 || pod.Containers[0].Name != "app" || pod.Containers[1].Name != "authz" {
-		t.Fatalf("containers = %v, want app then authz", names(pod.Containers))
+	if len(pod.Containers) != 2 || pod.Containers[0].Name != "app" || pod.Containers[1].Name != "proxy" {
+		t.Fatalf("containers = %v, want app then proxy", names(pod.Containers))
 	}
 	env := map[string]string{}
 	for _, e := range pod.Containers[1].Env {

@@ -39,7 +39,7 @@ func TestSecretKeysInjectFromTheAppsOwnSecret(t *testing.T) {
 			app := tc.app
 			app.Spec.Runtime.Env = []corev1.EnvVar{{Name: "MODE", Value: "prod"}}
 			app.Spec.Runtime.SecretKeys = []string{"API_KEY", "DATABASE_URL"}
-			// Can idle, so the pod also runs the authz sidecar.
+			// Can idle, so the pod also runs the proxy sidecar.
 			r, _ := newReconciler(t)
 			r.Config.IdleTimeout = 30 * time.Minute
 			r.Config.ActivatorService, r.Config.ActivatorNamespace = activatorSvc, activatorNS

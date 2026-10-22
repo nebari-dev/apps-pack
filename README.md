@@ -36,7 +36,7 @@ start again on the next request
 | apps-api | REST API for CRUD, status, logs, events, analytics and zip/`.html` upload; writes `App` resources (and each App's write-only Secret) for the UI and the MCP server. | `api` |
 | apps-ui | The apps list as the home page (with a Needs attention banner, a Mine filter and Open links), app detail with logs and events, the launch form, and a Settings page (the UI and API versions, your groups, the cluster's settings, and how to connect an agent). | `ui` |
 | apps-mcp | MCP server at `/mcp` that lets coding agents launch and manage apps (tools), attach an app's spec, status, logs and events as context (resources), and follow the triage, launch and access-review workflows (prompts), with standard MCP OAuth sign-in through Keycloak. | `mcp` |
-| apps-authz | Sidecar in the pods of Apps that can idle (records when the app last served a request) and of image Apps (gives them the one front port). It checks no tokens: `access.groups` are enforced at the gateway. | `authz` |
+| apps-proxy | Sidecar in the pods of Apps that can idle (records when the app last served a request) and of image Apps (gives them the one front port). It checks no tokens: `access.groups` are enforced at the gateway. | `proxy` |
 
 Images are published to `ghcr.io/nebari-dev/apps-pack/<image>` and
 `quay.io/nebari/apps-pack-<image>`. The UI signs in with keycloak-js and the API validates its

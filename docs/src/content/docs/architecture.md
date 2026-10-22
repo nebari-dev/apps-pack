@@ -34,7 +34,7 @@ For each `App`, the operator runs an ordered, idempotent pipeline:
    `RuntimeDefault`): nginx serving the app's content, with git sources cloned by a
    non-root init container. Static apps run an operator-written nginx config (a
    `<app>-server` ConfigMap mounted over `/etc/nginx/conf.d`) that adds security headers.
-   An App that can idle also gets the `authz` sidecar (next section), which records
+   An App that can idle also gets the `proxy` sidecar (next section), which records
    activity; it checks no tokens. An `image` App runs the
    given image as the `app` container instead, always behind the sidecar, which keeps 8080 as
    the one port the Service and NetworkPolicy target while the image listens on its own port. Before the Deployment is
@@ -54,7 +54,7 @@ drift (edit or delete a child and it is restored).
 An App that goes its idle timeout without a request is scaled to zero and wakes on the next
 request ([details](/app-crd-reference/#scale-to-zero)). The pieces:
 
-- **Activity.** The `authz` sidecar counts requests that reach the app and serves the time of
+- **Activity.** The `proxy` sidecar counts requests that reach the app and serves the time of
   the last one on its health port (`GET :8082/activity`). It proxies every request: sign-in and
   `access.groups` were already enforced at the gateway, so a request that reaches the pod is one
   the App lets in, and public and restricted Apps are measured the same way. The operator polls
@@ -70,7 +70,7 @@ request ([details](/app-crd-reference/#scale-to-zero)). The pieces:
   App's Service when a pod is ready. Visitors see the starting page, never a gateway error.
 
 ```text
-request ─▶ gateway ─▶ NebariApp ─┬─ running: app-<name> Service ─▶ authz sidecar ─▶ app
+request ─▶ gateway ─▶ NebariApp ─┬─ running: app-<name> Service ─▶ proxy sidecar ─▶ app
                                  └─ idle:    <release>-activator ─▶ operator: page + wake annotation
 ```
 
@@ -129,10 +129,10 @@ The split between the gateway and the pod:
 |---|---|
 | Sign-in (Keycloak SSO) | Gateway (`SecurityPolicy`) |
 | `access.groups` (`403` for non-members) | Gateway (`SecurityPolicy` group rule, nebari-operator `%NEBARI_OPERATOR_VERSION%`+) |
-| Activity for [scale to zero](#scale-to-zero) | apps-authz sidecar, in Apps that can idle |
-| One front port (8080) for an `image` App | apps-authz sidecar, in every `image` App |
+| Activity for [scale to zero](#scale-to-zero) | apps-proxy sidecar, in Apps that can idle |
+| One front port (8080) for an `image` App | apps-proxy sidecar, in every `image` App |
 
-The **apps-authz** sidecar checks no tokens and gets none: the gateway does not forward the
+The **apps-proxy** sidecar checks no tokens and gets none: the gateway does not forward the
 access token to app pods. A restricted App that neither idles nor runs an image has no sidecar.
 Because the gateway is the only check, keep app pods unreachable except through it: turn on
 `apps.networkPolicy.enabled`, which admits traffic to app pods only from the gateway's
@@ -148,7 +148,7 @@ credentials go in the App's own `Secret` instead:
   `app-<name>-secrets` in the App's namespace. The operator injects each one into the `app`
   container as an environment variable of the same name (`valueFrom.secretKeyRef`), so the
   kubelet reads the value; nothing copies it into the spec, the Deployment or a status.
-  Init containers and the authz sidecar do not get them.
+  Init containers and the proxy sidecar do not get them.
 - **apps-api writes the values.** A launch or edit that carries `secrets` (UI form, REST
   API, MCP `launch_app`/`update_app`, `PATCH /apps/{ns}/{name}/secrets`) writes them to the
   Secret, creating it with an owner reference to the App so Kubernetes deletes it with the

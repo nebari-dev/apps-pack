@@ -54,7 +54,7 @@ type PVCSource struct {
 
 // ImageSource runs a prebuilt container image as the app container, with the
 // same non-root, capability-free, resource-limited pod spec as other Apps and
-// the apps-authz sidecar in front of it.
+// the apps-proxy sidecar in front of it.
 type ImageSource struct {
 	// Reference is the image to run, with a tag or a digest:
 	// ghcr.io/org/app:1.2.3 or ghcr.io/org/app@sha256:<64 hex>. Docker Hub
@@ -68,11 +68,11 @@ type ImageSource struct {
 	Reference string `json:"reference"`
 
 	// Port the image's server listens on (on 0.0.0.0 or 127.0.0.1; also
-	// passed as $PORT). The apps-authz sidecar always fronts image Apps on
+	// passed as $PORT). The apps-proxy sidecar always fronts image Apps on
 	// 8080 and serves its probes on 8082, so the app may use neither.
 	// +kubebuilder:validation:Minimum=1024
 	// +kubebuilder:validation:Maximum=65535
-	// +kubebuilder:validation:XValidation:rule="self != 8080 && self != 8082",message="source.image.port may not be 8080 or 8082: the apps-authz sidecar uses them"
+	// +kubebuilder:validation:XValidation:rule="self != 8080 && self != 8082",message="source.image.port may not be 8080 or 8082: the apps-proxy sidecar uses them"
 	Port int32 `json:"port"`
 
 	// Command replaces the image's ENTRYPOINT (exec form, no shell).
@@ -175,7 +175,7 @@ type AppRuntime struct {
 	// environment from the app source and executes `pixi run <PixiTask>`.
 	// Not allowed with source type image, which runs its own server.
 	// The task must start a server on $PORT: 8080, or 8081 when the app can
-	// idle (the authz sidecar takes 8080).
+	// idle (the proxy sidecar takes 8080).
 	// +kubebuilder:validation:MaxLength=64
 	// +optional
 	PixiTask string `json:"pixiTask,omitempty"`

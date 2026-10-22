@@ -29,7 +29,7 @@ Every action is pinned to a commit SHA, and every workflow starts from
 
 ## Images
 
-`images.yaml` builds the five images (`operator`, `authz`, `api`, `ui`, `mcp`). Pull requests build each image once, on `linux/amd64`, without
+`images.yaml` builds the five images (`operator`, `proxy`, `api`, `ui`, `mcp`). Pull requests build each image once, on `linux/amd64`, without
 pushing. Every merge to `main` builds them for `linux/amd64` and `linux/arm64` through the
 org's reusable `pack-build-image` workflow, pushes `ghcr.io/nebari-dev/apps-pack/<image>`
 and `quay.io/nebari/apps-pack-<image>`, tagged `sha-<short commit>` and `latest`, and signs
