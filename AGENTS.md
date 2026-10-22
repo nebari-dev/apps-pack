@@ -103,9 +103,10 @@ helm lint charts/nebari-apps --set clusterDomain=nebari.example.com
   normalized reference it checked. apps-api (`images.py`) mirrors the parsing and matching
   rules for early 422s; change both together, with the shared test cases. Image pods keep the
   untrusted-pod rules below and never relax `runAsNonRoot` for a root image.
-- **Version strings are owned by release-please.** Never hand-edit the version in
-  `charts/nebari-apps/Chart.yaml`, the `__version__` files, or `ui/package.json`; the
-  "Version strings" check compares them with `.release-please-manifest.json`.
+- **Version strings move together.** Change the version in `charts/nebari-apps/Chart.yaml`,
+  the `__version__` files and `ui/package.json` only with
+  `python3 .github/scripts/bump_version.py X.Y.Z`, in a release PR; the "Version strings"
+  check compares them with the chart's `version`.
 - **Runtime versions are pinned once:** `ui/.node-version`, `api/.python-version`,
   `mcp/.python-version`, `docs/.bun-version`, and the `toolchain` line in `operator/go.mod`
   (`authz/go.mod` carries the same line).

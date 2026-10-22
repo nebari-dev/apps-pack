@@ -1,7 +1,7 @@
 # Changelog
 
-Maintained by [release-please](https://github.com/googleapis/release-please) from the
-conventional-commit titles of merged pull requests. See [Releases](README.md#releases).
+Each release PR adds its section, written from the Conventional Commit titles of the pull
+requests merged since the last release. See [Releases](README.md#releases).
 
 ## 0.1.0 (2026-08-26)
 

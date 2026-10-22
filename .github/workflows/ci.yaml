@@ -429,9 +429,9 @@ jobs:
       - name: Paths named in AGENTS.md and the skill exist
         run: python3 .github/scripts/check_doc_paths.py
 
-      # release-please bumps all of these together; a hand edit to one of them
+      # bump_version.py sets all of these together; a hand edit to one of them
       # would ship mismatched versions.
-      - name: Every version string matches .release-please-manifest.json
+      - name: Every version string matches the chart's version
         run: python3 .github/scripts/check_versions.py
 
       # One version per runtime: the pin file CI reads must match the image
