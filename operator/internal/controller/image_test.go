@@ -113,7 +113,7 @@ func TestReconcileImageApp(t *testing.T) {
 		t.Errorf("readiness probe should go through the sidecar: %+v", main.ReadinessProbe)
 	}
 	side := envOf(pod.Containers[1])
-	if side["AUTHZ_UPSTREAM"] != "http://127.0.0.1:8501" || side["AUTHZ_PASSTHROUGH"] != "true" {
+	if side["AUTHZ_UPSTREAM"] != "http://127.0.0.1:8501" || len(side) != 3 {
 		t.Errorf("sidecar env = %v", side)
 	}
 	if pod.Containers[1].Ports[0].Name != "http" || pod.Containers[1].Ports[0].ContainerPort != AppPort {
@@ -138,8 +138,10 @@ func TestImageAppRestrictedAndDigest(t *testing.T) {
 	if *pod.SecurityContext.RunAsUser != 1000 || !*pod.SecurityContext.RunAsNonRoot {
 		t.Errorf("security context = %+v", pod.SecurityContext)
 	}
+	// The sidecar still fronts the image's port; the gateway enforces the
+	// groups, so it gets no group settings.
 	side := envOf(pod.Containers[1])
-	if side["AUTHZ_GROUPS"] != "analysts" || side["AUTHZ_PASSTHROUGH"] != "" {
+	if side["AUTHZ_UPSTREAM"] != "http://127.0.0.1:8501" || side["AUTHZ_GROUPS"] != "" {
 		t.Errorf("restricted image app sidecar env = %v", side)
 	}
 }

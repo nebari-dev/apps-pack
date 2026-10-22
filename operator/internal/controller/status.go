@@ -141,7 +141,12 @@ func (r *AppReconciler) readNebariAppReady(ctx context.Context, app *appsv1alpha
 					"NebariAppReady", "routing, TLS, and auth are configured")
 				return true
 			}
+			// The NebariApp's reason names the cause, such as
+			// GroupsNotResolved (an access.groups path missing in Keycloak).
 			msg, _ := cond["message"].(string)
+			if reason, _ := cond["reason"].(string); reason != "" {
+				msg = reason + ": " + msg
+			}
 			setCondition(app, appsv1alpha1.ConditionRoutingReady, metav1.ConditionFalse,
 				"NebariAppNotReady", msg)
 			return false

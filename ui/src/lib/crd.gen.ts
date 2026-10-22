@@ -3,11 +3,11 @@
 // Do not edit: change operator/api/, regenerate the CRD, then run the script.
 
 export type AppAccess = {
-  /** Groups are the Keycloak/OIDC groups allowed to open a private app. */
+  /** Groups are the Keycloak groups allowed to open a private app. */
   groups?: string[];
   /** Managers may manage the app (edit, start, stop, restart, delete, read logs and metrics) through apps-api, the UI and the MCP server, like its owner. */
   managers?: {
-    /** Groups are Keycloak/OIDC groups whose members may manage the app (a leading "/" is ignored, as for api.adminGroups). */
+    /** Groups are Keycloak groups whose members may manage the app, matched as full group paths like access.groups ("finance" is "/finance", which does not include "/finance/analysts"). */
     groups?: string[];
     /** Users are Keycloak usernames (preferred_username, case-insensitive). */
     users?: string[];

@@ -327,14 +327,12 @@ mcp:
 # =============================================================================
 keycloak:
   # -- Browser-facing Keycloak base URL, e.g.
-  # `https://keycloak.example.ai/auth`. Required when `api.auth.enabled`,
-  # and (or `internalUrl`) for apps that list `access.groups`.
+  # `https://keycloak.example.ai/auth`. Required when `api.auth.enabled`.
   url: ""
   # -- Keycloak realm.
   realm: nebari
-  # -- Optional in-cluster Keycloak URL (split horizon) the API, the MCP
-  # server and the authz sidecar fetch JWKS from. The sidecar accepts tokens
-  # issued under either URL.
+  # -- Optional in-cluster Keycloak URL (split horizon) the API and the MCP
+  # server fetch JWKS from.
   internalUrl: ""
 
 # =============================================================================
@@ -388,10 +386,10 @@ gitImage: alpine/git:v2.47.2
 # `pixi` binary and run as a non-root user.
 pythonImage: ghcr.io/prefix-dev/pixi:0.68.1-noble
 
-# The apps-authz sidecar. Apps that list `access.groups`
-# get it in front of the app container: it checks the access token the
-# gateway forwards against the Keycloak realm (`keycloak.url`, and
-# `keycloak.internalUrl` when set) and returns 403 to everyone else.
+# The apps-authz sidecar. Apps that can idle and image Apps get it in front of
+# the app container: it proxies every request and records activity for the
+# idle check. It checks no tokens; `access.groups` are enforced at the gateway
+# by nebari-operator.
 authz:
   image:
     # -- apps-authz image repository.
@@ -400,7 +398,7 @@ authz:
     tag: ""
     # -- Image pull policy.
     pullPolicy: IfNotPresent
-  # -- Sidecar resources, per restricted app pod (on top of the app
+  # -- Sidecar resources, per app pod that runs it (on top of the app
   # container's own).
   resources:
     requests: { cpu: 10m, memory: 32Mi }

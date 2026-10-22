@@ -82,8 +82,6 @@ func startEnv(t *testing.T) client.Client {
 			PythonResources: DefaultPythonResources,
 			AuthzImage:      testAuthzImage,
 			AuthzResources:  DefaultAuthzResources,
-			KeycloakURL:     "https://keycloak.nebari.local",
-			KeycloakRealm:   "nebari",
 		},
 	}
 	if err := r.SetupWithManager(mgr); err != nil {
@@ -307,9 +305,10 @@ func TestEnvtestCRDEnvReferences(t *testing.T) {
 	}
 }
 
-// Restricting an App adds the authz sidecar and forwards the access token;
-// lifting the restriction takes both away again.
-func TestEnvtestRestrictedAppGetsAuthzSidecar(t *testing.T) {
+// Restricting an App hands its groups to the gateway (NebariApp auth.groups
+// with enforceAtGateway) and adds no sidecar; lifting the restriction takes
+// the groups away again.
+func TestEnvtestRestrictedAppEnforcedAtGateway(t *testing.T) {
 	c := startEnv(t)
 	ctx := context.Background()
 	if err := c.Create(ctx, managedNamespace("team-a")); err != nil {
@@ -326,7 +325,7 @@ func TestEnvtestRestrictedAppGetsAuthzSidecar(t *testing.T) {
 	child := types.NamespacedName{Name: childName(app), Namespace: app.Namespace}
 	eventually(t, "Deploying", phaseIs(c, key, appsv1alpha1.AppPhaseDeploying))
 
-	state := func(wantSidecar bool) func() string {
+	state := func(wantGroups bool) func() string {
 		return func() string {
 			d := &appsv1.Deployment{}
 			if err := c.Get(ctx, child, d); err != nil {
@@ -337,16 +336,19 @@ func TestEnvtestRestrictedAppGetsAuthzSidecar(t *testing.T) {
 			if err := c.Get(ctx, child, na); err != nil {
 				return err.Error()
 			}
-			fwd, _, _ := unstructured.NestedBool(na.Object, "spec", "auth", "forwardAccessToken")
+			groups, _, _ := unstructured.NestedStringSlice(na.Object, "spec", "auth", "groups")
+			enforce, _, _ := unstructured.NestedBool(na.Object, "spec", "auth", "enforceAtGateway")
+			_, fwd, _ := unstructured.NestedBool(na.Object, "spec", "auth", "forwardAccessToken")
 			containers := d.Spec.Template.Spec.Containers
-			hasSidecar := len(containers) == 2 && containers[1].Name == "authz"
-			if hasSidecar != wantSidecar || fwd != wantSidecar || containers[0].Name != "app" {
-				return fmt.Sprintf("containers %d, forwardAccessToken %v", len(containers), fwd)
+			hasGroups := len(groups) == 1 && groups[0] == "analysts" && enforce
+			if len(containers) != 1 || containers[0].Name != "app" || fwd || hasGroups != wantGroups {
+				return fmt.Sprintf("containers %d, groups %v, enforceAtGateway %v, forwardAccessToken set %v",
+					len(containers), groups, enforce, fwd)
 			}
 			return ""
 		}
 	}
-	eventually(t, "sidecar and forwarded token", state(true))
+	eventually(t, "groups enforced at the gateway, no sidecar", state(true))
 
 	edit := &appsv1alpha1.App{}
 	if err := c.Get(ctx, key, edit); err != nil {
@@ -356,7 +358,7 @@ func TestEnvtestRestrictedAppGetsAuthzSidecar(t *testing.T) {
 	if err := c.Update(ctx, edit); err != nil {
 		t.Fatal(err)
 	}
-	eventually(t, "no sidecar once unrestricted", state(false))
+	eventually(t, "no groups once unrestricted", state(false))
 }
 
 // setRuntimeRules swaps the CEL rules on spec.runtime in the installed App

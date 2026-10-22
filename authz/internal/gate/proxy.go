@@ -12,22 +12,16 @@ import (
 	"time"
 )
 
-// Handler checks every request's bearer token and proxies the allowed ones
-// to the upstream app with the Authorization header intact. In passthrough
-// mode (no verifier) it proxies every request unchecked.
+// Handler proxies every request to the upstream app unchanged. The gateway
+// has already signed the user in and checked access.groups.
 type Handler struct {
-	verifier *Verifier
 	// Activity, when set, records each request that reaches the app.
 	Activity *Activity
 	proxy    *httputil.ReverseProxy
-	log      *slog.Logger
-	// forbidden is the 403 body: it names the allowed groups.
-	forbidden string
 }
 
-// NewHandler proxies to cfg.Upstream through transport. v may be nil only
-// when cfg.Passthrough is set.
-func NewHandler(cfg Config, v *Verifier, transport http.RoundTripper, log *slog.Logger) *Handler {
+// NewHandler proxies to cfg.Upstream through transport.
+func NewHandler(cfg Config, transport http.RoundTripper, log *slog.Logger) *Handler {
 	upstream := cfg.Upstream
 	proxy := &httputil.ReverseProxy{
 		// Rewrite drops inbound X-Forwarded-* headers; the gateway's are
@@ -60,40 +54,11 @@ func NewHandler(cfg Config, v *Verifier, transport http.RoundTripper, log *slog.
 			http.Error(w, "Bad Gateway: the app is not responding", http.StatusBadGateway)
 		},
 	}
-	forbidden := "Forbidden: this app is restricted to groups: " + strings.Join(cfg.Groups, ", ")
-	return &Handler{verifier: v, proxy: proxy, log: log, forbidden: forbidden}
+	return &Handler{proxy: proxy}
 }
 
+// ServeHTTP proxies the request, recording it as activity.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if h.verifier == nil {
-		h.forward(w, r)
-		return
-	}
-	authz := r.Header.Get("Authorization")
-	if authz == "" {
-		// Distinct from a denial: the gateway forwarded no token at all,
-		// which means forwardAccessToken is off or the request bypassed it.
-		h.log.Info("denied", "status", http.StatusUnauthorized, "reason", "no Authorization header", "path", r.URL.Path)
-		w.Header().Set("WWW-Authenticate", `Bearer realm="app"`)
-		http.Error(w, "Unauthorized: no access token was forwarded to this app", http.StatusUnauthorized)
-		return
-	}
-	scheme, token, ok := strings.Cut(authz, " ")
-	token = strings.TrimSpace(token)
-	if !ok || !strings.EqualFold(scheme, "Bearer") || token == "" {
-		h.forbid(w, r, "Authorization header is not a bearer token")
-		return
-	}
-	if err := h.verifier.Verify(r.Context(), token); err != nil {
-		h.forbid(w, r, err.Error())
-		return
-	}
-	h.forward(w, r)
-}
-
-// forward proxies an allowed request, recording it as activity: denied
-// requests never keep an idle App awake.
-func (h *Handler) forward(w http.ResponseWriter, r *http.Request) {
 	if h.Activity != nil {
 		h.Activity.begin()
 		defer h.Activity.end()
@@ -101,18 +66,12 @@ func (h *Handler) forward(w http.ResponseWriter, r *http.Request) {
 	h.proxy.ServeHTTP(w, r)
 }
 
-func (h *Handler) forbid(w http.ResponseWriter, r *http.Request, reason string) {
-	h.log.Info("denied", "status", http.StatusForbidden, "reason", reason, "path", r.URL.Path)
-	http.Error(w, h.forbidden, http.StatusForbidden)
-}
-
-// Health serves the token-free probe endpoints: /healthz (the process is
-// up), /readyz (the realm's key set has been fetched at least once),
+// Health serves the probe endpoints: /healthz and /readyz (the process is
+// up),
 // /upstreamz (the app container accepts connections; the app container's
 // own probes use it, so the app can listen on loopback only) and /activity
 // (when the app last served a request, for the operator's idle check).
 type Health struct {
-	Ready    func() bool
 	Upstream string // host:port
 	Dial     func(ctx context.Context, network, addr string) (net.Conn, error)
 	Activity *Activity
@@ -120,13 +79,7 @@ type Health struct {
 
 func (h *Health) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
-	case "/healthz":
-		_, _ = fmt.Fprintln(w, "ok")
-	case "/readyz":
-		if !h.Ready() {
-			http.Error(w, "waiting for the realm's signing keys", http.StatusServiceUnavailable)
-			return
-		}
+	case "/healthz", "/readyz":
 		_, _ = fmt.Fprintln(w, "ok")
 	case "/upstreamz":
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)

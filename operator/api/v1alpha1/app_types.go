@@ -174,8 +174,8 @@ type AppRuntime struct {
 	// serving its source as static content: the operator installs the pixi
 	// environment from the app source and executes `pixi run <PixiTask>`.
 	// Not allowed with source type image, which runs its own server.
-	// The task must start a server on $PORT: 8080, or 8081 when access.groups
-	// restricts the app or it can idle (the authz sidecar takes 8080).
+	// The task must start a server on $PORT: 8080, or 8081 when the app can
+	// idle (the authz sidecar takes 8080).
 	// +kubebuilder:validation:MaxLength=64
 	// +optional
 	PixiTask string `json:"pixiTask,omitempty"`
@@ -187,13 +187,17 @@ type AppAccess struct {
 	// +optional
 	Public bool `json:"public,omitempty"`
 
-	// Groups are the Keycloak/OIDC groups allowed to open a private app.
-	// Enforced in the app pod by the authz sidecar, which checks the access
-	// token the gateway forwards: everyone else gets 403. A user in any
-	// listed group is let in. Empty allows any signed-in realm user. Also
-	// forwarded to the NebariApp, where it sets landing-page tile visibility.
-	// Changes apply when the user's access token
-	// refreshes (Keycloak's access token lifespan, 5 minutes by default).
+	// Groups are the Keycloak groups allowed to open a private app. Enforced
+	// at the gateway (NebariApp auth.groups): a signed-in user in none of
+	// them gets 403 before the request reaches the app. A user in any listed
+	// group is let in. Empty allows any signed-in realm user. Entries are
+	// full group paths matched exactly: "finance" is "/finance", and
+	// "/finance" does not admit members of "/finance/analysts" only, so list
+	// each subgroup that needs access. A bare top-level name is created in
+	// Keycloak if missing; a path must already exist. The groups also set
+	// landing-page tile visibility. Changes apply when the user's access
+	// token refreshes (Keycloak's access token lifespan, 5 minutes by
+	// default).
 	// +optional
 	Groups []string `json:"groups,omitempty"`
 
@@ -221,8 +225,9 @@ type AppManagers struct {
 	// +optional
 	Users []string `json:"users,omitempty"`
 
-	// Groups are Keycloak/OIDC groups whose members may manage the app
-	// (a leading "/" is ignored, as for api.adminGroups).
+	// Groups are Keycloak groups whose members may manage the app, matched
+	// as full group paths like access.groups ("finance" is "/finance", which
+	// does not include "/finance/analysts").
 	// +optional
 	Groups []string `json:"groups,omitempty"`
 }

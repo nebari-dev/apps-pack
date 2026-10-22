@@ -58,22 +58,14 @@ type OperatorConfig struct {
 	// limit an App leaves unset (static apps vs runtime.pixiTask apps).
 	StaticResources corev1.ResourceRequirements
 	PythonResources corev1.ResourceRequirements
-	// AuthzImage is the apps-authz sidecar added in front of Apps that
-	// restrict access to groups (authz.go).
+	// AuthzImage is the apps-authz sidecar added in front of Apps that can
+	// idle and of image Apps (authz.go).
 	AuthzImage string
 	// AuthzImagePullPolicy is the sidecar's pull policy (empty: the
 	// Kubernetes default).
 	AuthzImagePullPolicy corev1.PullPolicy
 	// AuthzResources are the sidecar's requests/limits.
 	AuthzResources corev1.ResourceRequirements
-	// KeycloakURL and KeycloakInternalURL are the realm's public and
-	// in-cluster base URLs; the sidecar accepts tokens issued under either
-	// and fetches keys from the in-cluster one when set.
-	KeycloakURL         string
-	KeycloakInternalURL string
-	// KeycloakRealm is the realm nebari-operator provisions clients in
-	// (default nebari).
-	KeycloakRealm string
 	// IdleTimeout is the cluster default for scaling an App to zero after
 	// it goes this long without a request (0: Apps never idle unless they
 	// set runtime.idleTimeoutMinutes). See idle.go.

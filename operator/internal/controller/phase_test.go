@@ -147,7 +147,7 @@ func TestPhaseRunningToDeployingWhenRoutingDrops(t *testing.T) {
 	reconcile(t, r, app)
 	got := wantPhase(t, c, app, appsv1alpha1.AppPhaseDeploying)
 	cond := meta.FindStatusCondition(got.Status.Conditions, appsv1alpha1.ConditionRoutingReady)
-	if cond == nil || cond.Reason != "NebariAppNotReady" || cond.Message != "routing False" {
+	if cond == nil || cond.Reason != "NebariAppNotReady" || cond.Message != "Test: routing False" {
 		t.Errorf("RoutingReady should carry the NebariApp's reason and message: %+v", cond)
 	}
 }

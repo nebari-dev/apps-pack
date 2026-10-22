@@ -175,8 +175,8 @@ func TestIdleAppGetsPassthroughSidecar(t *testing.T) {
 	for _, e := range pod.Containers[1].Env {
 		env[e.Name] = e.Value
 	}
-	if env["AUTHZ_PASSTHROUGH"] != "true" || env["AUTHZ_ISSUERS"] != "" || env["AUTHZ_GROUPS"] != "" {
-		t.Errorf("an unrestricted App's sidecar must be passthrough only: %v", env)
+	if env["AUTHZ_ISSUERS"] != "" || env["AUTHZ_GROUPS"] != "" || len(env) != 3 {
+		t.Errorf("the sidecar must be passthrough only: %v", env)
 	}
 	for _, e := range pod.Containers[0].Env {
 		if e.Name == "PORT" && e.Value != fmt.Sprint(AppInternalPort) {
