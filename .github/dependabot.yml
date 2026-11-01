@@ -126,6 +126,11 @@ updates:
     ignore:
       - dependency-name: "node"
         update-types: ["version-update:semver-major"]
+      # The Python minor is pinned in api/.python-version and
+      # mcp/.python-version (CI fails when the image disagrees); move them
+      # together on purpose. Patch and digest updates still flow through.
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
     schedule:
       interval: "monthly"
       day: "monday"
