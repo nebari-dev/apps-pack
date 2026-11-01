@@ -53,38 +53,44 @@ export function useInvalidateApps() {
   };
 }
 
+/** One App action as a mutation, reporting its result in a toast and refreshing every query that shows the App. */
+function useAppAction(
+  action: AppAction,
+  invalidate: ReturnType<typeof useInvalidateApps>,
+  onDeleted?: (app: App) => void,
+) {
+  return useMutation({
+    mutationFn: (app: App) => runAppAction(action, app),
+    onSuccess: (_data, app) => {
+      invalidate(app);
+      const done = DONE[action];
+      toast.add({
+        type: "success",
+        title: `${done.title} ${appLabel(app)}`,
+        description: done.description,
+      });
+      if (action === "delete") onDeleted?.(app);
+    },
+    onError: (err, app) =>
+      toast.add({
+        type: "error",
+        title: `Failed to ${action} ${appLabel(app)}`,
+        description: errorMessage(err),
+      }),
+  });
+}
+
 /**
  * Start, stop, restart and delete for a single App, each reporting its result
  * in a toast and refreshing every query that shows the App.
  */
 export function useAppActions({ onDeleted }: { onDeleted?: (app: App) => void } = {}) {
   const invalidate = useInvalidateApps();
-  const useAction = (action: AppAction) =>
-    useMutation({
-      mutationFn: (app: App) => runAppAction(action, app),
-      onSuccess: (_data, app) => {
-        invalidate(app);
-        const done = DONE[action];
-        toast.add({
-          type: "success",
-          title: `${done.title} ${appLabel(app)}`,
-          description: done.description,
-        });
-        if (action === "delete") onDeleted?.(app);
-      },
-      onError: (err, app) =>
-        toast.add({
-          type: "error",
-          title: `Failed to ${action} ${appLabel(app)}`,
-          description: errorMessage(err),
-        }),
-    });
-
   const actions = {
-    start: useAction("start"),
-    stop: useAction("stop"),
-    restart: useAction("restart"),
-    remove: useAction("delete"),
+    start: useAppAction("start", invalidate, onDeleted),
+    stop: useAppAction("stop", invalidate, onDeleted),
+    restart: useAppAction("restart", invalidate, onDeleted),
+    remove: useAppAction("delete", invalidate, onDeleted),
   };
   /** Whether `mutation` is currently running for `app`. */
   const isPendingFor = (mutation: (typeof actions)[keyof typeof actions], app: App) =>
