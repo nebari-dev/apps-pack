@@ -1,5 +1,5 @@
 # Python version comes from mcp/.python-version (CI checks they agree).
-FROM python:3.15-slim@sha256:94d3426f1def7db4a106a232ac121bfd975393e5dfd40a619b955fae45fe7913 AS builder
+FROM python:3.14-slim@sha256:cd89c30eda26ee911a4611b18680086e0ea42e6f5f8cbe653d07fa7958c9cec8 AS builder
 
 # Install exactly what uv.lock pins: no resolution at build time.
 COPY --from=ghcr.io/astral-sh/uv:0.10.11 /uv /bin/uv
@@ -15,7 +15,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 COPY src/ src/
 RUN uv sync --frozen --no-dev --no-editable
 
-FROM python:3.15-slim@sha256:94d3426f1def7db4a106a232ac121bfd975393e5dfd40a619b955fae45fe7913
+FROM python:3.14-slim@sha256:cd89c30eda26ee911a4611b18680086e0ea42e6f5f8cbe653d07fa7958c9cec8
 # The app runs from /app/.venv; the base image's pip (and the packages it
 # vendors) is never used at runtime, so it is removed rather than shipped.
 RUN useradd --uid 65532 --user-group --no-create-home app \
