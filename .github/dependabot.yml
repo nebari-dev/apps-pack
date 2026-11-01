@@ -131,6 +131,10 @@ updates:
       # together on purpose. Patch and digest updates still flow through.
       - dependency-name: "python"
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      # Tags like "3.14-slim" slip past update-types, so also cap by version.
+      # Raise this together with the .python-version files.
+      - dependency-name: "python"
+        versions: [">=3.15"]
     schedule:
       interval: "monthly"
       day: "monday"
