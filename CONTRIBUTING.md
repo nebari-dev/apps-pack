@@ -55,7 +55,7 @@ chart; see the `chart` job for the arguments).
 | apps-ui | `ui/` | `npm ci`, `npm run check:ci` (Biome lint and format; `npm run check` applies fixes), `npm run build`, `npm run size` (bundle budget, below), `npm run test:coverage` (the tests plus the coverage thresholds in `vite.config.ts`), `npm run test:e2e` (Playwright end-to-end and accessibility suite, below; `npm run test:a11y` runs only its accessibility tests) |
 | Helm chart | `charts/nebari-apps/` | `helm lint charts/nebari-apps --set clusterDomain=nebari.example.com`, and `helm template` with `examples/nebari-values.yaml` (both validate against `values.schema.json`); the chart README must match `values.yaml` (regenerate below) |
 | Docs | `docs/` | `bun install --frozen-lockfile`, `bun test test`, `bun run build` |
-| Dependencies | `api/`, `mcp/`, `ui/` | `pip-audit` over the locked Python deps, `npm audit --audit-level=high` |
+| Dependencies | `ui/` | `npm audit --audit-level=high` |
 | Workflows | `.github/workflows/` | `actionlint` and `zizmor .github/workflows`. Pin every action to a full commit SHA with a `# vX.Y.Z` comment (Dependabot keeps them current), and give each workflow `permissions: contents: read`, widening per job only where needed. |
 
 Runtime versions are pinned once and read everywhere: `ui/.node-version`, `api/.python-version`

@@ -8,7 +8,7 @@ description: What CI checks on every pull request, how images and charts are bui
 | Workflow | Jobs | What fails it |
 |---|---|---|
 | **CI** (`ci.yaml`) | Operator | `go vet`, `go build`, golangci-lint, stale generated CRD/deepcopy code or UI types, an incompatible CRD change, `go test -race` and its `internal/` coverage floor, the envtest suite |
-| | Python (api), Python (mcp) | `uv lock --check`, ruff, mypy (strict), pytest and its coverage floor, a known vulnerability in the locked set (`pip-audit`) |
+| | Python (api), Python (mcp) | `uv lock --check`, ruff, mypy (strict), pytest and its coverage floor |
 | | UI | Biome, the production build, the bundle budget, vitest and its coverage thresholds, `npm audit --audit-level=high` |
 | | UI e2e + a11y | Playwright on Chromium against the UI job's build (apps-api mocked): a user flow or keyboard path that breaks, or a `critical`/`serious` axe violation (WCAG 2.0/2.1 A and AA) on any page in light or dark, at desktop width and at 390px (where a page that scrolls sideways also fails); uploads the HTML report every run |
 | | Helm chart | `helm lint`/`helm template` errors, `values.schema.json`, a stale chart README, chart RBAC assertions, the alert rules (promtool), kubeconform on the examples and rendered chart |
@@ -17,7 +17,7 @@ description: What CI checks on every pull request, how images and charts are bui
 | **Docs** (`docs.yml`) | docs | the site's tests or build, or a broken external link (on docs changes only) |
 
 CI also runs weekly, so advisories published after a merge surface even when nothing
-changes: `pip-audit` and `npm audit`. Images are not scanned for vulnerabilities. The weekly run is also the only one that checks the vendored
+changes: `npm audit`. Python dependencies are not audited. Images are not scanned for vulnerabilities. The weekly run is also the only one that checks the vendored
 nebari-ui skill against the registry, since the registry moving is not something a pull
 request caused.
 
