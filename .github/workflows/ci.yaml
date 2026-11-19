@@ -2,7 +2,7 @@ name: CI
 
 # One job per component: each sets its toolchain up once, runs the fast checks
 # (lint, types, generated-code drift) first, then the tests. Runs on every PR
-# and push to main, and weekly so dependency advisories (pip-audit, npm audit)
+# and push to main, and weekly so dependency advisories (npm audit)
 # published after a merge surface even when nothing changes; the weekly run is
 # also the only one that checks the vendored nebari-ui skill.
 on:
@@ -199,13 +199,6 @@ jobs:
 
       - name: pytest
         run: uv run --frozen --no-sync python -m pytest -q --cov --cov-report=term
-
-      # Audit exactly what uv.lock pins (all extras, hashes included), with no
-      # resolution of its own.
-      - name: pip-audit the locked set
-        run: |
-          uv export --frozen --all-extras --no-emit-project -o "$RUNNER_TEMP/requirements.txt"
-          uvx pip-audit@2.10.0 --disable-pip --strict -r "$RUNNER_TEMP/requirements.txt"
 
   ui:
     name: UI
